@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   // ===== Collections =====
   listCollections: () => ipcRenderer.invoke('storage:listCollections'),
   createCollection: (args: any) => ipcRenderer.invoke('storage:createCollection', args),
+  saveCollectionVariables: (args: any) => ipcRenderer.invoke('storage:saveCollectionVariables', args),
   saveRequest: (args: any) => ipcRenderer.invoke('storage:saveRequest', args),
   deleteRequest: (args: any) => ipcRenderer.invoke('storage:deleteRequest', args),
   deleteCollection: (args: any) => ipcRenderer.invoke('storage:deleteCollection', args),

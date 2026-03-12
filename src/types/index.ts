@@ -25,6 +25,7 @@ export interface RequestConfig {
   grpcPayload?: string
   grpcReflection?: boolean
   timeoutMs?: number
+  postResponseScript?: string
 }
 
 export interface ResponseData {
@@ -47,6 +48,7 @@ export interface Collection {
   id: string
   name: string
   requests: RequestConfig[]
+  variables?: KeyValuePair[]
 }
 
 // ===== Environments =====

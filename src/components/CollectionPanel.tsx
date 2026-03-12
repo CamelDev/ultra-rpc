@@ -12,6 +12,7 @@ import {
   ChevronRight,
   FileJson,
   MoreHorizontal,
+  Zap,
 } from 'lucide-react'
 import type { RequestConfig } from '../types'
 import './CollectionPanel.css'
@@ -28,9 +29,10 @@ interface Props {
   onOpenRequest: (request: RequestConfig) => void
   onSaveToCollection: (collectionId: string) => void
   onRenameRequest: (reqId: string, newName: string) => void
+  onEditVariables: (collection: Collection) => void
 }
 
-const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest }) => {
+const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest, onEditVariables }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -192,6 +194,9 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
               </button>
               <button onClick={() => { setEditingId(coll.id); setNameInput(coll.name) }}>
                 <Edit2 size={12} /> Rename
+              </button>
+              <button onClick={() => onEditVariables(coll)}>
+                <Zap size={12} /> Variables
               </button>
               <button onClick={() => exportCollection(coll.id)}>
                 <Download size={12} /> Export

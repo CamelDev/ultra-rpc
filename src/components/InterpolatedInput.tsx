@@ -7,6 +7,7 @@ interface Props {
   value: string
   onChange: (value: string) => void
   activeEnv?: Environment | null
+  collectionVariables?: any[]
   placeholder?: string
   className?: string
   multiline?: boolean
@@ -19,6 +20,7 @@ const InterpolatedInput: React.FC<Props> = ({
   value,
   onChange,
   activeEnv,
+  collectionVariables,
   placeholder,
   className = '',
   multiline = false,
@@ -92,16 +94,23 @@ const InterpolatedInput: React.FC<Props> = ({
         let val = `{{${varName}}}`
         let titleText = `Variable: ${varName} (Not found)`
 
-        if (activeEnv) {
-          const found = activeEnv.variables.find((v) => v.enabled && v.key === varName)
-          if (found) {
-            val = found.value
-            titleText = `${varName} = ${val}`
+        // 1. Check collection variables first
+        const collVar = collectionVariables?.find(v => v.enabled && v.key === varName)
+        if (collVar) {
+          val = collVar.value
+          titleText = `${varName} = ${val} (Collection)`
+        } 
+        // 2. Check env variables
+        else if (activeEnv) {
+          const envVar = activeEnv.variables.find((v) => v.enabled && v.key === varName)
+          if (envVar) {
+            val = envVar.value
+            titleText = `${varName} = ${val} (${activeEnv.name})`
           } else {
             titleText = `${varName} (Not found in ${activeEnv.name})`
           }
         } else {
-          titleText = `${varName} (No environment active)`
+          titleText = `${varName} (No environment/collection variable found)`
         }
 
         return (

@@ -38,12 +38,15 @@ interface SavedRequest {
   grpcMethod?: string
   grpcPayload?: string
   grpcReflection?: boolean
+  timeoutMs?: number
+  postResponseScript?: string
 }
 
 interface SavedCollection {
   id: string
   name: string
   requests: SavedRequest[]
+  variables?: any[]
 }
 
 export function registerStorageHandlers() {
@@ -60,7 +63,7 @@ export function registerStorageHandlers() {
 
       for (const dir of dirs) {
         const metaPath = path.join(root, dir.name, '_meta.json')
-        let meta = { id: dir.name, name: dir.name }
+        let meta: any = { id: dir.name, name: dir.name, variables: [] }
         if (fs.existsSync(metaPath)) {
           try {
             meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
@@ -78,7 +81,12 @@ export function registerStorageHandlers() {
           } catch { /* skip corrupt files */ }
         }
 
-        collections.push({ id: meta.id, name: meta.name, requests })
+        collections.push({
+          id: meta.id,
+          name: meta.name,
+          requests,
+          variables: meta.variables || []
+        })
       }
 
       return { success: true, collections }
@@ -172,6 +180,23 @@ export function registerStorageHandlers() {
         try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
       }
       meta.name = args.newName
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+  
+  // Save collection variables
+  ipcMain.handle('storage:saveCollectionVariables', async (_event, args: { collectionId: string; variables: any[] }) => {
+    try {
+      const root = getStorageRoot()
+      const metaPath = path.join(root, args.collectionId, '_meta.json')
+      let meta: any = { id: args.collectionId, name: args.collectionId, variables: [] }
+      if (fs.existsSync(metaPath)) {
+        try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
+      }
+      meta.variables = args.variables
       fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
       return { success: true }
     } catch (err: any) {
