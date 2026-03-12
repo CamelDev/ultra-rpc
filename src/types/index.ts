@@ -24,6 +24,7 @@ export interface RequestConfig {
   grpcMethod?: string
   grpcPayload?: string
   grpcReflection?: boolean
+  timeoutMs?: number
 }
 
 export interface ResponseData {

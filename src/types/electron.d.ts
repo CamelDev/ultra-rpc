@@ -20,7 +20,7 @@ export interface UltraRpcApi {
     methods?: { name: string; fullName: string; requestType: string; responseType: string; clientStreaming: boolean; serverStreaming: boolean; sampleBody?: string }[]
     error?: string
   }>
-  grpcCall: (args: { host: string; insecure: boolean; headers: Record<string, string>; service: string; method: string; payload: string; protoPath?: string }) => Promise<{
+  grpcCall: (args: { host: string; insecure: boolean; headers: Record<string, string>; service: string; method: string; payload: string; protoPath?: string; timeoutMs?: number }) => Promise<{
     success: boolean
     data?: { status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
     error?: string; code?: number; time?: number

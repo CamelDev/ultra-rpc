@@ -309,6 +309,7 @@ const App: React.FC = () => {
           host: url, insecure: true, headers,
           service: activeRequest.grpcService, method: activeRequest.grpcMethod,
           payload: activeRequest.grpcPayload || '{}',
+          timeoutMs: activeRequest.timeoutMs
         })
         if (result.success && result.data) {
           statusCode = result.data.status
@@ -387,7 +388,7 @@ const App: React.FC = () => {
     { key: 'params', label: 'Params' },
     { key: 'headers', label: 'Headers' },
     { key: 'body', label: 'Body' },
-    { key: 'auth', label: 'Auth' },
+    { key: 'auth', label: 'Options' },
   ]
 
   if (!activeRequest) return null
@@ -817,8 +818,37 @@ const App: React.FC = () => {
                 </div>
               )}
               {activeConfigTab === 'auth' && (
-                <div className="auth-section">
-                  <div className="auth-hint">
+                <div className="options-section" style={{ padding: '16px', color: 'var(--text-secondary)' }}>
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                      Request Timeout (Deadline)
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input 
+                        type="number" 
+                        min="0"
+                        placeholder="30000 (Default)"
+                        style={{
+                          background: 'var(--bg-tertiary)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-primary)',
+                          padding: '6px 10px',
+                          borderRadius: '4px',
+                          width: '120px',
+                          outline: 'none',
+                          fontSize: '13px'
+                        }}
+                        value={activeRequest.timeoutMs || ''}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10)
+                          updateActiveRequest({ timeoutMs: isNaN(val) ? undefined : val })
+                        }}
+                      />
+                      <span style={{ fontSize: '12px' }}>milliseconds</span>
+                    </div>
+                  </div>
+
+                  <div className="auth-hint" style={{ paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
                     Add authentication headers directly in the <strong>Headers</strong> tab.
                     <br /><br />
                     For gRPC, use headers like:

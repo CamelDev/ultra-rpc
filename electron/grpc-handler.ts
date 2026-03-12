@@ -10,6 +10,7 @@ interface GrpcRequest {
   method: string
   payload: string
   protoPath?: string // Optional: use proto file instead of reflection
+  timeoutMs?: number // Optional: deadline timeout in milliseconds
 }
 
 interface ServiceInfo {
@@ -26,6 +27,59 @@ interface ServiceInfo {
 
 // ===== gRPC Server Reflection v1 =====
 // Follows the grpc.reflection.v1alpha.ServerReflection spec
+
+function formatGrpcError(err: any): string {
+  let msg = `gRPC error (${err.code}): ${err.message || err.details || 'Call failed'}`
+
+  if (err.metadata && typeof err.metadata.get === 'function') {
+    const binArr = err.metadata.get('grpc-status-details-bin')
+    const bin = binArr && binArr.length > 0 ? binArr[0] : null
+
+    if (bin) {
+      try {
+        const protobuf = require('protobufjs')
+        const statusProtoDef = `
+          syntax = "proto3";
+          package google.rpc;
+          message Status {
+            int32 code = 1;
+            string message = 2;
+            repeated Any details = 3;
+          }
+          message Any {
+            string type_url = 1;
+            bytes value = 2;
+          }
+        `
+        const root = protobuf.parse(statusProtoDef).root
+        const StatusMessage = root.lookupType("google.rpc.Status")
+        const decoded = StatusMessage.decode(Buffer.isBuffer(bin) ? bin : Buffer.from(bin))
+        const obj = StatusMessage.toObject(decoded)
+
+        if (obj.message && obj.message !== err.message && obj.message !== err.details) {
+          msg += `\n\nServer Message: ${obj.message}`
+        }
+
+        if (obj.details && Array.isArray(obj.details)) {
+          msg += `\n\n--- Error Details ---`
+          obj.details.forEach((d: any) => {
+            const buf = Buffer.from(d.value)
+            // Extract printable characters >= 4 chars to filter out binary noise
+            const printables = buf.toString('utf8').match(/[\x20-\x7E]{4,}/g)
+            const text = printables ? printables.join(' | ') : '<binary data>'
+
+            const typeName = d.typeUrl || d.type_url ? (d.typeUrl || d.type_url).split('/').pop() : 'Unknown'
+            msg += `\n[${typeName}]: ${text}`
+          })
+        }
+      } catch (parseError) {
+        msg += `\n(Failed to parse status details)`
+      }
+    }
+  }
+
+  return msg
+}
 
 function createReflectionClient(host: string, insecure: boolean, metadata: grpc.Metadata) {
   // Load the reflection proto inline
@@ -94,11 +148,11 @@ message ErrorResponse {
   })
 
   const grpcProto = grpc.loadPackageDefinition(packageDefinition) as any
-  
+
   const isSecure = host.startsWith('https://') || host.endsWith(':443') || host.includes(':443/');
   const useInsecure = isSecure ? false : insecure;
   const cleanHost = host.replace(/^https?:\/\//, '').split('/')[0];
-  
+
   const credentials = useInsecure
     ? grpc.credentials.createInsecure()
     : grpc.credentials.createSsl()
@@ -174,7 +228,7 @@ function parseMapsToArrays(type: any, payload: any): any {
 
   for (const [fieldName, field] of Object.entries(type.fields) as [string, any]) {
     const keyInPayload = fieldName in result ? fieldName : (field.jsonName && field.jsonName in result ? field.jsonName : null)
-    
+
     if (keyInPayload) {
       const val = result[keyInPayload]
       if (field.resolvedType) {
@@ -184,11 +238,11 @@ function parseMapsToArrays(type: any, payload: any): any {
         if (isMapEntry && typeof val === 'object' && !Array.isArray(val)) {
           const arr = []
           for (const [k, v] of Object.entries(val)) {
-             const valueField = field.resolvedType.fields['value']
-             arr.push({
-               key: k,
-               value: (valueField && valueField.resolvedType) ? parseMapsToArrays(valueField.resolvedType, v) : v
-             })
+            const valueField = field.resolvedType.fields['value']
+            arr.push({
+              key: k,
+              value: (valueField && valueField.resolvedType) ? parseMapsToArrays(valueField.resolvedType, v) : v
+            })
           }
           result[keyInPayload] = arr
         } else if (field.repeated && Array.isArray(val)) {
@@ -359,6 +413,10 @@ export function registerGrpcHandlers() {
         ? grpc.credentials.createInsecure()
         : grpc.credentials.createSsl()
 
+      const callOptions: grpc.CallOptions = {}
+      const timeout = req.timeoutMs && req.timeoutMs > 0 ? req.timeoutMs : 60000
+      callOptions.deadline = Date.now() + timeout
+
       let payload: any
       try {
         payload = JSON.parse(req.payload)
@@ -387,10 +445,10 @@ export function registerGrpcHandlers() {
             resolve({ success: false, error: `Method "${req.method}" not found on service` })
             return
           }
-          methodFn.call(client, payload, metadata, (err: any, response: any) => {
+          methodFn.call(client, payload, metadata, callOptions, (err: any, response: any) => {
             const time = Date.now() - start
             if (err) {
-              resolve({ success: false, error: err.message || 'gRPC call failed', code: err.code, time })
+              resolve({ success: false, error: formatGrpcError(err), code: err.code, time })
             } else {
               const body = JSON.stringify(response, null, 2)
               resolve({ success: true, data: { status: 0, statusText: 'OK', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') } })
@@ -487,13 +545,14 @@ export function registerGrpcHandlers() {
           (buf: Buffer) => responseType.decode(buf),
           payload,
           metadata,
+          callOptions,
           (err: any, response: any) => {
             const time = Date.now() - start
             genericClient.close()
             if (err) {
               resolve({
                 success: false,
-                error: `gRPC error (${err.code}): ${err.message || err.details || 'Call failed'}`,
+                error: formatGrpcError(err),
                 code: err.code,
                 time,
               })

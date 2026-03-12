@@ -17,6 +17,7 @@ export function createEmptyRequest(type: 'REST' | 'GRPC' = 'REST'): RequestConfi
     grpcMethod: '',
     grpcPayload: '{}',
     grpcReflection: true,
+    timeoutMs: 30000,
   }
 }
 
