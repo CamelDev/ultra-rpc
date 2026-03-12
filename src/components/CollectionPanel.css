@@ -214,7 +214,8 @@
   white-space: nowrap;
 }
 
-.coll-req-delete {
+.coll-req-delete,
+.coll-req-reorder {
   opacity: 0;
   background: transparent;
   border: none;
@@ -226,11 +227,20 @@
   align-items: center;
 }
 
-.coll-request-item:hover .coll-req-delete {
+.coll-request-item:hover .coll-req-delete,
+.coll-request-item:hover .coll-req-reorder {
   opacity: 0.6;
 }
 
-.coll-req-delete:hover {
+.coll-req-delete:hover,
+.coll-req-reorder:hover {
   opacity: 1 !important;
+}
+
+.coll-req-delete:hover {
   color: var(--danger);
+}
+
+.coll-req-reorder:hover {
+  color: var(--accent);
 }

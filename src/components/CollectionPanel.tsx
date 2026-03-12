@@ -13,6 +13,7 @@ import {
   FileJson,
   MoreHorizontal,
   Zap,
+  ChevronUp,
 } from 'lucide-react'
 import type { RequestConfig } from '../types'
 import './CollectionPanel.css'
@@ -101,6 +102,28 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
     await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as any })
     setEditingReqId(null)
     onRenameRequest(request.id, updatedRequest.name)
+    onRefresh()
+  }
+
+  const moveRequest = async (collectionId: string, request: RequestConfig, direction: 'up' | 'down') => {
+    const collection = collections.find(c => c.id === collectionId)
+    if (!collection || !window.ultraRpc) return
+
+    const requests = [...collection.requests]
+    const index = requests.findIndex(r => r.id === request.id)
+    if (index === -1) return
+
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    if (newIndex < 0 || newIndex >= requests.length) return
+
+    // Swap
+    const temp = requests[index]
+    requests[index] = requests[newIndex]
+    requests[newIndex] = temp
+
+    // Save order
+    const order = requests.map(r => r.id)
+    await window.ultraRpc.reorderRequests({ collectionId, order })
     onRefresh()
   }
 
@@ -241,6 +264,20 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
                   
                   {editingReqId !== req.id && (
                     <div style={{ display: 'flex', gap: '2px', marginLeft: 'auto' }}>
+                      <button
+                        className="coll-req-reorder"
+                        title="Move Up"
+                        onClick={(e) => { e.stopPropagation(); moveRequest(coll.id, req, 'up') }}
+                      >
+                        <ChevronUp size={11} />
+                      </button>
+                      <button
+                        className="coll-req-reorder"
+                        title="Move Down"
+                        onClick={(e) => { e.stopPropagation(); moveRequest(coll.id, req, 'down') }}
+                      >
+                        <ChevronDown size={11} />
+                      </button>
                       <button
                         className="coll-req-delete"
                         title="Rename request"

@@ -312,7 +312,7 @@ const App: React.FC = () => {
     setShowSaveMenu(false)
   }
 
-  const handleSaveActiveRequest = () => {
+  const handleSaveActiveRequest = async () => {
     if (!activeRequest) return
     
     // Check if the current request naturally belongs to any known collection
@@ -323,6 +323,22 @@ const App: React.FC = () => {
     if (owningCollection) {
       // It's a known request linked to a collection, silently auto-save it
       saveToCollection(owningCollection.id)
+    } else if (collections.length === 0) {
+      // No collections exist, auto-create "My collection"
+      if (window.ultraRpc) {
+        const result = await window.ultraRpc.createCollection({ name: 'My collection' })
+        if (result.success && result.id) {
+          // Immediately save to this new collection
+          await window.ultraRpc.saveRequest({ collectionId: result.id, request: activeRequest })
+          
+          // Clear dirty flag on active tab
+          setTabs(prev => prev.map(t => 
+            t.id === activeTabId ? { ...t, isDirty: false } : t
+          ))
+
+          loadCollections()
+        }
+      }
     } else {
       // It's a new or decoupled request, open the standard picker
       setShowSaveMenu(true)
@@ -547,7 +563,7 @@ const App: React.FC = () => {
         <div className="title-bar" style={{ paddingLeft: navigator.userAgent.includes('Mac') ? '80px' : '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Zap size={18} color="var(--accent)" fill="var(--accent)" />
-            <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '0.5px' }}>ULTRARPC</span>
+            <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '0.5px' }}>UltraRPC</span>
           </div>
         </div>
 

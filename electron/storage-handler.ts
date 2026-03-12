@@ -81,6 +81,24 @@ export function registerStorageHandlers() {
           } catch { /* skip corrupt files */ }
         }
 
+        // Sort requests based on requestOrder in meta if available
+        if (meta.requestOrder && Array.isArray(meta.requestOrder)) {
+          const order = meta.requestOrder as string[]
+          requests.sort((a, b) => {
+            const idxA = order.indexOf(a.id)
+            const idxB = order.indexOf(b.id)
+            
+            // If both in order, compare indices
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            // If only A in order, A comes first
+            if (idxA !== -1) return -1
+            // If only B in order, B comes first
+            if (idxB !== -1) return 1
+            // Neither in order, keep filesystem order
+            return 0
+          })
+        }
+
         collections.push({
           id: meta.id,
           name: meta.name,
@@ -197,6 +215,23 @@ export function registerStorageHandlers() {
         try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
       }
       meta.variables = args.variables
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Reorder requests in a collection
+  ipcMain.handle('storage:reorderRequests', async (_event, args: { collectionId: string; order: string[] }) => {
+    try {
+      const root = getStorageRoot()
+      const metaPath = path.join(root, args.collectionId, '_meta.json')
+      let meta: any = { id: args.collectionId, name: args.collectionId, variables: [] }
+      if (fs.existsSync(metaPath)) {
+        try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
+      }
+      meta.requestOrder = args.order
       fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
       return { success: true }
     } catch (err: any) {
