@@ -19,6 +19,11 @@ const getEnvPath = () => {
   return p
 }
 
+const getSettingsPath = () => {
+  const p = path.join(app.getPath('userData'), 'settings.json')
+  return p
+}
+
 interface SavedRequest {
   id: string
   name: string
@@ -402,6 +407,31 @@ export function registerStorageHandlers() {
     try {
       const envPath = getEnvPath()
       fs.writeFileSync(envPath, JSON.stringify(envs, null, 2))
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // ===== Settings Persistence =====
+
+  ipcMain.handle('storage:getSettings', async () => {
+    try {
+      const settingsPath = getSettingsPath()
+      if (!fs.existsSync(settingsPath)) {
+        return { success: true, settings: { theme: 'dark' } }
+      }
+      const data = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+      return { success: true, settings: data }
+    } catch (err: any) {
+      return { success: false, settings: { theme: 'dark' }, error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:saveSettings', async (_event, settings: any) => {
+    try {
+      const settingsPath = getSettingsPath()
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }

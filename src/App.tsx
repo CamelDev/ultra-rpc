@@ -53,6 +53,41 @@ const App: React.FC = () => {
   const [environments, setEnvironments] = useState<Environment[]>([])
   const [activeEnvId, setActiveEnvId] = useState<string | null>(null)
 
+  // ===== Settings & Theme =====
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [showSettingsPopup, setShowSettingsPopup] = useState(false)
+
+  // ===== Sidebar Resizing =====
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('ultraRpcSidebarWidth')
+    return saved ? parseInt(saved, 10) : 260
+  })
+  const [isResizing, setIsResizing] = useState(false)
+
+  useEffect(() => {
+    if (isResizing) {
+      const handleMouseMove = (e: MouseEvent) => {
+        let newWidth = e.clientX
+        if (newWidth < 200) newWidth = 200
+        if (newWidth > 800) newWidth = 800
+        setSidebarWidth(newWidth)
+      }
+      const handleMouseUp = () => {
+        setIsResizing(false)
+      }
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isResizing])
+
+  useEffect(() => {
+    localStorage.setItem('ultraRpcSidebarWidth', sidebarWidth.toString())
+  }, [sidebarWidth])
+
   // ===== Collections =====
   const [collections, setCollections] = useState<CollectionData[]>([])
 
@@ -65,9 +100,23 @@ const App: React.FC = () => {
     window.ultraRpc.getEnvironments().then(res => {
       if (res.success && res.environments) setEnvironments(res.environments)
     })
+    window.ultraRpc.getSettings().then(res => {
+      if (res.success && res.settings && res.settings.theme) {
+        setTheme(res.settings.theme)
+      }
+    })
     loadCollections()
     loadHistory()
   }, [])
+
+  // Apply theme to body
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme')
+    } else {
+      document.body.classList.remove('light-theme')
+    }
+  }, [theme])
 
   const loadCollections = async () => {
     if (!window.ultraRpc) return
@@ -268,7 +317,7 @@ const App: React.FC = () => {
   return (
     <div className="app-container">
       {/* ===== SIDEBAR ===== */}
-      <aside className="sidebar">
+      <aside className="sidebar" style={{ width: sidebarWidth }}>
         <div className="title-bar" style={{ paddingLeft: navigator.userAgent.includes('Mac') ? '80px' : '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Zap size={18} color="var(--accent)" fill="var(--accent)" />
@@ -314,8 +363,16 @@ const App: React.FC = () => {
           )}
         </nav>
 
-        <div style={{ padding: '12px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-          <button className="btn-ghost" style={{ padding: '6px' }}><Settings size={18} /></button>
+        <div style={{ padding: '12px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
+          <button 
+            className={`btn-ghost ${showSettingsPopup ? 'env-toggle-active' : ''}`}
+            style={{ padding: '6px' }} 
+            onClick={() => setShowSettingsPopup(!showSettingsPopup)}
+            title="Settings"
+          >
+            <Settings size={18} />
+          </button>
+          
           <button
             className={`btn-ghost ${showEnvPanel ? 'env-toggle-active' : ''}`}
             style={{ padding: '6px' }}
@@ -324,8 +381,42 @@ const App: React.FC = () => {
           >
             <Globe size={18} />
           </button>
+
+          {showSettingsPopup && (
+            <div className="settings-popup glass fade-in">
+              <div className="settings-popup-header">Global Settings</div>
+              <div className="settings-row">
+                <span className="settings-label">Theme</span>
+                <div className="theme-toggle-group">
+                  <button 
+                    className={`theme-toggle-btn ${theme === 'light' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTheme('light')
+                      if (window.ultraRpc) window.ultraRpc.saveSettings({ theme: 'light' })
+                    }}
+                  >
+                    Daylight
+                  </button>
+                  <button 
+                    className={`theme-toggle-btn ${theme === 'dark' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTheme('dark')
+                      if (window.ultraRpc) window.ultraRpc.saveSettings({ theme: 'dark' })
+                    }}
+                  >
+                    Midnight
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
+
+      <div 
+        className={`sidebar-resizer ${isResizing ? 'resizing' : ''}`}
+        onMouseDown={(e) => { e.preventDefault(); setIsResizing(true) }}
+      />
 
       {/* ===== MAIN ===== */}
       <main className="main-content">

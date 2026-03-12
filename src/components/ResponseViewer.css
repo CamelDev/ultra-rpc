@@ -81,7 +81,8 @@
   align-items: center;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-primary);
+  opacity: 0.8;
 }
 
 .response-stats {
@@ -159,7 +160,7 @@
 
 .response-headers-toggle:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-tertiary);
 }
 
 .response-headers {
