@@ -41,6 +41,8 @@ const App: React.FC = () => {
     { id: '1', request: createEmptyRequest() },
   ])
   const [activeTabId, setActiveTabId] = useState('1')
+  const [editingTabId, setEditingTabId] = useState<string | null>(null)
+  const [tabNameInput, setTabNameInput] = useState('')
 
   // ===== Per-tab response state =====
   const [responses, setResponses] = useState<Record<string, ResponseData | null>>({})
@@ -158,7 +160,7 @@ const App: React.FC = () => {
 
   const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
     setTabs(prev => prev.map(t =>
-      t.id === activeTabId ? { ...t, request: { ...t.request, ...partial } } : t
+      t.id === activeTabId ? { ...t, request: { ...t.request, ...partial }, isDirty: true } : t
     ))
   }, [activeTabId])
 
@@ -193,10 +195,17 @@ const App: React.FC = () => {
 
   const removeTab = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
+    const tabToClose = tabs.find(t => t.id === id)
+    if (tabToClose?.isDirty) {
+      if (!window.confirm(`This request has unsaved changes.\nAre you sure you want to close it?`)) {
+        return
+      }
+    }
+
     const newTabs = tabs.filter(t => t.id !== id)
     if (newTabs.length === 0) {
       const newReq = createEmptyRequest()
-      setTabs([{ id: newReq.id, request: newReq }])
+      setTabs([{ id: newReq.id, request: newReq, isDirty: false }])
       setActiveTabId(newReq.id)
     } else {
       setTabs(newTabs)
@@ -234,7 +243,39 @@ const App: React.FC = () => {
   const saveToCollection = async (collectionId: string) => {
     if (!activeRequest || !window.ultraRpc) return
     await window.ultraRpc.saveRequest({ collectionId, request: activeRequest })
+    
+    // Clear dirty flag on active tab
+    setTabs(prev => prev.map(t => 
+      t.id === activeTabId ? { ...t, isDirty: false } : t
+    ))
+
     loadCollections()
+    setShowSaveMenu(false)
+  }
+
+  const handleSaveActiveRequest = () => {
+    if (!activeRequest) return
+    
+    // Check if the current request naturally belongs to any known collection
+    const owningCollection = collections.find(c => 
+      c.requests.some(r => r.id === activeRequest.id)
+    )
+
+    if (owningCollection) {
+      // It's a known request linked to a collection, silently auto-save it
+      saveToCollection(owningCollection.id)
+    } else {
+      // It's a new or decoupled request, open the standard picker
+      setShowSaveMenu(true)
+    }
+  }
+
+  const handleRenameRequest = (reqId: string, newName: string) => {
+    setTabs(prev => prev.map(t => 
+      t.request.id === reqId 
+        ? { ...t, request: { ...t.request, name: newName }, isDirty: true } 
+        : t
+    ))
   }
 
   // ===== Send Request =====
@@ -378,6 +419,7 @@ const App: React.FC = () => {
             onRefresh={loadCollections}
             onOpenRequest={(req) => openRequestTab(req, false)}
             onSaveToCollection={saveToCollection}
+            onRenameRequest={handleRenameRequest}
           />
 
           {/* Environment Panel */}
@@ -463,9 +505,42 @@ const App: React.FC = () => {
                 <span className="tab-method" style={{ color: methodColor(tab.request.type === 'GRPC' ? 'GRPC' : tab.request.method) }}>
                   {tab.request.type === 'GRPC' ? 'gRPC' : tab.request.method}
                 </span>
-                <span className="tab-title">
-                  {tab.request.name || tab.request.url || 'Untitled'}
-                </span>
+                
+                {editingTabId === tab.id ? (
+                  <input
+                    className="tab-title-input"
+                    value={tabNameInput}
+                    onChange={(e) => setTabNameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, request: { ...t.request, name: tabNameInput } } : t))
+                        setEditingTabId(null)
+                      }
+                    }}
+                    onBlur={() => {
+                      setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, request: { ...t.request, name: tabNameInput } } : t))
+                      setEditingTabId(null)
+                    }}
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', minWidth: '80px', flex: 1 }}
+                  />
+                ) : (
+                  <span 
+                    className="tab-title" 
+                    onDoubleClick={(e) => {
+                      e.stopPropagation()
+                      setEditingTabId(tab.id)
+                      setTabNameInput(tab.request.name || tab.request.url || '')
+                    }}
+                    title="Double-click to rename"
+                    style={{ color: tab.isDirty ? 'var(--danger)' : 'var(--text-primary)' }}
+                  >
+                    {tab.request.name || tab.request.url || 'Untitled'}
+                    {tab.isDirty ? '*' : ''}
+                  </span>
+                )}
+                
                 <button className="tab-close" onClick={(e) => removeTab(e, tab.id)}>
                   <X size={12} />
                 </button>
@@ -529,8 +604,8 @@ const App: React.FC = () => {
               />
               <button 
                 className="btn-ghost save-btn" 
-                onClick={() => setShowSaveMenu(!showSaveMenu)}
-                title="Save Request"
+                onClick={handleSaveActiveRequest}
+                title="Save Request (Auto-saves to Collection if already exists)"
                 style={{ padding: '0 12px', color: 'var(--text-secondary)' }}
               >
                 <Save size={14} />

@@ -38,6 +38,7 @@ export interface ResponseData {
 export interface Tab {
   id: string
   request: RequestConfig
+  isDirty?: boolean
 }
 
 // ===== Collections =====

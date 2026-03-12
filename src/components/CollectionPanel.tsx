@@ -27,9 +27,10 @@ interface Props {
   onRefresh: () => void
   onOpenRequest: (request: RequestConfig) => void
   onSaveToCollection: (collectionId: string) => void
+  onRenameRequest: (reqId: string, newName: string) => void
 }
 
-const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection }) => {
+const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -97,6 +98,7 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
     const updatedRequest = { ...request, name: reqNameInput.trim() }
     await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as any })
     setEditingReqId(null)
+    onRenameRequest(request.id, updatedRequest.name)
     onRefresh()
   }
 
