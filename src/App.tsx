@@ -362,18 +362,38 @@ const App: React.FC = () => {
       try {
         bodyObj = JSON.parse(response.body)
       } catch { /* stay as string */ }
+      
+      try {
+        const bodyType = Array.isArray(bodyObj) ? 'Array' : typeof bodyObj
+        mockConsole.log(`[Script Debug] Response Body Type: ${bodyType}`)
+        mockConsole.log(`[Script Debug] Response Status: ${response.status}`)
+        if (bodyType === 'object' && bodyObj !== null) {
+          mockConsole.log(`[Script Debug] Available Keys: ${Object.keys(bodyObj).join(', ')}`)
+        } else if (bodyType === 'Array' && bodyObj.length > 0) {
+          mockConsole.log(`[Script Debug] First Array Item Keys: ${Object.keys(bodyObj[0]).join(', ')}`)
+        }
+      } catch (e) {
+        mockConsole.log(`[Script Debug] Error analyzing body: ${e}`)
+      }
+
+      const currentVars = [...(parentCollection.variables || [])]
 
       const ultra = {
         response: { ...response, body: bodyObj },
         setCollectionVariable: (key: string, value: string) => {
-          const currentVars = [...(parentCollection.variables || [])]
+          // Use the latest state of currentVars (shared across calls in this script run)
           const existingIdx = currentVars.findIndex(v => v.key === key)
           if (existingIdx >= 0) {
             currentVars[existingIdx] = { ...currentVars[existingIdx], value: String(value) }
           } else {
             currentVars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
           }
-          handleSaveCollectionVariables(parentCollection.id, currentVars)
+          
+          handleSaveCollectionVariables(parentCollection.id, [...currentVars]).then(() => {
+             mockConsole.log(`[Script] Saved variable: ${key}`)
+          }).catch(err => {
+             mockConsole.error(`[Script] Failed to save variable ${key}: ${err.message}`)
+          })
         }
       }
 
@@ -735,7 +755,10 @@ const App: React.FC = () => {
                   className="btn-ghost save-btn" 
                   onClick={handleSaveActiveRequest}
                   title="Save Request (Auto-saves to Collection if already exists)"
-                  style={{ padding: '0 12px', color: 'var(--text-secondary)' }}
+                  style={{ 
+                    padding: '0 12px', 
+                    color: activeTab?.isDirty ? 'var(--danger)' : 'var(--text-secondary)' 
+                  }}
                 >
                   <Save size={14} />
                 </button>
@@ -1079,7 +1102,7 @@ const App: React.FC = () => {
               </div>
               
               <KeyValueEditor
-                pairs={editingCollection.variables || []}
+                pairs={collections.find(c => c.id === editingCollection.id)?.variables || []}
                 onChange={(vars) => handleSaveCollectionVariables(editingCollection.id, vars)}
                 keyPlaceholder="Variable Name"
                 valuePlaceholder="Current Value"

@@ -569,7 +569,12 @@ export function registerGrpcHandlers() {
 
           const responses: any[] = []
           call.on('data', (response: any) => {
-            const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true })
+            console.log(`[gRPC Backend] Raw response type: ${responseType.fullName}`)
+            const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
+            console.log(`[gRPC Backend] Converted keys: ${Object.keys(responseObj).join(', ')}`)
+            if (responseObj.priced_offers && responseObj.priced_offers.length > 0) {
+               console.log(`[gRPC Backend] First offer keys: ${Object.keys(responseObj.priced_offers[0]).join(', ')}`)
+            }
             responses.push(responseObj)
           })
 
@@ -615,7 +620,12 @@ export function registerGrpcHandlers() {
                   time,
                 })
               } else {
-                const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true })
+                console.log(`[gRPC Backend] Raw response type: ${responseType.fullName}`)
+                const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
+                console.log(`[gRPC Backend] Converted keys: ${Object.keys(responseObj).join(', ')}`)
+                if (responseObj.priced_offers && responseObj.priced_offers.length > 0) {
+                   console.log(`[gRPC Backend] First offer keys: ${Object.keys(responseObj.priced_offers[0]).join(', ')}`)
+                }
                 const body = JSON.stringify(responseObj, null, 2)
                 resolve({
                   success: true,
