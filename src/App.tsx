@@ -9,7 +9,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, Reorder } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
 import InterpolatedInput from './components/InterpolatedInput'
 import ResponseViewer from './components/ResponseViewer'
@@ -670,12 +670,21 @@ const App: React.FC = () => {
       <main className="main-content">
         {/* Tab bar */}
         <header className="title-bar" style={{ padding: '0', background: 'var(--bg-secondary)' }}>
-          <div className="tab-bar no-scrollbar">
+          <Reorder.Group 
+            axis="x" 
+            values={tabs} 
+            onReorder={setTabs} 
+            className="tab-bar no-scrollbar"
+            as="div"
+          >
             {tabs.map(tab => (
-              <div
+              <Reorder.Item
                 key={tab.id}
+                value={tab}
+                id={tab.id}
                 onClick={() => setActiveTabId(tab.id)}
                 className={`tab-item ${activeTabId === tab.id ? 'tab-active' : ''}`}
+                as="div"
               >
                 <span className="tab-method" style={{ color: methodColor(tab.request.type === 'GRPC' ? 'GRPC' : tab.request.method) }}>
                   {tab.request.type === 'GRPC' ? 'gRPC' : tab.request.method}
@@ -722,12 +731,12 @@ const App: React.FC = () => {
                 {activeTabId === tab.id && (
                   <motion.div layoutId="activeTab" className="tab-indicator" />
                 )}
-              </div>
+              </Reorder.Item>
             ))}
             <button className="tab-add" onClick={() => addEmptyTab()}>
               <Plus size={16} />
             </button>
-          </div>
+          </Reorder.Group>
         </header>
 
         {/* Content */}
