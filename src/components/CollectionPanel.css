@@ -1,0 +1,236 @@
+.coll-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.coll-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+
+.coll-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.coll-header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.coll-btn {
+  padding: 3px !important;
+  border-radius: 4px !important;
+}
+
+.coll-new-input {
+  display: flex;
+  gap: 4px;
+  padding: 4px 10px 8px;
+}
+
+.coll-new-input input {
+  flex: 1;
+  height: 28px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.coll-create-btn {
+  height: 28px;
+  width: 28px;
+  padding: 0 !important;
+  border-radius: 4px !important;
+}
+
+.coll-empty {
+  padding: 12px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  opacity: 0.5;
+}
+
+.coll-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.coll-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: background 0.15s ease;
+}
+
+.coll-item-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+}
+
+.coll-name {
+  flex: 1;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coll-rename-input {
+  flex: 1;
+  height: 24px;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+}
+
+.coll-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.coll-item-actions {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.coll-item-header:hover .coll-item-actions {
+  opacity: 1;
+}
+
+.coll-action-btn {
+  padding: 2px !important;
+  border-radius: 3px !important;
+}
+
+/* Context menu */
+.coll-context-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  margin: 0 10px 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.coll-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.1s ease;
+  font-family: var(--font-sans);
+}
+
+.coll-context-menu button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.coll-context-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.coll-danger-action:hover {
+  color: var(--danger) !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Requests list */
+.coll-requests {
+  padding: 2px 0 4px;
+}
+
+.coll-no-requests {
+  padding: 6px 30px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.coll-request-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 28px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.1s ease;
+}
+
+.coll-request-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+}
+
+.coll-req-icon {
+  flex-shrink: 0;
+  opacity: 0.4;
+}
+
+.coll-req-method {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  min-width: 32px;
+}
+
+.coll-req-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coll-req-delete {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+}
+
+.coll-request-item:hover .coll-req-delete {
+  opacity: 0.6;
+}
+
+.coll-req-delete:hover {
+  opacity: 1 !important;
+  color: var(--danger);
+}

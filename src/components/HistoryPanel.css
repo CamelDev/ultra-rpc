@@ -1,0 +1,99 @@
+.hist-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.hist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+
+.hist-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.hist-clear {
+  padding: 3px !important;
+  border-radius: 4px !important;
+}
+
+.hist-clear:hover {
+  color: var(--danger) !important;
+}
+
+.hist-empty {
+  padding: 12px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  opacity: 0.5;
+}
+
+.hist-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.hist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.hist-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.hist-method {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  min-width: 30px;
+  flex-shrink: 0;
+}
+
+.hist-url {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hist-item:hover .hist-url {
+  color: var(--text-primary);
+}
+
+.hist-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.hist-status {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.hist-time {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  white-space: nowrap;
+}

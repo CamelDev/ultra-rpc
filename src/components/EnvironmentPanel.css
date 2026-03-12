@@ -1,0 +1,160 @@
+.env-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.env-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.env-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.env-add-btn {
+  padding: 4px !important;
+}
+
+.env-empty {
+  padding: 20px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  text-align: center;
+}
+
+.env-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.env-item-active {
+  border-left: 2px solid var(--accent);
+}
+
+.env-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.env-item-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.env-chevron {
+  transition: transform 0.2s ease;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.env-chevron-open {
+  transform: rotate(0deg);
+}
+
+.env-chevron:not(.env-chevron-open) {
+  transform: rotate(-90deg);
+}
+
+.env-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.env-name-input {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 8px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.env-item-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.env-item-header:hover .env-item-actions {
+  opacity: 1;
+}
+
+.env-action {
+  padding: 3px !important;
+  border-radius: 4px !important;
+}
+
+.env-active-check {
+  color: var(--success) !important;
+}
+
+.env-delete:hover {
+  color: var(--danger) !important;
+}
+
+.env-item-body {
+  padding: 8px 12px 12px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.env-var-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 24px;
+  gap: 6px;
+  align-items: center;
+}
+
+.env-var-input {
+  height: 28px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.env-var-key {
+  color: var(--accent);
+}
+
+.env-var-delete {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.env-var-row:hover .env-var-delete {
+  opacity: 1;
+}
+
+.env-var-delete:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
