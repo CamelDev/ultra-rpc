@@ -50,6 +50,7 @@ const App: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string | null>>({})
   const [loadingTabs, setLoadingTabs] = useState<Record<string, boolean>>({})
   const [scriptLogs, setScriptLogs] = useState<Record<string, string[]>>({})
+  const [scriptErrors, setScriptErrors] = useState<Record<string, string | null>>({})
 
   // ===== UI state =====
   const [activeConfigTab, setActiveConfigTab] = useState<RequestTab>('params')
@@ -403,7 +404,7 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error('Post-response script error:', err)
       mockConsole.error(`Runtime Error: ${err.message}`)
-      setErrors(prev => ({ ...prev, [activeTabId]: `Script Error: ${err.message}` }))
+      setScriptErrors(prev => ({ ...prev, [activeTabId]: `Script Error: ${err.message}` }))
     }
   }
 
@@ -415,6 +416,7 @@ const App: React.FC = () => {
     setErrors(prev => ({ ...prev, [activeTabId]: null }))
     setResponses(prev => ({ ...prev, [activeTabId]: null }))
     setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))
+    setScriptErrors(prev => ({ ...prev, [activeTabId]: null }))
 
     const url = interpolate(activeRequest.url)
     let statusCode: number | undefined
@@ -1070,6 +1072,7 @@ const App: React.FC = () => {
             <ResponseViewer 
               response={responses[activeTabId] || null} 
               error={errors[activeTabId] || null}
+              scriptError={scriptErrors[activeTabId] || null}
               loading={loadingTabs[activeTabId] || false}
             />
           </div>

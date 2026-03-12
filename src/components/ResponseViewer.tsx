@@ -1,15 +1,16 @@
 import React, { useMemo } from 'react'
-import { Clock, HardDrive, CheckCircle, XCircle, Copy, ChevronDown, ChevronRight } from 'lucide-react'
+import { Clock, HardDrive, CheckCircle, XCircle, Copy, ChevronDown, ChevronRight, Zap } from 'lucide-react'
 import type { ResponseData } from '../types'
 import './ResponseViewer.css'
 
 interface Props {
   response: ResponseData | null
   error: string | null
+  scriptError?: string | null
   loading: boolean
 }
 
-const ResponseViewer: React.FC<Props> = ({ response, error, loading }) => {
+const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading }) => {
   const [showHeaders, setShowHeaders] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
 
@@ -100,6 +101,11 @@ const ResponseViewer: React.FC<Props> = ({ response, error, loading }) => {
           </span>
         </div>
         <div className="response-actions">
+          {scriptError && (
+            <div className="script-error-pill" title={scriptError}>
+              <Zap size={12} /> Script Error
+            </div>
+          )}
           <button className="btn-ghost response-action-btn" onClick={copyBody}>
             <Copy size={14} /> {copied ? 'Copied!' : 'Copy'}
           </button>
