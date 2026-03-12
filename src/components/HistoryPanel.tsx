@@ -52,7 +52,7 @@ const HistoryPanel: React.FC<Props> = ({ history, onOpenRequest, onClear }) => {
         </span>
         {history.length > 0 && (
           <button className="btn-ghost hist-clear" onClick={onClear} title="Clear history">
-            <Trash2 size={12} />
+            <Trash2 size={12} /> Clear
           </button>
         )}
       </div>
@@ -71,7 +71,7 @@ const HistoryPanel: React.FC<Props> = ({ history, onOpenRequest, onClear }) => {
             <span className="hist-method" style={{ color: methodColor(entry.request.type === 'GRPC' ? 'GRPC' : entry.request.method) }}>
               {entry.request.type === 'GRPC' ? 'gRPC' : entry.request.method}
             </span>
-            <span className="hist-url">{entry.request.url || 'Untitled'}</span>
+            <span className="hist-url">{entry.request.name || entry.request.url || 'Untitled'}</span>
             <div className="hist-meta">
               {entry.statusCode && (
                 <span className="hist-status" style={{ color: statusColor(entry.statusCode) }}>

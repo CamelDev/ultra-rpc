@@ -41,6 +41,8 @@
 .hist-list {
   display: flex;
   flex-direction: column;
+  max-height: 250px;
+  overflow-y: auto;
 }
 
 .hist-item {

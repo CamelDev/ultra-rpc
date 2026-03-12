@@ -104,8 +104,13 @@ const App: React.FC = () => {
       if (res.success && res.environments) setEnvironments(res.environments)
     })
     window.ultraRpc.getSettings().then(res => {
-      if (res.success && res.settings && res.settings.theme) {
-        setTheme(res.settings.theme)
+      if (res.success && res.settings) {
+        if (res.settings.theme) {
+          setTheme(res.settings.theme)
+        }
+        if (res.settings.activeEnvId) {
+          setActiveEnvId(res.settings.activeEnvId)
+        }
       }
     })
     loadCollections()
@@ -131,6 +136,13 @@ const App: React.FC = () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.getHistory()
     if (res.success && res.history) setHistory(res.history)
+  }
+
+  const saveAppSetting = async (key: string, value: any) => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.getSettings()
+    const current = res.success ? (res.settings || {}) : {}
+    await window.ultraRpc.saveSettings({ ...current, [key]: value })
   }
 
   // Persist environments when they change
@@ -348,12 +360,6 @@ const App: React.FC = () => {
             <Zap size={18} color="var(--accent)" fill="var(--accent)" />
             <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '0.5px' }}>ULTRARPC</span>
           </div>
-        </div>
-
-        <div style={{ padding: '12px', display: 'flex', gap: '6px' }}>
-          <button className="btn-primary" style={{ flex: 1, height: '32px', fontSize: '12px' }} onClick={() => addEmptyTab()}>
-            <Plus size={14} /> NEW
-          </button>
         </div>
 
         <nav className="sidebar-nav">
@@ -598,7 +604,9 @@ const App: React.FC = () => {
                   value={activeEnvId || ''}
                   onChange={(e) => {
                     const val = e.target.value;
-                    setActiveEnvId(val === '' ? null : val);
+                    const newId = val === '' ? null : val;
+                    setActiveEnvId(newId);
+                    saveAppSetting('activeEnvId', newId);
                   }}
                 >
                   <option value="">No Environment</option>
