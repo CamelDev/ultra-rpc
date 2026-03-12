@@ -1,7 +1,8 @@
 import React from 'react'
 import { Plus, Trash2, Check } from 'lucide-react'
-import type { KeyValuePair } from '../types'
+import type { KeyValuePair, Environment } from '../types'
 import { emptyKV } from '../lib/helpers'
+import InterpolatedInput from './InterpolatedInput'
 import './KeyValueEditor.css'
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
   onChange: (pairs: KeyValuePair[]) => void
   keyPlaceholder?: string
   valuePlaceholder?: string
+  activeEnv?: Environment | null
 }
 
 const KeyValueEditor: React.FC<Props> = ({
@@ -16,6 +18,7 @@ const KeyValueEditor: React.FC<Props> = ({
   onChange,
   keyPlaceholder = 'Key',
   valuePlaceholder = 'Value',
+  activeEnv,
 }) => {
   const update = (id: string, field: keyof KeyValuePair, value: string | boolean) => {
     onChange(pairs.map(p => (p.id === id ? { ...p, [field]: value } : p)))
@@ -46,17 +49,19 @@ const KeyValueEditor: React.FC<Props> = ({
           >
             {pair.enabled && <Check size={12} />}
           </button>
-          <input
+          <InterpolatedInput
             className="kv-input kv-key"
             placeholder={keyPlaceholder}
             value={pair.key}
-            onChange={(e) => update(pair.id, 'key', e.target.value)}
+            onChange={(val) => update(pair.id, 'key', val)}
+            activeEnv={activeEnv}
           />
-          <input
+          <InterpolatedInput
             className="kv-input kv-value"
             placeholder={valuePlaceholder}
             value={pair.value}
-            onChange={(e) => update(pair.id, 'value', e.target.value)}
+            onChange={(val) => update(pair.id, 'value', val)}
+            activeEnv={activeEnv}
           />
           <button className="kv-delete" onClick={() => remove(pair.id)}>
             <Trash2 size={14} />

@@ -1,0 +1,149 @@
+.interpolated-wrapper {
+  position: relative;
+  display: flex;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: var(--transition);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  cursor: text;
+  align-items: stretch;
+}
+
+.interpolated-wrapper.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+.interpolated-wrapper.singleline {
+  height: auto;
+  min-height: 38px;
+}
+
+.interpolated-wrapper.multiline {
+  flex-direction: column;
+}
+
+/* Inherit dimension classes from standard inputs (flex: 1 etc) */
+.interpolated-wrapper.flex-1 { flex: 1; }
+.interpolated-wrapper.w-full { width: 100%; }
+
+.interpolated-backdrop,
+.interpolated-element {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border: none !important;
+  border-radius: 0;
+  background: transparent !important;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  box-sizing: border-box;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.interpolated-wrapper.singleline .interpolated-backdrop,
+.interpolated-wrapper.singleline .interpolated-element {
+  white-space: pre;
+  overflow: hidden; /* Standard single-line input behavior */
+  line-height: 20px; /* Force line-height for strict single line vertical centering */
+}
+
+.interpolated-wrapper.multiline .interpolated-backdrop,
+.interpolated-wrapper.multiline .interpolated-element {
+  position: static;
+  min-height: 160px;
+  height: 100%;
+  resize: vertical;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Backdrop specifics */
+.interpolated-backdrop {
+  z-index: 2; /* Layer text on top so vars can be hovered */
+  pointer-events: none; /* Let 99% of clicks pass through to input */
+  color: var(--text-primary);
+}
+
+/* Let multiline backdrop share height of element */
+.interpolated-wrapper.multiline .interpolated-backdrop {
+  position: absolute;
+  overflow: hidden;
+}
+
+/* Text area specific constraints */
+.interpolated-wrapper.multiline .interpolated-element {
+  color: transparent !important;
+  caret-color: var(--text-primary);
+  z-index: 1; /* Place input behind for hover events on vars to pass through backdrop */
+  position: relative;
+}
+
+.interpolated-wrapper.singleline .interpolated-element {
+  color: transparent !important;
+  caret-color: var(--text-primary);
+  z-index: 1; /* Place input behind */
+}
+
+/* Transparent text selection fix */
+.interpolated-element::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: transparent;
+}
+
+/* Tokens */
+.interpolated-var {
+  color: var(--accent);
+  pointer-events: auto; /* Allow hovering for tooltips */
+  border-radius: 4px;
+  background: transparent;
+  transition: all 0.15s;
+  padding: 1px 2px;
+  margin: -1px -2px; /* Negate padding */
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.interpolated-var:hover {
+  background: var(--accent-muted);
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-color: rgba(59, 130, 246, 0.4);
+}
+
+.interpolated-placeholder {
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+/* Tooltip Popup */
+.env-tooltip {
+  pointer-events: none; /* Don't intercept clicks */
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  transform: translate(-50%, -100%);
+}
+
+@keyframes fadeInTooltip {
+  from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)); }
+  to { opacity: 1; transform: translate(-50%, -100%); }
+}
+
+.fade-in-tooltip {
+  animation: fadeInTooltip 0.2s ease-out forwards;
+}

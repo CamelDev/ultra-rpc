@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
+import InterpolatedInput from './components/InterpolatedInput'
 import ResponseViewer from './components/ResponseViewer'
 import EnvironmentPanel from './components/EnvironmentPanel'
 import CollectionPanel from './components/CollectionPanel'
@@ -488,12 +489,13 @@ const App: React.FC = () => {
                 >gRPC</button>
               </div>
 
-              <input
+              <InterpolatedInput
                 className="address-input"
                 placeholder={activeRequest.type === 'GRPC' ? 'host:port (e.g. api.example.com:443)' : 'https://api.example.com/endpoint'}
                 value={activeRequest.url}
-                onChange={(e) => updateActiveRequest({ url: e.target.value })}
+                onChange={(val) => updateActiveRequest({ url: val })}
                 onKeyDown={(e) => e.key === 'Enter' && sendRequest()}
+                activeEnv={activeEnv}
               />
               <button className="btn-primary send-btn" onClick={sendRequest} disabled={loadingTabs[activeTabId]}>
                 {loadingTabs[activeTabId] ? (
@@ -504,10 +506,23 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            {/* Active env indicator */}
-            {activeEnv && (
-              <div className="active-env-indicator">
-                <Globe size={12} /> {activeEnv.name}
+            {/* Active env selector */}
+            {environments.length > 0 && (
+              <div className="env-selector-wrapper">
+                <Globe size={12} className="env-selector-icon" />
+                <select
+                  className="env-selector"
+                  value={activeEnvId || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setActiveEnvId(val === '' ? null : val);
+                  }}
+                >
+                  <option value="">No Environment</option>
+                  {environments.map(env => (
+                    <option key={env.id} value={env.id}>{env.name}</option>
+                  ))}
+                </select>
               </div>
             )}
 
@@ -517,20 +532,22 @@ const App: React.FC = () => {
                 <div className="grpc-fields">
                   <div className="grpc-field-row">
                     <label className="grpc-label">Service</label>
-                    <input
+                    <InterpolatedInput
                       className="grpc-input"
                       placeholder="Use Discover below, or type e.g. mypackage.MyService"
                       value={activeRequest.grpcService || ''}
-                      onChange={(e) => updateActiveRequest({ grpcService: e.target.value })}
+                      onChange={(val) => updateActiveRequest({ grpcService: val })}
+                      activeEnv={activeEnv}
                     />
                   </div>
                   <div className="grpc-field-row">
                     <label className="grpc-label">Method</label>
-                    <input
+                    <InterpolatedInput
                       className="grpc-input"
                       placeholder="e.g. GetUser"
                       value={activeRequest.grpcMethod || ''}
-                      onChange={(e) => updateActiveRequest({ grpcMethod: e.target.value })}
+                      onChange={(val) => updateActiveRequest({ grpcMethod: val })}
+                      activeEnv={activeEnv}
                     />
                   </div>
                 </div>
@@ -585,6 +602,7 @@ const App: React.FC = () => {
                   onChange={(params) => updateActiveRequest({ params })}
                   keyPlaceholder="Parameter"
                   valuePlaceholder="Value"
+                  activeEnv={activeEnv}
                 />
               )}
               {activeConfigTab === 'headers' && (
@@ -593,6 +611,7 @@ const App: React.FC = () => {
                   onChange={(headers) => updateActiveRequest({ headers })}
                   keyPlaceholder="Header"
                   valuePlaceholder="Value"
+                  activeEnv={activeEnv}
                 />
               )}
               {activeConfigTab === 'body' && (
@@ -609,19 +628,21 @@ const App: React.FC = () => {
                     ))}
                   </div>
                   {activeRequest.bodyType !== 'none' && (
-                    <textarea
+                    <InterpolatedInput
                       className="body-textarea"
+                      multiline
+                      activeEnv={activeEnv}
                       placeholder={activeRequest.type === 'GRPC'
                         ? '{\n  "field": "value"\n}'
                         : activeRequest.bodyType === 'json'
                         ? '{\n  "key": "value"\n}'
                         : 'Plain text body...'}
-                      value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : activeRequest.body}
-                      onChange={(e) => {
+                      value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')}
+                      onChange={(val) => {
                         if (activeRequest.type === 'GRPC') {
-                          updateActiveRequest({ grpcPayload: e.target.value })
+                          updateActiveRequest({ grpcPayload: val })
                         } else {
-                          updateActiveRequest({ body: e.target.value })
+                          updateActiveRequest({ body: val })
                         }
                       }}
                     />
