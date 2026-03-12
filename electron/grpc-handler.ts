@@ -445,15 +445,31 @@ export function registerGrpcHandlers() {
             resolve({ success: false, error: `Method "${req.method}" not found on service` })
             return
           }
-          methodFn.call(client, payload, metadata, callOptions, (err: any, response: any) => {
-            const time = Date.now() - start
-            if (err) {
+
+          if (methodFn.responseStream) {
+            const call = methodFn.call(client, payload, metadata, callOptions)
+            const responses: any[] = []
+            call.on('data', (response: any) => responses.push(response))
+            call.on('error', (err: any) => {
+              const time = Date.now() - start
               resolve({ success: false, error: formatGrpcError(err), code: err.code, time })
-            } else {
-              const body = JSON.stringify(response, null, 2)
-              resolve({ success: true, data: { status: 0, statusText: 'OK', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') } })
-            }
-          })
+            })
+            call.on('end', () => {
+              const time = Date.now() - start
+              const body = JSON.stringify(responses, null, 2)
+              resolve({ success: true, data: { status: 0, statusText: 'OK (Stream Finished)', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') } })
+            })
+          } else {
+            methodFn.call(client, payload, metadata, callOptions, (err: any, response: any) => {
+              const time = Date.now() - start
+              if (err) {
+                resolve({ success: false, error: formatGrpcError(err), code: err.code, time })
+              } else {
+                const body = JSON.stringify(response, null, 2)
+                resolve({ success: true, data: { status: 0, statusText: 'OK', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') } })
+              }
+            })
+          }
         })
       }
 
@@ -491,6 +507,7 @@ export function registerGrpcHandlers() {
 
       let inputTypeName: string | null = null
       let outputTypeName: string | null = null
+      let isServerStreaming = false
       const targetShortName = req.service.split('.').pop()
 
       for (const buf of descriptorBuffers) {
@@ -505,6 +522,7 @@ export function registerGrpcHandlers() {
                   if (m.name === req.method) {
                     inputTypeName = m.inputType?.startsWith('.') ? m.inputType.slice(1) : m.inputType
                     outputTypeName = m.outputType?.startsWith('.') ? m.outputType.slice(1) : m.outputType
+                    isServerStreaming = m.serverStreaming || false
                   }
                 }
               }
@@ -536,36 +554,77 @@ export function registerGrpcHandlers() {
       const genericClient = new grpc.Client(cleanHost, credentials)
 
       return new Promise((resolve) => {
-        genericClient.makeUnaryRequest(
-          fullMethodPath,
-          (msg: any) => {
-            const fixedPayload = parseMapsToArrays(requestType, msg)
-            return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
-          },
-          (buf: Buffer) => responseType.decode(buf),
-          payload,
-          metadata,
-          callOptions,
-          (err: any, response: any) => {
+        if (isServerStreaming) {
+          const call = genericClient.makeServerStreamRequest(
+            fullMethodPath,
+            (msg: any) => {
+              const fixedPayload = parseMapsToArrays(requestType, msg)
+              return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
+            },
+            (buf: Buffer) => responseType.decode(buf),
+            payload,
+            metadata,
+            callOptions
+          )
+
+          const responses: any[] = []
+          call.on('data', (response: any) => {
+            const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true })
+            responses.push(responseObj)
+          })
+
+          call.on('error', (err: any) => {
             const time = Date.now() - start
             genericClient.close()
-            if (err) {
-              resolve({
-                success: false,
-                error: formatGrpcError(err),
-                code: err.code,
-                time,
-              })
-            } else {
-              const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true })
-              const body = JSON.stringify(responseObj, null, 2)
-              resolve({
-                success: true,
-                data: { status: 0, statusText: 'OK', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') },
-              })
+            resolve({
+              success: false,
+              error: formatGrpcError(err),
+              code: err.code,
+              time,
+            })
+          })
+
+          call.on('end', () => {
+            const time = Date.now() - start
+            genericClient.close()
+            const body = JSON.stringify(responses, null, 2)
+            resolve({
+              success: true,
+              data: { status: 0, statusText: 'OK (Stream Finished)', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') },
+            })
+          })
+        } else {
+          genericClient.makeUnaryRequest(
+            fullMethodPath,
+            (msg: any) => {
+              const fixedPayload = parseMapsToArrays(requestType, msg)
+              return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
+            },
+            (buf: Buffer) => responseType.decode(buf),
+            payload,
+            metadata,
+            callOptions,
+            (err: any, response: any) => {
+              const time = Date.now() - start
+              genericClient.close()
+              if (err) {
+                resolve({
+                  success: false,
+                  error: formatGrpcError(err),
+                  code: err.code,
+                  time,
+                })
+              } else {
+                const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true })
+                const body = JSON.stringify(responseObj, null, 2)
+                resolve({
+                  success: true,
+                  data: { status: 0, statusText: 'OK', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') },
+                })
+              }
             }
-          }
-        )
+          )
+        }
       })
     } catch (err: any) {
       return {
