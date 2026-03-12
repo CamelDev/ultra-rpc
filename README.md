@@ -28,6 +28,40 @@ UltraRPC is a cross-platform desktop application designed for developers who nee
 
 ---
 
+## ⚡ Quick Start Guide
+
+New to UltraRPC? Here is how to get up and running in 60 seconds.
+
+### 1. Create a Collection
+- In the sidebar, click the **+** icon next to "COLLECTIONS".
+- Give it a name (e.g., `My App`). This creates a local folder on your machine.
+- Your requests will be saved as human-readable `.json` files inside this folder.
+
+### 2. Set Up Environments
+- Click the **Globe** icon in the bottom left to open the Environment Panel.
+- Use the **+** button to create a new environment (e.g., `Staging`).
+- Add keys like `BASE_URL` or `API_KEY`.
+- Select your active environment from the dropdown near the address bar.
+
+### 3. Build Your First Request
+- Click the **+** in the top tab bar to open a fresh tab.
+- Choose **REST** or **gRPC** using the toggle in the address bar.
+- **REST**: Enter your URL and use the **Params** or **Headers** tabs. Reference variables like `{{BASE_URL}}/users`.
+- **gRPC**: 
+  - Enter the host (e.g., `localhost:50051`).
+  - Click **Discover Services** (Reflection) to see available methods.
+  - Click **Use →** to auto-scaffold a request body in the **Body** tab.
+
+### 4. Variables & Scripting
+- **Resolution**: UltraRPC resolves `{{variable}}` by checking your **Collection Variables** first, then your **Active Environment**.
+- **Post-Response Scripts**:
+  - Go to the **Script** tab in any request.
+  - Write standard JavaScript to extract data: `const id = ultra.response.body.id;`.
+  - Save it for the next request: `ultra.setCollectionVariable('userId', id);`.
+- Use the **Script Console** at the bottom of the tab to debug with `console.log()`.
+
+---
+
 ## ✨ Features
 
 ### 🌐 REST Client
