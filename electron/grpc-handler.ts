@@ -94,11 +94,16 @@ message ErrorResponse {
   })
 
   const grpcProto = grpc.loadPackageDefinition(packageDefinition) as any
-  const credentials = insecure
+  
+  const isSecure = host.startsWith('https://') || host.endsWith(':443') || host.includes(':443/');
+  const useInsecure = isSecure ? false : insecure;
+  const cleanHost = host.replace(/^https?:\/\//, '').split('/')[0];
+  
+  const credentials = useInsecure
     ? grpc.credentials.createInsecure()
     : grpc.credentials.createSsl()
 
-  return new grpcProto.grpc.reflection.v1alpha.ServerReflection(host, credentials)
+  return new grpcProto.grpc.reflection.v1alpha.ServerReflection(cleanHost, credentials)
 }
 
 // Protobuf field type numbers → default values for sample body generation
@@ -126,12 +131,12 @@ function generateSampleBody(messageTypes: Map<string, any>, typeName: string, vi
       case 4: // TYPE_UINT64
       case 18: // TYPE_SINT64
       case 16: // TYPE_SFIXED64
-      case 17: // TYPE_FIXED64
+      case 6: // TYPE_FIXED64
         value = '0'; break // Strings for 64-bit in JSON
       case 5: // TYPE_INT32
       case 13: // TYPE_UINT32
       case 15: // TYPE_SFIXED32
-      case 6: // TYPE_FIXED32
+      case 7: // TYPE_FIXED32
       case 14: // TYPE_ENUM
       case 17: // TYPE_SINT32
         value = 0; break
@@ -159,6 +164,45 @@ function generateSampleBody(messageTypes: Map<string, any>, typeName: string, vi
   return result
 }
 
+// Helper to recursively convert JSON objects meant for gRPC maps into arrays of {key, value} entries.
+// Necessary because protobuf.js (under reflection) treats maps as repeated entry messages.
+function parseMapsToArrays(type: any, payload: any): any {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload
+  if (!type || !type.fields) return payload
+
+  const result = { ...payload }
+
+  for (const [fieldName, field] of Object.entries(type.fields) as [string, any]) {
+    const keyInPayload = fieldName in result ? fieldName : (field.jsonName && field.jsonName in result ? field.jsonName : null)
+    
+    if (keyInPayload) {
+      const val = result[keyInPayload]
+      if (field.resolvedType) {
+        // Check for both camelCase and snake_case mapEntry option
+        const isMapEntry = field.resolvedType.options && (field.resolvedType.options.mapEntry || field.resolvedType.options.map_entry)
+
+        if (isMapEntry && typeof val === 'object' && !Array.isArray(val)) {
+          const arr = []
+          for (const [k, v] of Object.entries(val)) {
+             const valueField = field.resolvedType.fields['value']
+             arr.push({
+               key: k,
+               value: (valueField && valueField.resolvedType) ? parseMapsToArrays(valueField.resolvedType, v) : v
+             })
+          }
+          result[keyInPayload] = arr
+        } else if (field.repeated && Array.isArray(val)) {
+          result[keyInPayload] = val.map((item: any) => parseMapsToArrays(field.resolvedType, item))
+        } else {
+          result[keyInPayload] = parseMapsToArrays(field.resolvedType, val)
+        }
+      }
+    }
+  }
+
+  return result
+}
+
 export function registerGrpcHandlers() {
   // ===== List services via reflection =====
   ipcMain.handle('grpc:reflect', async (_event, args: { host: string; insecure: boolean; headers: Record<string, string> }) => {
@@ -183,7 +227,7 @@ export function registerGrpcHandlers() {
         })
 
         call.on('error', (err: any) => {
-          reject({ success: false, error: err.message || 'Reflection failed' })
+          resolve({ success: false, error: err.message || 'Reflection failed' })
         })
 
         call.on('end', () => {
@@ -220,12 +264,12 @@ export function registerGrpcHandlers() {
             }
           }
           if (response.error_response) {
-            reject({ success: false, error: response.error_response.error_message })
+            resolve({ success: false, error: response.error_response.error_message })
           }
         })
 
         call.on('error', (err: any) => {
-          reject({ success: false, error: err.message || 'Describe failed' })
+          resolve({ success: false, error: err.message || 'Describe failed' })
         })
 
         call.on('end', () => {
@@ -307,7 +351,11 @@ export function registerGrpcHandlers() {
         if (key && value) metadata.add(key, value)
       }
 
-      const credentials = req.insecure
+      const isSecure = req.host.startsWith('https://') || req.host.endsWith(':443') || req.host.includes(':443/');
+      const useInsecure = isSecure ? false : req.insecure;
+      const cleanHost = req.host.replace(/^https?:\/\//, '').split('/')[0];
+
+      const credentials = useInsecure
         ? grpc.credentials.createInsecure()
         : grpc.credentials.createSsl()
 
@@ -332,7 +380,7 @@ export function registerGrpcHandlers() {
         if (!serviceConstructor) {
           return { success: false, error: `Service "${req.service}" not found in proto` }
         }
-        const client = new serviceConstructor(req.host, credentials)
+        const client = new serviceConstructor(cleanHost, credentials)
         return new Promise((resolve) => {
           const methodFn = client[req.method]
           if (!methodFn) {
@@ -427,12 +475,15 @@ export function registerGrpcHandlers() {
 
       // Step 4: Make the call using a generic gRPC client
       const fullMethodPath = `/${req.service}/${req.method}`
-      const genericClient = new grpc.Client(req.host, credentials)
+      const genericClient = new grpc.Client(cleanHost, credentials)
 
       return new Promise((resolve) => {
         genericClient.makeUnaryRequest(
           fullMethodPath,
-          (msg: any) => Buffer.from(requestType.encode(requestType.fromObject(msg)).finish()),
+          (msg: any) => {
+            const fixedPayload = parseMapsToArrays(requestType, msg)
+            return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
+          },
           (buf: Buffer) => responseType.decode(buf),
           payload,
           metadata,

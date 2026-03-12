@@ -269,7 +269,7 @@ const App: React.FC = () => {
     <div className="app-container">
       {/* ===== SIDEBAR ===== */}
       <aside className="sidebar">
-        <div className="title-bar">
+        <div className="title-bar" style={{ paddingLeft: navigator.userAgent.includes('Mac') ? '80px' : '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Zap size={18} color="var(--accent)" fill="var(--accent)" />
             <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '0.5px' }}>ULTRARPC</span>
