@@ -225,17 +225,70 @@ function parseMapsToArrays(type: any, payload: any): any {
   if (!type || !type.fields) return payload
 
   const result = { ...payload }
+  const payloadKeys = Object.keys(result)
 
   for (const [fieldName, field] of Object.entries(type.fields) as [string, any]) {
-    const keyInPayload = fieldName in result ? fieldName : (field.jsonName && field.jsonName in result ? field.jsonName : null)
+    // Robust field lookup: try exact name, jsonName, then normalized (snake/camel)
+    const normalize = (s: string) => s.toLowerCase().replace(/_/g, '')
+    const targetNames = [fieldName]
+    if (field.jsonName) targetNames.push(field.jsonName)
+    
+    const normalizedTargets = targetNames.map(normalize)
+    const keyInPayload = payloadKeys.find(pkg => 
+      targetNames.includes(pkg) || normalizedTargets.includes(normalize(pkg))
+    )
 
     if (keyInPayload) {
-      const val = result[keyInPayload]
+      let val = result[keyInPayload]
+      
       if (field.resolvedType) {
-        // Check for both camelCase and snake_case mapEntry option
-        const isMapEntry = field.resolvedType.options && (field.resolvedType.options.mapEntry || field.resolvedType.options.map_entry)
+        // Handle Protobuf wrapper types (google.protobuf.*Value)
+        const isWrapper = field.resolvedType.fullName && 
+                          field.resolvedType.fullName.startsWith('.google.protobuf.') && 
+                          field.resolvedType.fullName.endsWith('Value')
+        
+        if (isWrapper && val !== null && typeof val !== 'object') {
+          console.log(`[gRPC Backend] Wrapping field "${fieldName}": ${val}`)
+          val = { value: val }
+          result[keyInPayload] = val
+        }
 
-        if (isMapEntry && typeof val === 'object' && !Array.isArray(val)) {
+        // Handle Protobuf Timestamp (google.protobuf.Timestamp)
+        if (field.resolvedType.fullName === '.google.protobuf.Timestamp' && typeof val === 'string') {
+          const date = new Date(val)
+          if (!isNaN(date.getTime())) {
+            console.log(`[gRPC Backend] Converting string to Timestamp for field "${fieldName}": ${val}`)
+            const seconds = Math.floor(date.getTime() / 1000)
+            const nanos = (date.getTime() % 1000) * 1e6
+            val = { seconds, nanos }
+            result[keyInPayload] = val
+          }
+        }
+
+        // Handle Protobuf Duration (google.protobuf.Duration)
+        if (field.resolvedType.fullName === '.google.protobuf.Duration' && typeof val === 'string') {
+          // Supporting "3.5s" or just number
+          const match = val.match(/^(\d+(\.\d+)?)s?$/)
+          if (match) {
+            console.log(`[gRPC Backend] Converting string to Duration for field "${fieldName}": ${val}`)
+            const totalSeconds = parseFloat(match[1])
+            const seconds = Math.floor(totalSeconds)
+            const nanos = Math.floor((totalSeconds % 1) * 1e9)
+            val = { seconds, nanos }
+            result[keyInPayload] = val
+          }
+        }
+
+        // A field is a map if it's natively a map (field.map) or if it's a repeated map_entry message
+        const isMapEntry = field.map || (
+          field.repeated && 
+          field.resolvedType && 
+          field.resolvedType.options && 
+          (field.resolvedType.options.mapEntry || field.resolvedType.options.map_entry)
+        )
+
+        if (isMapEntry && val && typeof val === 'object' && !Array.isArray(val)) {
+          console.log(`[gRPC Backend] Converting map field "${fieldName}" (JSON key: "${keyInPayload}") to array of entries`)
           const arr = []
           for (const [k, v] of Object.entries(val)) {
             const valueField = field.resolvedType.fields['value']
@@ -250,6 +303,12 @@ function parseMapsToArrays(type: any, payload: any): any {
         } else {
           result[keyInPayload] = parseMapsToArrays(field.resolvedType, val)
         }
+      }
+
+      // If we matched via fuzzy lookup but key is different, sync back to fieldName
+      if (keyInPayload !== fieldName) {
+        result[fieldName] = result[keyInPayload]
+        delete result[keyInPayload]
       }
     }
   }
@@ -559,6 +618,7 @@ export function registerGrpcHandlers() {
             fullMethodPath,
             (msg: any) => {
               const fixedPayload = parseMapsToArrays(requestType, msg)
+              console.log(`[gRPC Backend] Final payload for ${fullMethodPath}:`, JSON.stringify(fixedPayload, null, 2))
               return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
             },
             (buf: Buffer) => responseType.decode(buf),
@@ -603,6 +663,7 @@ export function registerGrpcHandlers() {
             fullMethodPath,
             (msg: any) => {
               const fixedPayload = parseMapsToArrays(requestType, msg)
+              console.log(`[gRPC Backend] Final payload for ${fullMethodPath}:`, JSON.stringify(fixedPayload, null, 2))
               return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
             },
             (buf: Buffer) => responseType.decode(buf),
