@@ -520,13 +520,23 @@ const App: React.FC = () => {
     }
   }
 
-  const configTabs: { key: RequestTab; label: string }[] = [
+  const configTabs = ([
     { key: 'params', label: 'Params' },
     { key: 'headers', label: 'Headers' },
     { key: 'body', label: 'Body' },
     { key: 'auth', label: 'Options' },
     { key: 'script', label: 'Script' },
-  ]
+  ] as { key: RequestTab; label: string }[]).filter(t => {
+    if (activeRequest?.type === 'GRPC' && t.key === 'params') return false
+    return true
+  })
+
+  // Auto-switch away from Params if it becomes hidden
+  useEffect(() => {
+    if (activeRequest?.type === 'GRPC' && activeConfigTab === 'params') {
+      setActiveConfigTab('headers')
+    }
+  }, [activeRequest?.type, activeConfigTab])
 
   if (!activeRequest) return null
 
@@ -733,16 +743,23 @@ const App: React.FC = () => {
                   </select>
                 )}
 
-                <div className="address-type-toggle">
-                  <button
-                    className={`type-btn ${activeRequest.type === 'REST' ? 'type-btn-active' : ''}`}
-                    onClick={() => updateActiveRequest({ type: 'REST' })}
-                  >REST</button>
-                  <button
-                    className={`type-btn ${activeRequest.type === 'GRPC' ? 'type-btn-active' : ''}`}
-                    onClick={() => updateActiveRequest({ type: 'GRPC' })}
-                  >gRPC</button>
-                </div>
+                {(() => {
+                  const isTypeLocked = !!activeRequestCollection || !!responses[activeTabId];
+                  if (isTypeLocked) return null;
+
+                  return (
+                    <div className="address-type-toggle">
+                      <button
+                        className={`type-btn ${activeRequest.type === 'REST' ? 'type-btn-active' : ''}`}
+                        onClick={() => updateActiveRequest({ type: 'REST' })}
+                      >REST</button>
+                      <button
+                        className={`type-btn ${activeRequest.type === 'GRPC' ? 'type-btn-active' : ''}`}
+                        onClick={() => updateActiveRequest({ type: 'GRPC' })}
+                      >gRPC</button>
+                    </div>
+                  );
+                })()}
 
                 <InterpolatedInput
                   className="address-input"
@@ -868,197 +885,208 @@ const App: React.FC = () => {
                 ))}
               </div>
 
-              {/* ==== Config Content ==== */}
-              <div className="config-content">
-                {activeConfigTab === 'params' && (
-                  <KeyValueEditor
-                    pairs={activeRequest.params}
-                    onChange={(params) => updateActiveRequest({ params })}
-                    keyPlaceholder="Parameter"
-                    valuePlaceholder="Value"
-                    activeEnv={activeEnv}
-                    collectionVariables={activeRequestCollection?.variables}
-                  />
-                )}
-                {activeConfigTab === 'headers' && (
-                  <KeyValueEditor
-                    pairs={activeRequest.headers}
-                    onChange={(headers) => updateActiveRequest({ headers })}
-                    keyPlaceholder="Header"
-                    valuePlaceholder="Value"
-                    activeEnv={activeEnv}
-                    collectionVariables={activeRequestCollection?.variables}
-                  />
-                )}
-                {activeConfigTab === 'body' && (
-                  <div className="body-editor">
-                    <div className="body-type-bar">
-                      {(['json', 'text', 'none'] as const).map(bt => (
-                        <button
-                          key={bt}
-                          className={`body-type-btn ${activeRequest.bodyType === bt ? 'body-type-active' : ''}`}
-                          onClick={() => updateActiveRequest({ bodyType: bt })}
-                        >
-                          {bt.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                    {activeRequest.bodyType !== 'none' && (
-                      <InterpolatedInput
-                        className="body-textarea"
-                        multiline
-                        activeEnv={activeEnv}
-                        collectionVariables={activeRequestCollection?.variables}
-                        placeholder={activeRequest.type === 'GRPC'
-                          ? '{\n  "field": "value"\n}'
-                          : activeRequest.bodyType === 'json'
-                          ? '{\n  "key": "value"\n}'
-                          : 'Plain text body...'}
-                        value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')}
-                        highlightJson={activeRequest.bodyType === 'json' || activeRequest.type === 'GRPC'}
-                        onChange={(val) => {
-                          if (activeRequest.type === 'GRPC') {
-                            updateActiveRequest({ grpcPayload: val })
-                          } else {
-                            updateActiveRequest({ body: val })
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                )}
-                {activeConfigTab === 'auth' && (
-                  <div className="options-section" style={{ padding: '16px', color: 'var(--text-secondary)' }}>
-                    <div style={{ marginBottom: '24px' }}>
-                      <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                        Request Timeout (Deadline)
-                      </label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input 
-                          type="number" 
-                          min="0"
-                          placeholder="30000 (Default)"
-                          style={{
-                            background: 'var(--bg-tertiary)',
-                            border: '1px solid var(--border)',
-                            color: 'var(--text-primary)',
-                            padding: '6px 10px',
-                            borderRadius: '4px',
-                            width: '120px',
-                            outline: 'none',
-                            fontSize: '13px'
-                          }}
-                          value={activeRequest.timeoutMs || ''}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10)
-                            updateActiveRequest({ timeoutMs: isNaN(val) ? undefined : val })
-                          }}
-                        />
-                        <span style={{ fontSize: '12px' }}>milliseconds</span>
+              {/* ==== Scrollable Config Content ==== */}
+              <div className="request-pane-content no-scrollbar">
+                <div className="config-content">
+                  {activeConfigTab === 'params' && (
+                    <KeyValueEditor
+                      pairs={activeRequest.params}
+                      onChange={(params) => updateActiveRequest({ params })}
+                      keyPlaceholder="Parameter"
+                      valuePlaceholder="Value"
+                      activeEnv={activeEnv}
+                      collectionVariables={activeRequestCollection?.variables}
+                    />
+                  )}
+                  {activeConfigTab === 'headers' && (
+                    <KeyValueEditor
+                      pairs={activeRequest.headers}
+                      onChange={(headers) => updateActiveRequest({ headers })}
+                      keyPlaceholder="Header"
+                      valuePlaceholder="Value"
+                      activeEnv={activeEnv}
+                      collectionVariables={activeRequestCollection?.variables}
+                    />
+                  )}
+                  {activeConfigTab === 'body' && (
+                    <div className="body-editor">
+                      <div className="body-type-bar">
+                        {(['json', 'text', 'none'] as const).map(bt => (
+                          <button
+                            key={bt}
+                            className={`body-type-btn ${activeRequest.bodyType === bt ? 'body-type-active' : ''}`}
+                            onClick={() => updateActiveRequest({ bodyType: bt })}
+                          >
+                            {bt.toUpperCase()}
+                          </button>
+                        ))}
                       </div>
-                    </div>
-                  </div>
-                )}
-                {activeConfigTab === 'script' && (
-                  <div className="script-section" style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    <div style={{ marginBottom: '12px' }}>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                        Post-Response Script (JavaScript)
-                      </label>
-                      <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                        Run code after a successful response. Access <code>ultra.response</code> and update variables with <code>ultra.setCollectionVariable(key, value)</code>.
-                      </p>
-                    </div>
-                    <div style={{ flex: 1, minHeight: '150px' }}>
-                       <InterpolatedInput
+                      {activeRequest.bodyType !== 'none' && (
+                        <InterpolatedInput
+                          className="body-textarea"
                           multiline
-                          className="script-editor"
-                          placeholder="// code here...&#10;if (ultra.response.body.token) {&#10;  ultra.setCollectionVariable('auth_token', ultra.response.body.token);&#10;}"
-                          value={activeRequest.postResponseScript || ''}
-                          onChange={val => updateActiveRequest({ postResponseScript: val })}
                           activeEnv={activeEnv}
                           collectionVariables={activeRequestCollection?.variables}
+                          placeholder={activeRequest.type === 'GRPC'
+                            ? '{\n  "field": "value"\n}'
+                            : activeRequest.bodyType === 'json'
+                            ? '{\n  "key": "value"\n}'
+                            : 'Plain text body...'}
+                          value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')}
+                          highlightJson={activeRequest.bodyType === 'json' || activeRequest.type === 'GRPC'}
+                          onChange={(val) => {
+                            if (activeRequest.type === 'GRPC') {
+                              updateActiveRequest({ grpcPayload: val })
+                            } else {
+                              updateActiveRequest({ body: val })
+                            }
+                          }}
                         />
+                      )}
                     </div>
-                    
-                    {/* Console Log Viewer */}
-                    <div className="script-console glass">
-                      <div className="console-header">
-                        <span className="console-title">Console Output</span>
-                        <button 
-                          className="btn-ghost" 
-                          style={{ fontSize: '10px', padding: '2px 8px' }}
-                          onClick={() => setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))}
-                        >
-                          Clear
-                        </button>
+                  )}
+                  {activeConfigTab === 'auth' && (
+                    <div className="options-section" style={{ padding: '16px', color: 'var(--text-secondary)' }}>
+                      <div style={{ marginBottom: '24px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                          Request Timeout (Deadline)
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="number" 
+                            min="0"
+                            placeholder="30000 (Default)"
+                            style={{
+                              background: 'var(--bg-tertiary)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--text-primary)',
+                              padding: '6px 10px',
+                              borderRadius: '4px',
+                              width: '120px',
+                              outline: 'none',
+                              fontSize: '13px'
+                            }}
+                            value={activeRequest.timeoutMs || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10)
+                              updateActiveRequest({ timeoutMs: isNaN(val) ? undefined : val })
+                            }}
+                          />
+                          <span style={{ fontSize: '12px' }}>milliseconds</span>
+                        </div>
                       </div>
-                      <div className="console-logs">
-                        {(scriptLogs[activeTabId] || []).length === 0 ? (
-                          <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No logs yet...</div>
-                        ) : (
-                          scriptLogs[activeTabId].map((log, i) => (
-                            <div key={i} className={`console-log-entry ${log.startsWith('[ERROR]') ? 'console-log-entry-error' : ''}`}>
-                              {log}
-                            </div>
-                          ))
+                    </div>
+                  )}
+                  {activeConfigTab === 'script' && (
+                    <div className="script-section" style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                          Post-Response Script (JavaScript)
+                        </label>
+                        <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                          Run code after a successful response. Access <code>ultra.response</code> and update variables with <code>ultra.setCollectionVariable(key, value)</code>.
+                        </p>
+                      </div>
+                      <div style={{ flex: 1, minHeight: '150px' }}>
+                        <InterpolatedInput
+                            multiline
+                            className="script-editor"
+                            placeholder="// code here...&#10;if (ultra.response.body.token) {&#10;  ultra.setCollectionVariable('auth_token', ultra.response.body.token);&#10;}"
+                            value={activeRequest.postResponseScript || ''}
+                            onChange={val => updateActiveRequest({ postResponseScript: val })}
+                            activeEnv={activeEnv}
+                            collectionVariables={activeRequestCollection?.variables}
+                          />
+                      </div>
+                      
+                      {/* Console Log Viewer */}
+                      <div className="script-console glass">
+                        <div className="console-header">
+                          <span className="console-title">Console Output</span>
+                          <button 
+                            className="btn-ghost" 
+                            style={{ fontSize: '10px', padding: '2px 8px' }}
+                            onClick={() => setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div className="console-logs">
+                          {(scriptLogs[activeTabId] || []).length === 0 ? (
+                            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No logs yet...</div>
+                          ) : (
+                            scriptLogs[activeTabId].map((log, i) => (
+                              <div key={i} className={`console-log-entry ${log.startsWith('[ERROR]') ? 'console-log-entry-error' : ''}`}>
+                                {log}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ==== gRPC specific fields (below content now) ==== */}
+                {activeRequest.type === 'GRPC' && (
+                  (() => {
+                    const isLocked = !!activeRequestCollection || !!responses[activeTabId];
+                    return (
+                      <>
+                        <div className="grpc-fields">
+                          <div className="grpc-field-row">
+                            <label className="grpc-label">Service</label>
+                            <InterpolatedInput
+                              className="grpc-input"
+                              placeholder="Use Discover below, or type e.g. mypackage.MyService"
+                              value={activeRequest.grpcService || ''}
+                              onChange={(val) => updateActiveRequest({ grpcService: val })}
+                              activeEnv={activeEnv}
+                              collectionVariables={activeRequestCollection?.variables}
+                              disabled={isLocked}
+                            />
+                          </div>
+                          <div className="grpc-field-row">
+                            <label className="grpc-label">Method</label>
+                            <InterpolatedInput
+                              className="grpc-input"
+                              placeholder="e.g. GetUser"
+                              value={activeRequest.grpcMethod || ''}
+                              onChange={(val) => updateActiveRequest({ grpcMethod: val })}
+                              activeEnv={activeEnv}
+                              collectionVariables={activeRequestCollection?.variables}
+                              disabled={isLocked}
+                            />
+                          </div>
+                        </div>
+
+                        {!isLocked && (
+                          <GrpcReflectionPanel
+                            host={interpolate(activeRequest.url)}
+                            headers={(() => {
+                              const h: Record<string, string> = {}
+                              activeRequest.headers.filter(hdr => hdr.enabled && hdr.key).forEach(hdr => {
+                                h[interpolate(hdr.key)] = interpolate(hdr.value)
+                              })
+                              return h
+                            })()}
+                            onSelectService={(svc) => updateActiveRequest({ grpcService: svc })}
+                            onSelectMethod={(svc, method, sampleBody) => {
+                              updateActiveRequest({
+                                grpcService: svc,
+                                grpcMethod: method,
+                                grpcPayload: sampleBody || '{}',
+                                bodyType: 'json',
+                              })
+                              setActiveConfigTab('body')
+                            }}
+                          />
                         )}
-                      </div>
-                    </div>
-                  </div>
+                      </>
+                    );
+                  })()
                 )}
               </div>
-
-              {/* ==== gRPC specific fields (below content now) ==== */}
-              {activeRequest.type === 'GRPC' && (
-                <>
-                  <div className="grpc-fields">
-                    <div className="grpc-field-row">
-                      <label className="grpc-label">Service</label>
-                      <InterpolatedInput
-                        className="grpc-input"
-                        placeholder="Use Discover below, or type e.g. mypackage.MyService"
-                        value={activeRequest.grpcService || ''}
-                        onChange={(val) => updateActiveRequest({ grpcService: val })}
-                        activeEnv={activeEnv}
-                        collectionVariables={activeRequestCollection?.variables}
-                      />
-                    </div>
-                    <div className="grpc-field-row">
-                      <label className="grpc-label">Method</label>
-                      <InterpolatedInput
-                        className="grpc-input"
-                        placeholder="e.g. GetUser"
-                        value={activeRequest.grpcMethod || ''}
-                        onChange={(val) => updateActiveRequest({ grpcMethod: val })}
-                        activeEnv={activeEnv}
-                        collectionVariables={activeRequestCollection?.variables}
-                      />
-                    </div>
-                  </div>
-
-                  <GrpcReflectionPanel
-                    host={interpolate(activeRequest.url)}
-                    headers={(() => {
-                      const h: Record<string, string> = {}
-                      activeRequest.headers.filter(hdr => hdr.enabled && hdr.key).forEach(hdr => {
-                        h[interpolate(hdr.key)] = interpolate(hdr.value)
-                      })
-                      return h
-                    })()}
-                    onSelectService={(svc) => updateActiveRequest({ grpcService: svc })}
-                    onSelectMethod={(svc, method, sampleBody) => {
-                      updateActiveRequest({
-                        grpcService: svc,
-                        grpcMethod: method,
-                        grpcPayload: sampleBody || '{}',
-                        bodyType: 'json',
-                      })
-                      setActiveConfigTab('body')
-                    }}
-                  />
-                </>
-              )}
             </motion.div>
           </div>
 

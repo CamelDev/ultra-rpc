@@ -316,10 +316,24 @@ input:focus, select:focus, textarea:focus {
 }
 
 .request-top-pane {
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 24px 24px 0 24px;
-  min-height: 200px; /* Prevent total collapse */
+  min-height: 200px;
   position: relative;
+}
+
+.request-pane-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-top: 16px;
+  /* Custom scrollbar for inner pane */
+}
+
+.request-pane-content::-webkit-scrollbar {
+  width: 4px;
 }
 
 .request-bottom-pane {
@@ -413,6 +427,12 @@ input:focus, select:focus, textarea:focus {
 .type-btn-active {
   background: var(--accent-muted);
   color: var(--accent);
+}
+
+.type-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
 }
 
 .address-input {
@@ -584,7 +604,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .body-textarea {
-  min-height: 160px;
+  min-height: 280px;
   resize: vertical;
   border-radius: 8px;
 }
