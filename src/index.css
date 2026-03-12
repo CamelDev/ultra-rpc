@@ -554,12 +554,8 @@ input:focus, select:focus, textarea:focus {
 
 .body-textarea {
   min-height: 160px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.6;
   resize: vertical;
   border-radius: 8px;
-  padding: 12px;
 }
 
 /* ===== Auth Section ===== */
@@ -598,6 +594,10 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.save-menu-item:hover {
+  background: var(--bg-tertiary) !important;
 }
 
 .section-label {

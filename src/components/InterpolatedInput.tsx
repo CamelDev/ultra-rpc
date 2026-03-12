@@ -10,6 +10,7 @@ interface Props {
   placeholder?: string
   className?: string
   multiline?: boolean
+  highlightJson?: boolean
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
 }
@@ -21,6 +22,7 @@ const InterpolatedInput: React.FC<Props> = ({
   placeholder,
   className = '',
   multiline = false,
+  highlightJson = false,
   onKeyDown,
   disabled = false,
 }) => {
@@ -115,6 +117,48 @@ const InterpolatedInput: React.FC<Props> = ({
           </span>
         )
       }
+      
+      // Text part that is NOT a variable
+      if (highlightJson && part.trim() !== '') {
+        // Very basic naive regex JSON highlighter
+        // Matches "key": OR "string" OR number/boolean
+        const jsonRegex = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g
+        
+        const subParts: React.ReactNode[] = []
+        let lastIndex = 0
+        let match
+
+        while ((match = jsonRegex.exec(part)) !== null) {
+          if (match.index > lastIndex) {
+            subParts.push(<span key={`text-${index}-${lastIndex}`}>{part.substring(lastIndex, match.index)}</span>)
+          }
+
+          const matchStr = match[0]
+          let className = 'json-value'
+          
+          if (/^".*"\s*:$/.test(matchStr)) {
+            className = 'json-key'
+          } else if (matchStr.startsWith('"')) {
+            className = 'json-string'
+          } else if (matchStr === 'true' || matchStr === 'false') {
+            className = 'json-boolean'
+          } else if (matchStr === 'null') {
+            className = 'json-null'
+          } else if (!isNaN(Number(matchStr))) {
+            className = 'json-number'
+          }
+
+          subParts.push(<span key={`match-${index}-${match.index}`} className={className}>{matchStr}</span>)
+          lastIndex = jsonRegex.lastIndex
+        }
+
+        if (lastIndex < part.length) {
+          subParts.push(<span key={`text-${index}-end`}>{part.substring(lastIndex)}</span>)
+        }
+
+        return <span key={index}>{subParts}</span>
+      }
+
       return <span key={index}>{part}</span>
     })
   }

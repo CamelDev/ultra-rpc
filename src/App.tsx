@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import {
   Plus,
   Send,
+  Save,
   Settings,
   Globe,
   Zap,
@@ -49,6 +50,7 @@ const App: React.FC = () => {
   // ===== UI state =====
   const [activeConfigTab, setActiveConfigTab] = useState<RequestTab>('params')
   const [showEnvPanel, setShowEnvPanel] = useState(false)
+  const [showSaveMenu, setShowSaveMenu] = useState(false)
 
   // ===== Environments =====
   const [environments, setEnvironments] = useState<Environment[]>([])
@@ -148,11 +150,33 @@ const App: React.FC = () => {
     ))
   }, [activeTabId])
 
-  const addTab = (request?: RequestConfig) => {
-    const newReq = request ? { ...request, id: Math.random().toString(36).substring(2, 11) } : createEmptyRequest()
+  const addEmptyTab = () => {
+    const newReq = createEmptyRequest()
     const newTab: Tab = { id: newReq.id, request: newReq }
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newReq.id)
+  }
+
+  const openRequestTab = (request: RequestConfig, fromHistory: boolean) => {
+    if (fromHistory) {
+      // Historical snapshots shouldn't overwrite the active collection model. Give them a new ID.
+      const newReq = { ...request, id: Math.random().toString(36).substring(2, 11) }
+      const newTab: Tab = { id: newReq.id, request: newReq }
+      setTabs(prev => [...prev, newTab])
+      setActiveTabId(newReq.id)
+    } else {
+      // From Collection
+      const existingTab = tabs.find(t => t.id === request.id)
+      if (existingTab) {
+        // Tab exactly matching this collection request is already open, just switch to it.
+        setActiveTabId(request.id)
+      } else {
+        // It's not open, so open it, preserving its unique ID so saves overwrite it.
+        const newTab: Tab = { id: request.id, request: { ...request } }
+        setTabs(prev => [...prev, newTab])
+        setActiveTabId(request.id)
+      }
+    }
   }
 
   const removeTab = (e: React.MouseEvent, id: string) => {
@@ -327,7 +351,7 @@ const App: React.FC = () => {
         </div>
 
         <div style={{ padding: '12px', display: 'flex', gap: '6px' }}>
-          <button className="btn-primary" style={{ flex: 1, height: '32px', fontSize: '12px' }} onClick={() => addTab()}>
+          <button className="btn-primary" style={{ flex: 1, height: '32px', fontSize: '12px' }} onClick={() => addEmptyTab()}>
             <Plus size={14} /> NEW
           </button>
         </div>
@@ -336,7 +360,7 @@ const App: React.FC = () => {
           {/* History Panel */}
           <HistoryPanel
             history={history}
-            onOpenRequest={(req) => addTab(req)}
+            onOpenRequest={(req) => openRequestTab(req, true)}
             onClear={clearHistory}
           />
 
@@ -346,7 +370,7 @@ const App: React.FC = () => {
           <CollectionPanel
             collections={collections}
             onRefresh={loadCollections}
-            onOpenRequest={(req) => addTab(req)}
+            onOpenRequest={(req) => openRequestTab(req, false)}
             onSaveToCollection={saveToCollection}
           />
 
@@ -434,7 +458,7 @@ const App: React.FC = () => {
                   {tab.request.type === 'GRPC' ? 'gRPC' : tab.request.method}
                 </span>
                 <span className="tab-title">
-                  {tab.request.url || tab.request.name}
+                  {tab.request.name || tab.request.url || 'Untitled'}
                 </span>
                 <button className="tab-close" onClick={(e) => removeTab(e, tab.id)}>
                   <X size={12} />
@@ -444,7 +468,7 @@ const App: React.FC = () => {
                 )}
               </div>
             ))}
-            <button className="tab-add" onClick={() => addTab()}>
+            <button className="tab-add" onClick={() => addEmptyTab()}>
               <Plus size={16} />
             </button>
           </div>
@@ -497,6 +521,14 @@ const App: React.FC = () => {
                 onKeyDown={(e) => e.key === 'Enter' && sendRequest()}
                 activeEnv={activeEnv}
               />
+              <button 
+                className="btn-ghost save-btn" 
+                onClick={() => setShowSaveMenu(!showSaveMenu)}
+                title="Save Request"
+                style={{ padding: '0 12px', color: 'var(--text-secondary)' }}
+              >
+                <Save size={14} />
+              </button>
               <button className="btn-primary send-btn" onClick={sendRequest} disabled={loadingTabs[activeTabId]}>
                 {loadingTabs[activeTabId] ? (
                   <><Loader2 size={14} className="spin" /> Sending</>
@@ -504,6 +536,57 @@ const App: React.FC = () => {
                   <><Send size={14} /> Send</>
                 )}
               </button>
+
+              {/* Save Menu Popup */}
+              {showSaveMenu && (
+                <div 
+                  className="save-menu glass fade-in-tooltip" 
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    width: '240px',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                    zIndex: 100
+                  }}
+                >
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px', padding: '0 4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Save to Collection
+                  </div>
+                  {collections.length === 0 && (
+                    <div style={{ padding: '8px 4px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      No collections yet. Create one in the sidebar.
+                    </div>
+                  )}
+                  {collections.map(c => (
+                    <button 
+                      key={c.id}
+                      className="save-menu-item"
+                      onClick={() => {
+                        saveToCollection(c.id)
+                        setShowSaveMenu(false)
+                      }}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px 12px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Active env selector */}
@@ -638,6 +721,7 @@ const App: React.FC = () => {
                         ? '{\n  "key": "value"\n}'
                         : 'Plain text body...'}
                       value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')}
+                      highlightJson={activeRequest.bodyType === 'json' || activeRequest.type === 'GRPC'}
                       onChange={(val) => {
                         if (activeRequest.type === 'GRPC') {
                           updateActiveRequest({ grpcPayload: val })

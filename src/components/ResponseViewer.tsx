@@ -125,7 +125,47 @@ const ResponseViewer: React.FC<Props> = ({ response, error, loading }) => {
       {/* Body */}
       <div className="response-body-container">
         <pre className="response-body">
-          <code>{formattedBody}</code>
+          <code>
+            {(() => {
+              if (response.headers['content-type']?.includes('application/json') || formattedBody.startsWith('{') || formattedBody.startsWith('[')) {
+                const jsonRegex = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g
+                const subParts: React.ReactNode[] = []
+                let lastIndex = 0
+                let match
+                
+                while ((match = jsonRegex.exec(formattedBody)) !== null) {
+                  if (match.index > lastIndex) {
+                    subParts.push(<span key={`text-${lastIndex}`}>{formattedBody.substring(lastIndex, match.index)}</span>)
+                  }
+
+                  const matchStr = match[0]
+                  let className = 'json-value'
+                  
+                  if (/^".*"\s*:$/.test(matchStr)) {
+                    className = 'json-key'
+                  } else if (matchStr.startsWith('"')) {
+                    className = 'json-string'
+                  } else if (matchStr === 'true' || matchStr === 'false') {
+                    className = 'json-boolean'
+                  } else if (matchStr === 'null') {
+                    className = 'json-null'
+                  } else if (!isNaN(Number(matchStr))) {
+                    className = 'json-number'
+                  }
+
+                  subParts.push(<span key={`match-${match.index}`} className={className}>{matchStr}</span>)
+                  lastIndex = jsonRegex.lastIndex
+                }
+
+                if (lastIndex < formattedBody.length) {
+                  subParts.push(<span key={`text-end`}>{formattedBody.substring(lastIndex)}</span>)
+                }
+                
+                return subParts
+              }
+              return formattedBody
+            })()}
+          </code>
         </pre>
       </div>
     </div>

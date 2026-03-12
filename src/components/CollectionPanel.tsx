@@ -36,6 +36,8 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
   const [showNewInput, setShowNewInput] = useState(false)
   const [newName, setNewName] = useState('')
   const [contextMenu, setContextMenu] = useState<string | null>(null)
+  const [editingReqId, setEditingReqId] = useState<string | null>(null)
+  const [reqNameInput, setReqNameInput] = useState('')
 
   const createCollection = async () => {
     if (!newName.trim()) return
@@ -88,6 +90,14 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
       await window.ultraRpc.deleteRequest({ collectionId, requestId })
       onRefresh()
     }
+  }
+
+  const renameRequest = async (collectionId: string, request: RequestConfig) => {
+    if (!reqNameInput.trim() || !window.ultraRpc) return
+    const updatedRequest = { ...request, name: reqNameInput.trim() }
+    await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as any })
+    setEditingReqId(null)
+    onRefresh()
   }
 
   const methodColor = (m: string) => {
@@ -207,13 +217,44 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
                   <span className="coll-req-method" style={{ color: methodColor(req.type === 'GRPC' ? 'GRPC' : req.method) }}>
                     {req.type === 'GRPC' ? 'gRPC' : req.method}
                   </span>
-                  <span className="coll-req-name">{req.name || req.url || 'Untitled'}</span>
-                  <button
-                    className="coll-req-delete"
-                    onClick={(e) => { e.stopPropagation(); deleteRequest(coll.id, req.id) }}
-                  >
-                    <Trash2 size={11} />
-                  </button>
+                  {editingReqId === req.id ? (
+                    <input
+                      className="coll-rename-input"
+                      style={{ flex: 1, padding: '2px 4px' }}
+                      value={reqNameInput}
+                      onChange={e => setReqNameInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && renameRequest(coll.id, req)}
+                      onClick={e => e.stopPropagation()}
+                      onBlur={() => setEditingReqId(null)}
+                      autoFocus
+                    />
+                  ) : (
+                    <span className="coll-req-name">{req.name || req.url || 'Untitled'}</span>
+                  )}
+                  
+                  {editingReqId !== req.id && (
+                    <div style={{ display: 'flex', gap: '2px', marginLeft: 'auto' }}>
+                      <button
+                        className="coll-req-delete"
+                        title="Rename request"
+                        style={{ color: 'var(--text-secondary)' }}
+                        onClick={(e) => { 
+                          e.stopPropagation()
+                          setEditingReqId(req.id)
+                          setReqNameInput(req.name || req.url || 'Untitled')
+                        }}
+                      >
+                        <Edit2 size={11} />
+                      </button>
+                      <button
+                        className="coll-req-delete"
+                        title="Delete request"
+                        onClick={(e) => { e.stopPropagation(); deleteRequest(coll.id, req.id) }}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

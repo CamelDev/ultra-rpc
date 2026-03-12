@@ -36,17 +36,24 @@
   left: 0;
   width: 100%;
   height: 100%;
-  margin: 0;
-  padding: 8px 12px;
-  border: none !important;
-  border-radius: 0;
+  margin: 0 !important;
+  padding: 8px 12px !important;
+  border: 0px solid transparent !important;
+  border-radius: 0 !important;
   background: transparent !important;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  box-sizing: border-box;
+  font-family: var(--font-mono), Menlo, Monaco, Consolas, "Courier New", monospace !important;
+  font-size: 13px !important;
+  line-height: 20px !important;
+  letter-spacing: 0px !important;
+  word-spacing: 0px !important;
+  box-sizing: border-box !important;
   outline: none !important;
   box-shadow: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  vertical-align: top !important;
+  text-rendering: optimizeLegibility !important;
+  text-size-adjust: 100% !important;
 }
 
 .interpolated-wrapper.singleline .interpolated-backdrop,
@@ -147,3 +154,10 @@
 .fade-in-tooltip {
   animation: fadeInTooltip 0.2s ease-out forwards;
 }
+
+/* JSON Syntax Highlighting */
+.json-key { color: #8b5cf6; } /* Purple */
+.json-string { color: #22c55e; } /* Green */
+.json-number { color: #f59e0b; } /* Orange */
+.json-boolean { color: #ef4444; } /* Red */
+.json-null { color: var(--text-muted); font-style: italic; }
