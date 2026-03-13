@@ -38,4 +38,12 @@ contextBridge.exposeInMainWorld('ultraRpc', {
 
   // ===== Utils =====
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
+  confirmClose: () => ipcRenderer.invoke('app:confirm-close'),
+  onRequestClose: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('app:request-close', listener)
+    return () => {
+      ipcRenderer.removeListener('app:request-close', listener)
+    }
+  },
 })

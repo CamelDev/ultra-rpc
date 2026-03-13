@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Plus,
   Send,
@@ -205,6 +205,35 @@ const App: React.FC = () => {
     localStorage.setItem('ultraRpcActiveTabId', activeTabId)
   }, [activeTabId])
 
+  const tabsRef = useRef(tabs)
+  useEffect(() => {
+    tabsRef.current = tabs
+  }, [tabs])
+
+  useEffect(() => {
+    if (!window.ultraRpc) return
+
+    const unsubscribe = window.ultraRpc.onRequestClose(() => {
+      const hasDirtyTabs = tabsRef.current.some((t: Tab) => t.isDirty)
+      
+      if (hasDirtyTabs) {
+        const confirm = window.confirm(
+          'You have unsaved changes in your tabs.\nAre you sure you want to exit? Unsaved progress will be lost.'
+        )
+        if (confirm) {
+          window.ultraRpc.confirmClose()
+        }
+      } else {
+        window.ultraRpc.confirmClose()
+      }
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
+
   // Apply theme to body
   useEffect(() => {
     if (theme === 'light') {
@@ -390,6 +419,20 @@ const App: React.FC = () => {
       setShowSaveMenu(true)
     }
   }
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S or Cmd+S
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        handleSaveActiveRequest()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleSaveActiveRequest])
 
   const handleRenameRequest = (reqId: string, newName: string) => {
     setTabs(prev => prev.map(t => 

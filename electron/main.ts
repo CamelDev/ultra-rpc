@@ -18,6 +18,51 @@ process.env.DIST = join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : join(process.env.DIST, '../public')
 
 let win: BrowserWindow | null
+let readyToClose = false
+
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+  })
+
+  // Register IPC handlers
+  registerRestHandlers()
+  registerGrpcHandlers()
+  registerStorageHandlers()
+
+  // Utils
+  ipcMain.handle('app:openExternal', async (_, url: string) => {
+    await shell.openExternal(url)
+  })
+
+  ipcMain.handle('app:confirm-close', () => {
+    readyToClose = true
+    if (win) saveWindowState(win)
+    app.quit()
+  })
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+      win = null
+    }
+  })
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+
+  app.whenReady().then(createWindow)
+}
 
 const getWindowStatePath = () => {
   return join(app.getPath('userData'), 'window-state.json')
@@ -75,7 +120,12 @@ function createWindow() {
   const saveState = () => saveWindowState(win!)
   win.on('resized', saveState)
   win.on('moved', saveState)
-  win.on('close', saveState)
+  
+  win.on('close', (e) => {
+    if (readyToClose) return
+    e.preventDefault()
+    win?.webContents.send('app:request-close')
+  })
 
   // Set the macOS Dock icon
   if (process.platform === 'darwin' && app.dock) {
@@ -89,27 +139,3 @@ function createWindow() {
   }
 }
 
-// Register IPC handlers
-registerRestHandlers()
-registerGrpcHandlers()
-registerStorageHandlers()
-
-// Utils
-ipcMain.handle('app:openExternal', async (_, url: string) => {
-  await shell.openExternal(url)
-})
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
-  }
-})
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
-  }
-})
-
-app.whenReady().then(createWindow)

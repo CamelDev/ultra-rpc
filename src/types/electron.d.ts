@@ -54,6 +54,8 @@ export interface UltraRpcApi {
 
   // Utils
   openExternal: (url: string) => Promise<void>
+  confirmClose: () => Promise<void>
+  onRequestClose: (callback: () => void) => () => void
 }
 
 declare global {
