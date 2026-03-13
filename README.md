@@ -102,6 +102,26 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ---
 
+## 🧠 Deep Dive: How gRPC Works
+
+UltraRPC is designed to make gRPC testing as seamless as REST by handling the complexities of Protobuf serialization and schema management automatically.
+
+### 🔄 Dynamic Reflection
+Unlike other clients that require you to manually manage `.proto` files, UltraRPC uses **gRPC Server Reflection** by default.
+- **Always Up-to-Date**: Schemas are fetched from the server's reflection endpoint for **every discovery and call**. If you change your Protobuf definition and restart your server, UltraRPC picks up the changes immediately without a restart.
+- **On-the-Fly Parsing**: Descriptors are parsed into a virtual type system in memory, allowing for instant method discovery and sample body generation.
+
+### 🪄 Smart JSON Mapping
+Standard Protobuf serialization can be rigid. UltraRPC includes a "Scaffold & Adapt" layer that allows you to write natural JSON while meeting strict Protobuf requirements:
+- **Map Handling**: Automatically converts standard JSON objects into the `entry[]` format required by Protobuf maps.
+- **Well-Known Types**: Transparently handles `google.protobuf.Timestamp` (from ISO-8601 strings), `google.protobuf.Duration` (from "30s" style strings), and value wrappers (`StringValue`, `BoolValue`, etc.).
+- **Fuzzy Lookup**: Matches JSON keys to Protobuf fields using a case-insensitive, dash/underscore-ignoring algorithm, so you don't have to worry about `camelCase` vs `snake_case` mismatches.
+
+### 🛡️ Local-First Proto Support
+If your server doesn't support reflection, you can provide a path to a local `.proto` file in the "Options" tab. UltraRPC reads this file directly from your disk, ensuring your private definitions never leave your machine.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -126,6 +146,35 @@ npm run dev
 ```
 
 The Electron app will launch automatically with hot module replacement enabled.
+
+---
+
+## 📦 Distribution & Packaging
+
+UltraRPC uses `electron-builder` to create native installers for all major platforms. All build artifacts are output to the `release/` directory.
+
+### 🍎 macOS
+Builds a universal DMG for Apple Silicon and Intel Macs.
+```bash
+npm run package:mac
+```
+- **Output**: `release/UltraRPC-1.0.0-arm64.dmg` (or similar)
+- *Note: On macOS, this also generates a `.app` bundle in `release/mac-arm64/`.*
+
+### 🪟 Windows
+Generates a standard NSIS installer.
+```bash
+npm run package:win
+```
+- **Output**: `release/UltraRPC-Setup-1.0.0.exe`
+- **Feature**: Supports custom installation paths and desktop shortcuts.
+
+### 🐧 Linux
+Creates a portable AppImage that runs on most distributions.
+```bash
+npm run package:linux
+```
+- **Output**: `release/UltraRPC-1.0.0.AppImage`
 
 ---
 
