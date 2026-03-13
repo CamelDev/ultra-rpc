@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    # Explicitly grant write permissions to the GITHUB_TOKEN
+    permissions:
+      contents: write
 
     strategy:
       fail-fast: false
