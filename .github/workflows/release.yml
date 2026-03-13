@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build and Release
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            npm run build && npx electron-builder --linux --publish always
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            npm run build && npx electron-builder --win --publish always
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            npm run build && npx electron-builder --mac --publish always
+          fi
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
