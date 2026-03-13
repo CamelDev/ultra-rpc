@@ -161,3 +161,12 @@
 .json-number { color: #f59e0b; } /* Orange */
 .json-boolean { color: #ef4444; } /* Red */
 .json-null { color: var(--text-muted); font-style: italic; }
+
+/* JS Syntax Highlighting */
+.js-comment { color: #52525b; font-style: italic; }
+.js-string { color: #22c55e; }
+.js-number { color: #f59e0b; }
+.js-keyword { color: #8b5cf6; font-weight: 600; }
+.js-keyword-alt { color: #ef4444; }
+.js-builtin { color: #3b82f6; font-weight: 600; }
+.js-default { color: var(--text-primary); }

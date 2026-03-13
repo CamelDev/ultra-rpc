@@ -12,6 +12,8 @@ interface Props {
   className?: string
   multiline?: boolean
   highlightJson?: boolean
+  highlightJs?: boolean
+  wrapLines?: boolean
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
 }
@@ -25,6 +27,8 @@ const InterpolatedInput: React.FC<Props> = ({
   className = '',
   multiline = false,
   highlightJson = false,
+  highlightJs = false,
+  wrapLines = true,
   onKeyDown,
   disabled = false,
 }) => {
@@ -168,6 +172,47 @@ const InterpolatedInput: React.FC<Props> = ({
         return <span key={index}>{subParts}</span>
       }
 
+      // JS highlighting
+      if (highlightJs && part.trim() !== '') {
+        const jsRegex = /(\b(if|else|const|let|var|function|return|await|async|try|catch|finally|throw|new|class|extends|import|export|default|switch|case|break|continue|for|while|do|in|of|typeof|instanceof|void|delete|true|false|null|undefined|NaN|Infinity)\b|(\b(ultra|console|JSON|Object|Array|String|Number|Boolean|Promise|Math|Error|Map|Set)\b)|(\/\/.*)|("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"|'(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\'])*'|`(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\`])*`)|(-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?))/g
+        
+        const subParts: React.ReactNode[] = []
+        let lastIndex = 0
+        let match
+
+        while ((match = jsRegex.exec(part)) !== null) {
+          if (match.index > lastIndex) {
+            subParts.push(<span key={`text-${index}-${lastIndex}`}>{part.substring(lastIndex, match.index)}</span>)
+          }
+
+          const matchStr = match[0]
+          let className = 'js-default'
+          
+          if (matchStr.startsWith('//')) {
+            className = 'js-comment'
+          } else if (matchStr.startsWith('"') || matchStr.startsWith("'") || matchStr.startsWith('`')) {
+            className = 'js-string'
+          } else if (/^(true|false|null|undefined|NaN|Infinity)$/.test(matchStr)) {
+            className = 'js-keyword-alt'
+          } else if (/^(if|else|const|let|var|function|return|await|async|try|catch|finally|throw|new|class|extends|import|export|default|switch|case|break|continue|for|while|do|in|of|typeof|instanceof|void|delete)$/.test(matchStr)) {
+            className = 'js-keyword'
+          } else if (/^(ultra|console|JSON|Object|Array|String|Number|Boolean|Promise|Math|Error|Map|Set)$/.test(matchStr)) {
+            className = 'js-builtin'
+          } else if (!isNaN(Number(matchStr))) {
+            className = 'js-number'
+          }
+
+          subParts.push(<span key={`match-${index}-${match.index}`} className={className}>{matchStr}</span>)
+          lastIndex = jsRegex.lastIndex
+        }
+
+        if (lastIndex < part.length) {
+          subParts.push(<span key={`text-${index}-end`}>{part.substring(lastIndex)}</span>)
+        }
+
+        return <span key={index}>{subParts}</span>
+      }
+
       return <span key={index}>{part}</span>
     })
   }
@@ -177,7 +222,12 @@ const InterpolatedInput: React.FC<Props> = ({
 
   return (
     <div className={wrapperClass}>
-      <div className="interpolated-backdrop" ref={backdropRef} aria-hidden="true">
+      <div 
+        className="interpolated-backdrop" 
+        ref={backdropRef} 
+        aria-hidden="true"
+        style={{ whiteSpace: wrapLines ? 'pre-wrap' : 'pre' }}
+      >
         {renderInterpolatedText()}
         {multiline && value.endsWith('\n') ? <br /> : null}
         {!value && placeholder && <span className="interpolated-placeholder">{placeholder}</span>}
@@ -185,6 +235,7 @@ const InterpolatedInput: React.FC<Props> = ({
       <InputComponent
         ref={inputRef as any}
         className="interpolated-element"
+        style={{ whiteSpace: wrapLines ? 'pre-wrap' : 'pre' }}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onScroll={handleScroll}

@@ -9,6 +9,7 @@ import {
   X,
   Loader2,
   Info,
+  WrapText,
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
@@ -98,6 +99,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [showSettingsPopup, setShowSettingsPopup] = useState(false)
   const [showAboutModal, setShowAboutModal] = useState(false)
+  const [wrapLines, setWrapLines] = useState(true)
   const [editingCollection, setEditingCollection] = useState<CollectionData | null>(null)
 
   // ===== Sidebar Resizing =====
@@ -998,12 +1000,23 @@ const App: React.FC = () => {
                             {bt.toUpperCase()}
                           </button>
                         ))}
+                        <div style={{ marginLeft: 'auto' }}>
+                          <button 
+                            className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                            style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            onClick={() => setWrapLines(!wrapLines)}
+                            title="Toggle Line Wrap"
+                          >
+                            <WrapText size={14} /> Wrap
+                          </button>
+                        </div>
                       </div>
                       {activeRequest.bodyType !== 'none' && (
                         <InterpolatedInput
                           className="body-textarea"
                           multiline
                           activeEnv={activeEnv}
+                          wrapLines={wrapLines}
                           collectionVariables={activeRequestCollection?.variables}
                           placeholder={activeRequest.type === 'GRPC'
                             ? '{\n  "field": "value"\n}'
@@ -1061,9 +1074,19 @@ const App: React.FC = () => {
                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
                           Post-Response Script (JavaScript)
                         </label>
-                        <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                          Run code after a successful response. Access <code>ultra.response</code> and update variables with <code>ultra.setCollectionVariable(key, value)</code>.
-                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                            Run code after a successful response. Access <code>ultra.response</code> and update variables with <code>ultra.setCollectionVariable(key, value)</code>.
+                          </p>
+                          <button 
+                            className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                            style={{ padding: '4px 8px', fontSize: '11px', flexShrink: 0 }}
+                            onClick={() => setWrapLines(!wrapLines)}
+                            title="Toggle Line Wrap"
+                          >
+                            <WrapText size={14} />
+                          </button>
+                        </div>
                       </div>
                       <div style={{ flex: 1, minHeight: '150px' }}>
                         <InterpolatedInput
@@ -1073,6 +1096,8 @@ const App: React.FC = () => {
                             value={activeRequest.postResponseScript || ''}
                             onChange={val => updateActiveRequest({ postResponseScript: val })}
                             activeEnv={activeEnv}
+                            highlightJs={true}
+                            wrapLines={wrapLines}
                             collectionVariables={activeRequestCollection?.variables}
                           />
                       </div>
