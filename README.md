@@ -13,6 +13,8 @@
 
 ## 🎯 Overview
 
+![UltraRPC App Screenshot](public/screenshots/screenshot.png)
+
 UltraRPC is a cross-platform desktop application designed for developers who need a single tool to test and debug both REST APIs and gRPC services. Unlike cloud-based alternatives, UltraRPC stores everything locally in human-readable files — no accounts, no subscriptions, no data leaving your machine.
 
 ### Why UltraRPC?
