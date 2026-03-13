@@ -8,6 +8,7 @@ import {
   Zap,
   X,
   Loader2,
+  Info,
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
@@ -17,8 +18,10 @@ import EnvironmentPanel from './components/EnvironmentPanel'
 import CollectionPanel from './components/CollectionPanel'
 import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
+import AboutModal from './components/AboutModal'
 import type { Tab, RequestConfig, ResponseData, Environment } from './types'
 import { createEmptyRequest } from './lib/helpers'
+import pkg from '../package.json'
 
 type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'script'
 
@@ -37,11 +40,41 @@ interface CollectionData {
 }
 
 const App: React.FC = () => {
-  // ===== Tab State =====
-  const [tabs, setTabs] = useState<Tab[]>([
-    { id: '1', request: createEmptyRequest() },
-  ])
-  const [activeTabId, setActiveTabId] = useState('1')
+  const [tabs, setTabs] = useState<Tab[]>(() => {
+    const saved = localStorage.getItem('ultraRpcTabs')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      } catch (e) {
+        console.error('Failed to restore tabs:', e)
+      }
+    }
+    return [{ id: '1', request: createEmptyRequest() }]
+  })
+
+  const [activeTabId, setActiveTabId] = useState(() => {
+    const savedId = localStorage.getItem('ultraRpcActiveTabId')
+    const savedTabs = localStorage.getItem('ultraRpcTabs')
+    if (savedId && savedTabs) {
+      try {
+        const parsed = JSON.parse(savedTabs)
+        if (Array.isArray(parsed) && parsed.some((t: any) => t.id === savedId)) {
+          return savedId
+        }
+      } catch {}
+    }
+    // Fallback to first tab if active id not found or invalid
+    const saved = localStorage.getItem('ultraRpcTabs')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0].id
+      } catch {}
+    }
+    return '1'
+  })
+
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
   const [tabNameInput, setTabNameInput] = useState('')
 
@@ -64,6 +97,7 @@ const App: React.FC = () => {
   // ===== Settings & Theme =====
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [showSettingsPopup, setShowSettingsPopup] = useState(false)
+  const [showAboutModal, setShowAboutModal] = useState(false)
   const [editingCollection, setEditingCollection] = useState<CollectionData | null>(null)
 
   // ===== Sidebar Resizing =====
@@ -158,6 +192,16 @@ const App: React.FC = () => {
     loadCollections()
     loadHistory()
   }, [])
+
+  // Persist tabs whenever they change
+  useEffect(() => {
+    localStorage.setItem('ultraRpcTabs', JSON.stringify(tabs))
+  }, [tabs])
+
+  // Persist active tab ID
+  useEffect(() => {
+    localStorage.setItem('ultraRpcActiveTabId', activeTabId)
+  }, [activeTabId])
 
   // Apply theme to body
   useEffect(() => {
@@ -289,7 +333,7 @@ const App: React.FC = () => {
       timestamp: Date.now(),
       statusCode,
     }
-    setHistory(prev => [entry, ...prev].slice(0, 100))
+    setHistory(prev => [entry, ...prev].slice(0, 30))
     if (window.ultraRpc) window.ultraRpc.addHistory(entry)
   }
 
@@ -609,6 +653,15 @@ const App: React.FC = () => {
             title="Settings"
           >
             <Settings size={18} />
+          </button>
+
+          <button 
+            className="btn-ghost"
+            style={{ padding: '6px' }} 
+            onClick={() => setShowAboutModal(true)}
+            title="About UltraRPC"
+          >
+            <Info size={18} />
           </button>
           
           <button
@@ -1174,6 +1227,11 @@ const App: React.FC = () => {
           </motion.div>
         </div>
       )}
+      <AboutModal 
+        isOpen={showAboutModal} 
+        onClose={() => setShowAboutModal(false)} 
+        version={pkg.version}
+      />
     </div>
   )
 }

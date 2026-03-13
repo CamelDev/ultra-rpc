@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
@@ -93,6 +93,11 @@ function createWindow() {
 registerRestHandlers()
 registerGrpcHandlers()
 registerStorageHandlers()
+
+// Utils
+ipcMain.handle('app:openExternal', async (_, url: string) => {
+  await shell.openExternal(url)
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

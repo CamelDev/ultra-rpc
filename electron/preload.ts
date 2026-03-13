@@ -35,4 +35,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   // ===== Settings =====
   getSettings: () => ipcRenderer.invoke('storage:getSettings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('storage:saveSettings', settings),
+
+  // ===== Utils =====
+  openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
 })

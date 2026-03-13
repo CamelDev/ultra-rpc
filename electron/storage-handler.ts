@@ -430,9 +430,9 @@ export function registerStorageHandlers() {
       if (fs.existsSync(histPath)) {
         try { history = JSON.parse(fs.readFileSync(histPath, 'utf-8')) } catch { /* */ }
       }
-      // Keep max 100 entries
+      // Keep max 30 entries
       history.unshift(entry)
-      if (history.length > 100) history = history.slice(0, 100)
+      if (history.length > 30) history = history.slice(0, 30)
       fs.writeFileSync(histPath, JSON.stringify(history, null, 2))
       return { success: true }
     } catch (err: any) {

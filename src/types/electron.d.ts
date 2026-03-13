@@ -51,6 +51,9 @@ export interface UltraRpcApi {
   // Settings
   getSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>
+
+  // Utils
+  openExternal: (url: string) => Promise<void>
 }
 
 declare global {
