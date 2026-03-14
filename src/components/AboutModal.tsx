@@ -43,8 +43,8 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version }) => 
 
               <div className="about-description">
                 <p>
-                  A premium API client for <strong>REST</strong> and <strong>gRPC</strong> testing. 
-                  Built for developers who demand speed, elegance, and native gRPC reflection support 
+                  A robust API client for <strong>gRPC</strong> and <strong>REST</strong> testing.
+                  Built for developers who demand speed, elegance, and native gRPC reflection support
                   without the bloat.
                 </p>
               </div>
@@ -65,8 +65,8 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version }) => 
               </div>
 
               <div className="about-links">
-                <button 
-                  className="about-link btn-ghost" 
+                <button
+                  className="about-link btn-ghost"
                   onClick={() => window.ultraRpc.openExternal('https://github.com/CamelDev/ultra-rpc')}
                 >
                   <Github size={16} /> GitHub Repository <ExternalLink size={12} />

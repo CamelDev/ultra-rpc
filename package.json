@@ -2,7 +2,7 @@
   "name": "ultrarpc",
   "private": true,
   "version": "1.0.0",
-  "description": "A premium API client for REST and gRPC — like Postman, but with native gRPC support, server reflection, and file-based collections.",
+  "description": "A robust API client for REST and gRPC — like Postman, but with native gRPC support, server reflection, and file-based collections.",
   "author": "UltraRPC",
   "main": "dist-electron/main.js",
   "type": "module",
@@ -26,16 +26,22 @@
       "dist-electron/**/*"
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "public/icon.png"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "icon": "public/icon.png",
       "category": "public.app-category.developer-tools"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "icon": "public/icon.png",
       "category": "Development"
     },

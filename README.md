@@ -5,7 +5,7 @@
 <h1 align="center">⚡ UltraRPC</h1>
 
 <p align="center">
-  <em>A premium desktop API client for <strong>REST</strong> and <strong>gRPC</strong> — built with Electron, React, and TypeScript.</em>
+  <em>A robust desktop API client for <strong>gRPC</strong> and <strong>REST</strong> — built with Electron, React, and TypeScript.</em>
 </p>
 
 
