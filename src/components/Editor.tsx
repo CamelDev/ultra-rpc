@@ -10,6 +10,8 @@ import type { Environment } from '../types'
 import './Editor.css'
 
 const variableHighlighter = Decoration.mark({ class: 'cm-variable-token' })
+const jsonKeyHighlighter = Decoration.mark({ class: 'cm-json-key' })
+const jsonValueHighlighter = Decoration.mark({ class: 'cm-json-value' })
 
 function getVariableDecos(view: EditorView) {
   const builder = new RangeSetBuilder<Decoration>()
@@ -22,6 +24,33 @@ function getVariableDecos(view: EditorView) {
   return builder.finish()
 }
 
+function getJsonDecos(view: EditorView) {
+  const builder = new RangeSetBuilder<Decoration>()
+  const text = view.state.doc.toString()
+  const regex = /"((?:[^"\\]|\\.)*)"\s*:\s*("(?:[^"\\]|\\.)*")?/g
+  const ranges: { from: number; to: number; type: 'key' | 'value' }[] = []
+  let match
+
+  while ((match = regex.exec(text)) !== null) {
+    const keyStart = match.index
+    const keyEnd = keyStart + match[1].length + 2
+    ranges.push({ from: keyStart, to: keyEnd, type: 'key' })
+
+    if (match[2] !== undefined) {
+      const valueStart = text.indexOf(match[2], keyEnd)
+      if (valueStart !== -1) {
+        ranges.push({ from: valueStart, to: valueStart + match[2].length, type: 'value' })
+      }
+    }
+  }
+
+  ranges.sort((a, b) => a.from - b.from)
+  for (const r of ranges) {
+    builder.add(r.from, r.to, r.type === 'key' ? jsonKeyHighlighter : jsonValueHighlighter)
+  }
+  return builder.finish()
+}
+
 const variablePlugin = ViewPlugin.fromClass(class {
   decorations: DecorationSet
   constructor(view: EditorView) {
@@ -30,6 +59,20 @@ const variablePlugin = ViewPlugin.fromClass(class {
   update(update: ViewUpdate) {
     if (update.docChanged || update.viewportChanged) {
       this.decorations = getVariableDecos(update.view)
+    }
+  }
+}, {
+  decorations: v => v.decorations
+})
+
+const jsonPlugin = ViewPlugin.fromClass(class {
+  decorations: DecorationSet
+  constructor(view: EditorView) {
+    this.decorations = getJsonDecos(view)
+  }
+  update(update: ViewUpdate) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = getJsonDecos(update.view)
     }
   }
 }, {
@@ -82,6 +125,9 @@ const Editor: React.FC<Props> = ({
       EditorView.theme({
         '&': { height: '100%' },
         '.cm-scroller': { overflow: 'auto' },
+        '.cm-string': { color: '#85e89d !important' },          // string values → green
+        '.cm-string.cm-property': { color: '#79b8ff !important' }, // property keys → blue
+        '.cm-property': { color: '#79b8ff !important' },        // unquoted property keys → blue
       }),
       EditorView.domEventHandlers({
         focus: () => setIsFocused(true),
@@ -123,7 +169,10 @@ const Editor: React.FC<Props> = ({
       })
     ]
 
-    if (language === 'json') extensions.push(javascript()) // Use JS parser for JSON to handle {{vars}} robustly
+    if (language === 'json') {
+      extensions.push(javascript())
+      extensions.push(jsonPlugin)
+    }
     if (language === 'javascript') extensions.push(javascript())
     if (!singleLine) {
       extensions.push(lineNumbers())

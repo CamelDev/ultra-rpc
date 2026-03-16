@@ -99,3 +99,26 @@
 .cm-theme-one-dark .cm-activeLineGutter {
   background-color: rgba(255, 255, 255, 0.03);
 }
+
+/* JSON string values — green */
+.cm-theme-one-dark .cm-string {
+  color: #85e89d !important;
+}
+
+/* JSON property keys (quoted keys are .cm-string.cm-property) — blue */
+.cm-theme-one-dark .cm-string.cm-property,
+.cm-theme-one-dark .cm-property {
+  color: #79b8ff !important;
+}
+
+/* JSON property keys — blue */
+.cm-json-key,
+.cm-json-key * {
+  color: #79b8ff !important;
+}
+
+/* JSON string values — green */
+.cm-json-value,
+.cm-json-value * {
+  color: #85e89d !important;
+}
