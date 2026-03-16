@@ -12,6 +12,7 @@ interface Props {
   valuePlaceholder?: string
   activeEnv?: Environment | null
   collectionVariables?: any[]
+  theme?: 'dark' | 'light'
 }
 
 const KeyValueEditor: React.FC<Props> = ({
@@ -21,6 +22,7 @@ const KeyValueEditor: React.FC<Props> = ({
   valuePlaceholder = 'Value',
   activeEnv,
   collectionVariables,
+  theme = 'dark',
 }) => {
   const update = (id: string, field: keyof KeyValuePair, value: string | boolean) => {
     onChange(pairs.map(p => (p.id === id ? { ...p, [field]: value } : p)))
@@ -58,6 +60,7 @@ const KeyValueEditor: React.FC<Props> = ({
             onChange={(val) => update(pair.id, 'key', val)}
             activeEnv={activeEnv}
             collectionVariables={collectionVariables}
+            theme={theme}
           />
           <InterpolatedInput
             className="kv-input kv-value"
@@ -66,6 +69,7 @@ const KeyValueEditor: React.FC<Props> = ({
             onChange={(val) => update(pair.id, 'value', val)}
             activeEnv={activeEnv}
             collectionVariables={collectionVariables}
+            theme={theme}
           />
           <button className="kv-delete" onClick={() => remove(pair.id)}>
             <Trash2 size={14} />

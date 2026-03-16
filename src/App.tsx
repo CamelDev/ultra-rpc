@@ -1078,6 +1078,7 @@ const App: React.FC = () => {
                   onKeyDown={(e) => e.key === 'Enter' && sendRequest()}
                   activeEnv={activeEnv}
                   collectionVariables={activeRequestCollection?.variables}
+                  theme={theme}
                 />
                 <button 
                   className="btn-ghost save-btn" 
@@ -1201,24 +1202,26 @@ const App: React.FC = () => {
               <div className="request-pane-content no-scrollbar">
                 <div className="config-content">
                   {activeConfigTab === 'params' && (
-                    <KeyValueEditor
-                      pairs={activeRequest.params}
-                      onChange={(params) => updateActiveRequest({ params })}
-                      keyPlaceholder="Parameter"
-                      valuePlaceholder="Value"
-                      activeEnv={activeEnv}
-                      collectionVariables={activeRequestCollection?.variables}
-                    />
+                      <KeyValueEditor
+                        pairs={activeRequest.params}
+                        onChange={(params) => updateActiveRequest({ params })}
+                        keyPlaceholder="Parameter"
+                        valuePlaceholder="Value"
+                        activeEnv={activeEnv}
+                        collectionVariables={activeRequestCollection?.variables}
+                        theme={theme}
+                      />
                   )}
                   {activeConfigTab === 'headers' && (
-                    <KeyValueEditor
-                      pairs={activeRequest.headers}
-                      onChange={(headers) => updateActiveRequest({ headers })}
-                      keyPlaceholder="Header"
-                      valuePlaceholder="Value"
-                      activeEnv={activeEnv}
-                      collectionVariables={activeRequestCollection?.variables}
-                    />
+                      <KeyValueEditor
+                        pairs={activeRequest.headers}
+                        onChange={(headers) => updateActiveRequest({ headers })}
+                        keyPlaceholder="Header"
+                        valuePlaceholder="Value"
+                        activeEnv={activeEnv}
+                        collectionVariables={activeRequestCollection?.variables}
+                        theme={theme}
+                      />
                   )}
                   {activeConfigTab === 'body' && (
                     <div className="body-editor">
@@ -1256,7 +1259,7 @@ const App: React.FC = () => {
                             ? '{\n  "key": "value"\n}'
                             : 'Plain text body...'}
                           value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')}
-                          highlightJson={activeRequest.bodyType === 'json' || activeRequest.type === 'GRPC'}
+                          highlightJson={activeRequest.bodyType === 'json'}
                           onChange={(val) => {
                             if (activeRequest.type === 'GRPC') {
                               updateActiveRequest({ grpcPayload: val })
@@ -1264,6 +1267,7 @@ const App: React.FC = () => {
                               updateActiveRequest({ body: val })
                             }
                           }}
+                          theme={theme}
                         />
                       )}
                     </div>
@@ -1331,6 +1335,7 @@ const App: React.FC = () => {
                             highlightJs={true}
                             wrapLines={wrapLines}
                             collectionVariables={activeRequestCollection?.variables}
+                            theme={theme}
                           />
                       </div>
                       
@@ -1392,6 +1397,7 @@ const App: React.FC = () => {
                             highlightJs={true}
                             wrapLines={wrapLines}
                             collectionVariables={activeRequestCollection?.variables}
+                            theme={theme}
                           />
                       </div>
                       
@@ -1440,6 +1446,7 @@ const App: React.FC = () => {
                               activeEnv={activeEnv}
                               collectionVariables={activeRequestCollection?.variables}
                               disabled={isLocked}
+                              theme={theme}
                             />
                           </div>
                           <div className="grpc-field-row">
@@ -1452,6 +1459,7 @@ const App: React.FC = () => {
                               activeEnv={activeEnv}
                               collectionVariables={activeRequestCollection?.variables}
                               disabled={isLocked}
+                              theme={theme}
                             />
                           </div>
                         </div>
@@ -1534,6 +1542,7 @@ const App: React.FC = () => {
                 keyPlaceholder="Variable Name"
                 valuePlaceholder="Current Value"
                 activeEnv={activeEnv}
+                theme={theme}
               />
             </div>
             

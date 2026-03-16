@@ -6,9 +6,10 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--bg-tertiary);
+  background-color: var(--bg-tertiary);
   border: 1px solid var(--border);
   transition: border-color 0.2s, box-shadow 0.2s;
+  color: var(--text-primary);
 }
 
 .editor-container.focused {
@@ -17,18 +18,28 @@
 }
 
 .editor-container.readonly {
-  background: rgba(9, 9, 11, 0.3);
+  background: rgba(128, 128, 128, 0.05);
 }
 
 .cm-editor {
   height: 100%;
   font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', monospace !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 .cm-scroller {
   padding-top: 4px;
   padding-bottom: 4px;
+}
+
+.editor-container.singleline .cm-scroller {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.editor-container.singleline .cm-content {
+  padding: 0 10px !important;
+  line-height: 30px !important; /* Slightly less than 32px height to account for borders */
 }
 
 /* Custom variable highlighting */
@@ -109,16 +120,4 @@
 .cm-theme-one-dark .cm-string.cm-property,
 .cm-theme-one-dark .cm-property {
   color: #79b8ff !important;
-}
-
-/* JSON property keys — blue */
-.cm-json-key,
-.cm-json-key * {
-  color: #79b8ff !important;
-}
-
-/* JSON string values — green */
-.cm-json-value,
-.cm-json-value * {
-  color: #85e89d !important;
 }

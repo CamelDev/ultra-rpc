@@ -4,10 +4,29 @@ import { EditorView, keymap, placeholder as cmPlaceholder, lineNumbers, highligh
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { javascript } from '@codemirror/lang-javascript'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
+import { tags as t } from '@lezer/highlight'
 import { RangeSetBuilder } from '@codemirror/state'
 import { createPortal } from 'react-dom'
 import type { Environment } from '../types'
 import './Editor.css'
+
+const lightHighlightStyle = HighlightStyle.define([
+  { tag: t.keyword, color: '#7000df', fontWeight: 'bold' },
+  { tag: t.string, color: '#116329' },
+  { tag: t.comment, color: '#6a737d', fontStyle: 'italic' },
+  { tag: t.number, color: '#005cc5' },
+  { tag: t.bool, color: '#005cc5', fontWeight: 'bold' },
+  { tag: t.function(t.variableName), color: '#6f42c1' },
+  { tag: t.propertyName, color: '#005cc5' },
+  { tag: t.variableName, color: '#24292e' },
+  { tag: t.operator, color: '#d73a49' },
+  { tag: t.className, color: '#6f42c1' },
+  { tag: t.typeName, color: '#6f42c1' },
+  { tag: t.meta, color: '#005cc5' },
+  { tag: t.bracket, color: '#24292e' },
+  { tag: t.name, color: '#24292e' },
+])
 
 const variableHighlighter = Decoration.mark({ class: 'cm-variable-token' })
 const jsonKeyHighlighter = Decoration.mark({ class: 'cm-json-key' })
@@ -91,6 +110,7 @@ interface Props {
   activeEnv?: Environment | null
   collectionVariables?: any[]
   onKeyDown?: (e: React.KeyboardEvent) => void
+  theme?: 'dark' | 'light'
 }
 
 const Editor: React.FC<Props> = ({
@@ -105,6 +125,7 @@ const Editor: React.FC<Props> = ({
   activeEnv,
   collectionVariables,
   onKeyDown,
+  theme = 'dark',
 }) => {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -117,17 +138,27 @@ const Editor: React.FC<Props> = ({
   // Memoize extensions to avoid re-creating the editor too often
   const getExtensions = useCallback(() => {
     const extensions: Extension[] = [
-      oneDark,
+      language !== 'plain' ? (theme === 'dark' ? oneDark : syntaxHighlighting(lightHighlightStyle)) : [],
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
-      variablePlugin,
+      language !== 'plain' ? variablePlugin : [],
       wrapLines ? EditorView.lineWrapping : [],
       EditorView.theme({
-        '&': { height: '100%' },
+        '&': { height: '100%', backgroundColor: 'transparent' },
         '.cm-scroller': { overflow: 'auto' },
-        '.cm-string': { color: '#85e89d !important' },          // string values → green
-        '.cm-string.cm-property': { color: '#79b8ff !important' }, // property keys → blue
-        '.cm-property': { color: '#79b8ff !important' },        // unquoted property keys → blue
+        ...(language !== 'plain' ? (theme === 'dark' ? {
+          '.cm-string': { color: '#85e89d !important' },          // string values → green
+          '.cm-string.cm-property': { color: '#79b8ff !important' }, // property keys → blue
+          '.cm-property': { color: '#79b8ff !important' },        // unquoted property keys → blue
+          '.cm-json-key, .cm-json-key *': { color: '#79b8ff !important' },
+          '.cm-json-value, .cm-json-value *': { color: '#85e89d !important' },
+        } : {
+          '.cm-string': { color: '#116329 !important' },          // string values → dark green
+          '.cm-string.cm-property': { color: '#0550ae !important' }, // property keys → dark blue
+          '.cm-property': { color: '#0550ae !important' },        // unquoted property keys → dark blue
+          '.cm-json-key, .cm-json-key *': { color: '#0550ae !important' },
+          '.cm-json-value, .cm-json-value *': { color: '#116329 !important' },
+        }) : {})
       }),
       EditorView.domEventHandlers({
         focus: () => setIsFocused(true),
@@ -183,7 +214,7 @@ const Editor: React.FC<Props> = ({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, activeEnv, collectionVariables])
+  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, activeEnv, collectionVariables, theme])
 
   const resolveVariable = useCallback((varName: string) => {
     let titleText = `Variable: ${varName} (Not found)`

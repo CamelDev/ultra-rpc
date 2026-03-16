@@ -16,6 +16,7 @@ interface Props {
   wrapLines?: boolean
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
+  theme?: 'dark' | 'light'
 }
 
 const InterpolatedInput: React.FC<Props> = ({
@@ -31,6 +32,7 @@ const InterpolatedInput: React.FC<Props> = ({
   wrapLines = true,
   onKeyDown,
   disabled = false,
+  theme = 'dark',
 }) => {
   const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
   
@@ -47,6 +49,7 @@ const InterpolatedInput: React.FC<Props> = ({
         activeEnv={activeEnv}
         collectionVariables={collectionVariables}
         onKeyDown={onKeyDown}
+        theme={theme}
       />
     </div>
   )
