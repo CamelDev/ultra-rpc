@@ -1,0 +1,101 @@
+.editor-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.editor-container.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+.editor-container.readonly {
+  background: rgba(9, 9, 11, 0.3);
+}
+
+.cm-editor {
+  height: 100%;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', monospace !important;
+  font-size: 13px !important;
+}
+
+.cm-scroller {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* Custom variable highlighting */
+.cm-variable-token {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--accent) !important;
+  border-bottom: 1px dashed var(--accent);
+  border-radius: 2px;
+  padding: 0 2px;
+  cursor: help;
+  font-weight: 500;
+}
+
+/* Scrollbar styling for CodeMirror */
+.cm-scroller::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* Placeholder styling */
+.cm-placeholder {
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+
+/* One Dark Theme Overrides for UltraRPC */
+.cm-theme-one-dark .cm-content {
+  caret-color: var(--accent);
+}
+
+.cm-theme-one-dark.cm-focused .cm-cursor {
+  border-left-color: var(--accent);
+}
+
+.cm-theme-one-dark.cm-focused .cm-selectionBackground,
+.cm-selectionBackground,
+.cm-content ::selection {
+  background-color: rgba(139, 92, 246, 0.3) !important;
+}
+
+.cm-theme-one-dark .cm-gutters {
+  background-color: var(--bg-tertiary);
+  color: var(--text-muted);
+  border-right: 1px solid var(--border);
+}
+
+.cm-theme-one-dark .cm-activeLine {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.cm-theme-one-dark .cm-activeLineGutter {
+  background-color: rgba(255, 255, 255, 0.03);
+}
