@@ -23,6 +23,7 @@
 
 .interpolated-wrapper.multiline {
   flex-direction: column;
+  transition: opacity 0.2s, border-color 0.2s, box-shadow 0.2s; /* Disable 'all' to prevent lag on resize */
 }
 
 /* Inherit dimension classes from standard inputs (flex: 1 etc) */
@@ -71,6 +72,12 @@
   resize: vertical;
   white-space: pre-wrap;
   word-wrap: break-word;
+  transition: none !important; /* Critical: transition during manual resize = lag */
+}
+
+/* Remove resize from backdrop so it doesn't double up and lag */
+.interpolated-wrapper.multiline .interpolated-backdrop {
+  resize: none !important;
 }
 
 /* Backdrop specifics */
@@ -84,6 +91,8 @@
 .interpolated-wrapper.multiline .interpolated-backdrop {
   position: absolute;
   overflow: hidden;
+  /* Clip the bottom right corner (approx 16x16) to let native resize handle through clearly */
+  clip-path: polygon(0% 0%, 100% 0%, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0% 100%);
 }
 
 /* Text area specific constraints */
@@ -92,6 +101,7 @@
   caret-color: var(--text-primary);
   z-index: 1; /* Place input behind for hover events on vars to pass through backdrop */
   position: relative;
+  /* Native resize handle is here at index 1 */
 }
 
 .interpolated-wrapper.singleline .interpolated-element {
