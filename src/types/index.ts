@@ -25,6 +25,7 @@ export interface RequestConfig {
   grpcPayload?: string
   grpcReflection?: boolean
   timeoutMs?: number
+  preRequestScript?: string
   postResponseScript?: string
 }
 
@@ -44,10 +45,21 @@ export interface Tab {
 }
 
 // ===== Collections =====
+export type CollectionItemType = 'folder' | 'request'
+
+export interface CollectionItem {
+  id: string
+  name: string
+  type: CollectionItemType
+  request?: RequestConfig
+  items?: CollectionItem[]
+  isExpanded?: boolean
+}
+
 export interface Collection {
   id: string
   name: string
-  requests: RequestConfig[]
+  items: CollectionItem[]
   variables?: KeyValuePair[]
 }
 

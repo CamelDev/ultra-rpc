@@ -4,7 +4,6 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Save,
   Download,
   Upload,
   FolderOpen,
@@ -13,16 +12,10 @@ import {
   FileJson,
   MoreHorizontal,
   Zap,
-  ChevronUp,
+  Save,
 } from 'lucide-react'
-import type { RequestConfig } from '../types'
 import './CollectionPanel.css'
-
-interface Collection {
-  id: string
-  name: string
-  requests: RequestConfig[]
-}
+import type { Collection, CollectionItem, RequestConfig } from '../types'
 
 interface Props {
   collections: Collection[]
@@ -33,6 +26,122 @@ interface Props {
   onEditVariables: (collection: Collection) => void
 }
 
+const CollectionItemView: React.FC<{
+  item: CollectionItem
+  collectionId: string
+  level: number
+  onOpenRequest: (request: RequestConfig) => void
+  onRefresh: () => void
+  onRenameRequest: (reqId: string, newName: string) => void
+}> = ({ item, collectionId, level, onOpenRequest, onRefresh, onRenameRequest }) => {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [editingReqId, setEditingReqId] = useState<string | null>(null)
+  const [reqNameInput, setReqNameInput] = useState('')
+
+  const methodColor = (m: string) => {
+    switch (m) {
+      case 'GET': return '#22c55e'
+      case 'POST': return '#f59e0b'
+      case 'PUT': return '#3b82f6'
+      case 'DELETE': return '#ef4444'
+      case 'PATCH': return '#8b5cf6'
+      default: return '#a855f7'
+    }
+  }
+
+  const deleteRequest = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (window.ultraRpc) {
+      await window.ultraRpc.deleteRequest({ collectionId, requestId: item.id })
+      onRefresh()
+    }
+  }
+
+  const renameRequest = async (e: React.KeyboardEvent | React.FocusEvent) => {
+    if ((e as any).key && (e as any).key !== 'Enter') return
+    if (!reqNameInput.trim() || !window.ultraRpc || !item.request) return
+    
+    const updatedRequest = { ...item.request, name: reqNameInput.trim() }
+    await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as any })
+    setEditingReqId(null)
+    onRenameRequest(item.id, updatedRequest.name)
+    onRefresh()
+  }
+
+  if (item.type === 'folder') {
+    return (
+      <div className="coll-folder">
+        <div 
+          className="coll-item-header folder-header" 
+          style={{ paddingLeft: `${level * 12 + 8}px` }}
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <Folder size={13} className="folder-icon" />
+          <span className="coll-name">{item.name}</span>
+          <span className="coll-count">{item.items?.length || 0}</span>
+        </div>
+        {isExpanded && item.items && (
+          <div className="coll-folder-children">
+            {item.items.map(child => (
+              <CollectionItemView 
+                key={child.id} 
+                item={child} 
+                collectionId={collectionId}
+                level={level + 1}
+                onOpenRequest={onOpenRequest}
+                onRefresh={onRefresh}
+                onRenameRequest={onRenameRequest}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const req = item.request!
+  return (
+    <div
+      className="coll-request-item"
+      style={{ paddingLeft: `${level * 12 + 8}px` }}
+      onClick={() => onOpenRequest(req)}
+    >
+      <FileJson size={13} className="coll-req-icon" />
+      <span className="coll-req-method" style={{ color: methodColor(req.type === 'GRPC' ? 'GRPC' : req.method) }}>
+        {req.type === 'GRPC' ? 'gRPC' : req.method}
+      </span>
+      {editingReqId === item.id ? (
+        <input
+          className="coll-rename-input"
+          style={{ flex: 1, padding: '2px 4px' }}
+          value={reqNameInput}
+          onChange={e => setReqNameInput(e.target.value)}
+          onKeyDown={renameRequest}
+          onBlur={renameRequest}
+          onClick={e => e.stopPropagation()}
+          autoFocus
+        />
+      ) : (
+        <span className="coll-req-name">{req.name || req.url || 'Untitled'}</span>
+      )}
+
+      <div className="coll-req-actions" onClick={e => e.stopPropagation()}>
+        <button
+          className="coll-req-btn"
+          title="Rename"
+          onClick={() => { setEditingReqId(item.id); setReqNameInput(req.name || req.url || '') }}
+        >
+          <Edit2 size={11} />
+        </button>
+        <button className="coll-req-btn danger" title="Delete" onClick={deleteRequest}>
+          <Trash2 size={11} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest, onEditVariables }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -40,8 +149,6 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
   const [showNewInput, setShowNewInput] = useState(false)
   const [newName, setNewName] = useState('')
   const [contextMenu, setContextMenu] = useState<string | null>(null)
-  const [editingReqId, setEditingReqId] = useState<string | null>(null)
-  const [reqNameInput, setReqNameInput] = useState('')
 
   const createCollection = async () => {
     if (!newName.trim()) return
@@ -89,55 +196,6 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
     }
   }
 
-  const deleteRequest = async (collectionId: string, requestId: string) => {
-    if (window.ultraRpc) {
-      await window.ultraRpc.deleteRequest({ collectionId, requestId })
-      onRefresh()
-    }
-  }
-
-  const renameRequest = async (collectionId: string, request: RequestConfig) => {
-    if (!reqNameInput.trim() || !window.ultraRpc) return
-    const updatedRequest = { ...request, name: reqNameInput.trim() }
-    await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as any })
-    setEditingReqId(null)
-    onRenameRequest(request.id, updatedRequest.name)
-    onRefresh()
-  }
-
-  const moveRequest = async (collectionId: string, request: RequestConfig, direction: 'up' | 'down') => {
-    const collection = collections.find(c => c.id === collectionId)
-    if (!collection || !window.ultraRpc) return
-
-    const requests = [...collection.requests]
-    const index = requests.findIndex(r => r.id === request.id)
-    if (index === -1) return
-
-    const newIndex = direction === 'up' ? index - 1 : index + 1
-    if (newIndex < 0 || newIndex >= requests.length) return
-
-    // Swap
-    const temp = requests[index]
-    requests[index] = requests[newIndex]
-    requests[newIndex] = temp
-
-    // Save order
-    const order = requests.map(r => r.id)
-    await window.ultraRpc.reorderRequests({ collectionId, order })
-    onRefresh()
-  }
-
-  const methodColor = (m: string) => {
-    switch (m) {
-      case 'GET': return '#22c55e'
-      case 'POST': return '#f59e0b'
-      case 'PUT': return '#3b82f6'
-      case 'DELETE': return '#ef4444'
-      case 'PATCH': return '#8b5cf6'
-      default: return '#a855f7'
-    }
-  }
-
   return (
     <div className="coll-panel">
       <div className="coll-header">
@@ -179,9 +237,9 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
       )}
 
       {collections.map(coll => (
-        <div className="coll-item" key={coll.id}>
+        <div className="coll-item-group" key={coll.id}>
           <div
-            className="coll-item-header"
+            className="coll-item-header collection-root"
             onClick={() => setExpandedId(expandedId === coll.id ? null : coll.id)}
           >
             {expandedId === coll.id ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -197,7 +255,7 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
             ) : (
               <span className="coll-name">{coll.name}</span>
             )}
-            <span className="coll-count">{coll.requests.length}</span>
+            <span className="coll-count">{coll.items.length}</span>
 
             <div className="coll-item-actions" onClick={e => e.stopPropagation()}>
               <button
@@ -209,10 +267,9 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
             </div>
           </div>
 
-          {/* Context menu */}
           {contextMenu === coll.id && (
             <div className="coll-context-menu" onClick={() => setContextMenu(null)}>
-              <button onClick={() => { onSaveToCollection(coll.id); }}>
+              <button onClick={() => onSaveToCollection(coll.id)}>
                 <Save size={12} /> Save current request
               </button>
               <button onClick={() => { setEditingId(coll.id); setNameInput(coll.name) }}>
@@ -231,75 +288,21 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
             </div>
           )}
 
-          {/* Requests list */}
           {expandedId === coll.id && (
-            <div className="coll-requests">
-              {coll.requests.length === 0 && (
+            <div className="coll-tree">
+              {coll.items.length === 0 && (
                 <div className="coll-no-requests">No requests saved</div>
               )}
-              {coll.requests.map(req => (
-                <div
-                  className="coll-request-item"
-                  key={req.id}
-                  onClick={() => onOpenRequest(req)}
-                >
-                  <FileJson size={13} className="coll-req-icon" />
-                  <span className="coll-req-method" style={{ color: methodColor(req.type === 'GRPC' ? 'GRPC' : req.method) }}>
-                    {req.type === 'GRPC' ? 'gRPC' : req.method}
-                  </span>
-                  {editingReqId === req.id ? (
-                    <input
-                      className="coll-rename-input"
-                      style={{ flex: 1, padding: '2px 4px' }}
-                      value={reqNameInput}
-                      onChange={e => setReqNameInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && renameRequest(coll.id, req)}
-                      onClick={e => e.stopPropagation()}
-                      onBlur={() => setEditingReqId(null)}
-                      autoFocus
-                    />
-                  ) : (
-                    <span className="coll-req-name">{req.name || req.url || 'Untitled'}</span>
-                  )}
-                  
-                  {editingReqId !== req.id && (
-                    <div style={{ display: 'flex', gap: '2px', marginLeft: 'auto' }}>
-                      <button
-                        className="coll-req-reorder"
-                        title="Move Up"
-                        onClick={(e) => { e.stopPropagation(); moveRequest(coll.id, req, 'up') }}
-                      >
-                        <ChevronUp size={11} />
-                      </button>
-                      <button
-                        className="coll-req-reorder"
-                        title="Move Down"
-                        onClick={(e) => { e.stopPropagation(); moveRequest(coll.id, req, 'down') }}
-                      >
-                        <ChevronDown size={11} />
-                      </button>
-                      <button
-                        className="coll-req-delete"
-                        title="Rename request"
-                        style={{ color: 'var(--text-secondary)' }}
-                        onClick={(e) => { 
-                          e.stopPropagation()
-                          setEditingReqId(req.id)
-                          setReqNameInput(req.name || req.url || 'Untitled')
-                        }}
-                      >
-                        <Edit2 size={11} />
-                      </button>
-                      <button
-                        className="coll-req-delete"
-                        title="Delete request"
-                        onClick={(e) => { e.stopPropagation(); deleteRequest(coll.id, req.id) }}
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  )}
-                </div>
+              {coll.items.map(item => (
+                <CollectionItemView 
+                  key={item.id} 
+                  item={item} 
+                  collectionId={coll.id}
+                  level={0}
+                  onOpenRequest={onOpenRequest}
+                  onRefresh={onRefresh}
+                  onRenameRequest={onRenameRequest}
+                />
               ))}
             </div>
           )}

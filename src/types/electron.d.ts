@@ -27,7 +27,7 @@ export interface UltraRpcApi {
   }>
 
   // Collections
-  listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; requests: any[] }[]; error?: string }>
+  listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; items: any[]; variables?: any[] }[]; error?: string }>
   createCollection: (args: { name: string }) => Promise<{ success: boolean; id?: string; error?: string }>
   saveCollectionVariables: (args: { collectionId: string; variables: any[] }) => Promise<{ success: boolean; error?: string }>
   saveRequest: (args: { collectionId: string; request: any }) => Promise<{ success: boolean; error?: string }>

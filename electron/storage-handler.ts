@@ -39,14 +39,164 @@ interface SavedRequest {
   grpcPayload?: string
   grpcReflection?: boolean
   timeoutMs?: number
+  preRequestScript?: string
   postResponseScript?: string
 }
 
 interface SavedCollection {
   id: string
   name: string
-  requests: SavedRequest[]
+  items: CollectionItem[]
   variables?: any[]
+}
+
+interface CollectionItem {
+  id: string
+  name: string
+  type: 'folder' | 'request'
+  request?: SavedRequest
+  items?: CollectionItem[]
+}
+
+const validateRequest = (req: any): SavedRequest | null => {
+  if (!req || typeof req !== 'object') return null
+  
+  // Basic heuristic: a request should have at least a URL or a name + method
+  // We skip files that are obviously not requests (like package.json, _meta.json, etc.)
+  if (!req.url && !req.name) return null
+  if (!req.method && req.type !== 'GRPC') return null
+
+  return {
+    id: req.id || Math.random().toString(36).substring(2, 11),
+    name: req.name || req.url || 'Untitled Request',
+    type: req.type || 'REST',
+    method: req.method || 'GET',
+    url: req.url || '',
+    params: Array.isArray(req.params) ? req.params : [],
+    headers: Array.isArray(req.headers) ? req.headers : [],
+    body: req.body || '',
+    bodyType: req.bodyType || 'none',
+    grpcService: req.grpcService,
+    grpcMethod: req.grpcMethod,
+    grpcPayload: req.grpcPayload,
+    grpcReflection: typeof req.grpcReflection === 'boolean' ? req.grpcReflection : undefined,
+    timeoutMs: req.timeoutMs,
+    preRequestScript: req.preRequestScript,
+    postResponseScript: req.postResponseScript
+  }
+}
+
+const extractRequests = (data: any): CollectionItem[] => {
+  const items: CollectionItem[] = []
+
+  if (data.info && data.info.schema && data.info.schema.includes('postman')) {
+    // Postman v2.1 format
+    const mapItems = (postmanItems: any[]): CollectionItem[] => {
+      const results: CollectionItem[] = []
+      for (const item of postmanItems) {
+        if (item.item && Array.isArray(item.item)) {
+          results.push({
+            id: Math.random().toString(36).substring(2, 11),
+            name: item.name || 'Folder',
+            type: 'folder',
+            items: mapItems(item.item)
+          })
+        } else if (item.request) {
+          const req = item.request
+          const mapped: any = {
+            id: Math.random().toString(36).substring(2, 11),
+            name: item.name || 'Untitled Request',
+            type: 'REST',
+            method: typeof req.method === 'string' ? req.method : 'GET',
+            url: typeof req.url === 'string' ? req.url : (req.url?.raw || ''),
+            params: [],
+            headers: (req.header || []).map((h: any) => ({
+              id: Math.random().toString(36).substring(2, 11),
+              key: h.key,
+              value: h.value,
+              enabled: !h.disabled
+            })),
+            body: req.body?.raw || '',
+            bodyType: req.body?.mode === 'raw' ? 'json' : 'none'
+          }
+
+          if (item.event) {
+            for (const event of item.event) {
+              const script = (event.script?.exec || []).join('\n')
+              if (!script) continue
+              const convertedScript = script
+                .replace(/pm\.environment\.set\(/g, 'ultra.env.set(')
+                .replace(/pm\.environment\.get\(/g, 'ultra.env.get(')
+                .replace(/pm\.collectionVariables\.set\(/g, 'ultra.collection.set(')
+                .replace(/pm\.collectionVariables\.get\(/g, 'ultra.collection.get(')
+                .replace(/pm\.response\.json\(\)/g, 'ultra.response.body')
+              
+              if (event.listen === 'prerequest') mapped.preRequestScript = convertedScript
+              else if (event.listen === 'test') mapped.postResponseScript = convertedScript
+            }
+          }
+
+          const validated = validateRequest(mapped)
+          if (validated) {
+            results.push({
+              id: validated.id,
+              name: validated.name,
+              type: 'request',
+              request: validated
+            })
+          }
+        }
+      }
+      return results
+    }
+    items.push(...mapItems(data.item || []))
+  } else if (data._ultrarpc_version && data.collection) {
+    // UltraRPC format (handling legacy flat and new nested)
+    const rawItems = data.collection.items || []
+    if (rawItems.length > 0) {
+      items.push(...rawItems)
+    } else {
+      // Legacy flat requests
+      const rawReqs = data.collection.requests || []
+      for (const r of rawReqs) {
+        const validated = validateRequest(r)
+        if (validated) {
+          items.push({
+            id: validated.id,
+            name: validated.name,
+            type: 'request',
+            request: validated
+          })
+        }
+      }
+    }
+  } else if (Array.isArray(data)) {
+    // Generic array of requests
+    for (const r of data) {
+      const validated = validateRequest(r)
+      if (validated) {
+        items.push({
+          id: validated.id,
+          name: validated.name,
+          type: 'request',
+          request: validated
+        })
+      }
+    }
+  } else {
+    // Single request
+    const validated = validateRequest(data)
+    if (validated) {
+      items.push({
+        id: validated.id,
+        name: validated.name,
+        type: 'request',
+        request: validated
+      })
+    }
+  }
+
+  return items
 }
 
 export function registerStorageHandlers() {
@@ -61,8 +211,64 @@ export function registerStorageHandlers() {
 
       const collections: SavedCollection[] = []
 
+      const buildTree = (dirPath: string): CollectionItem[] => {
+        const items: CollectionItem[] = []
+        const files = fs.readdirSync(dirPath, { withFileTypes: true })
+        
+        // Load meta for ordering if it exists in this folder
+        let order: string[] = []
+        const metaPath = path.join(dirPath, '_meta.json')
+        if (fs.existsSync(metaPath)) {
+          try {
+            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+            order = meta.requestOrder || []
+          } catch { /* */ }
+        }
+
+        for (const entry of files) {
+          if (entry.name === '_meta.json') continue
+
+          if (entry.isDirectory()) {
+            items.push({
+              id: entry.name,
+              name: entry.name, // Will be overridden by meta if we add folder meta later
+              type: 'folder',
+              items: buildTree(path.join(dirPath, entry.name))
+            })
+          } else if (entry.name.endsWith('.json')) {
+            try {
+              const content = JSON.parse(fs.readFileSync(path.join(dirPath, entry.name), 'utf-8'))
+              const validated = validateRequest(content)
+              if (validated) {
+                items.push({
+                  id: validated.id,
+                  name: validated.name,
+                  type: 'request',
+                  request: validated
+                })
+              }
+            } catch { /* skip corrupt */ }
+          }
+        }
+
+        // Apply ordering if meta exists
+        if (order.length > 0) {
+          items.sort((a, b) => {
+            const idxA = order.indexOf(a.id)
+            const idxB = order.indexOf(b.id)
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return 0
+          })
+        }
+
+        return items
+      }
+
       for (const dir of dirs) {
-        const metaPath = path.join(root, dir.name, '_meta.json')
+        const collPath = path.join(root, dir.name)
+        const metaPath = path.join(collPath, '_meta.json')
         let meta: any = { id: dir.name, name: dir.name, variables: [] }
         if (fs.existsSync(metaPath)) {
           try {
@@ -70,45 +276,17 @@ export function registerStorageHandlers() {
           } catch { /* use defaults */ }
         }
 
-        const requestFiles = fs.readdirSync(path.join(root, dir.name))
-          .filter(f => f.endsWith('.json') && f !== '_meta.json')
-
-        const requests: SavedRequest[] = []
-        for (const file of requestFiles) {
-          try {
-            const content = fs.readFileSync(path.join(root, dir.name, file), 'utf-8')
-            requests.push(JSON.parse(content))
-          } catch { /* skip corrupt files */ }
-        }
-
-        // Sort requests based on requestOrder in meta if available
-        if (meta.requestOrder && Array.isArray(meta.requestOrder)) {
-          const order = meta.requestOrder as string[]
-          requests.sort((a, b) => {
-            const idxA = order.indexOf(a.id)
-            const idxB = order.indexOf(b.id)
-            
-            // If both in order, compare indices
-            if (idxA !== -1 && idxB !== -1) return idxA - idxB
-            // If only A in order, A comes first
-            if (idxA !== -1) return -1
-            // If only B in order, B comes first
-            if (idxB !== -1) return 1
-            // Neither in order, keep filesystem order
-            return 0
-          })
-        }
-
         collections.push({
           id: meta.id,
           name: meta.name,
-          requests,
+          items: buildTree(collPath),
           variables: meta.variables || []
         })
       }
 
       return { success: true, collections }
     } catch (err: any) {
+      console.error('List Collections Error:', err)
       return { success: false, error: err.message }
     }
   })
@@ -298,7 +476,9 @@ export function registerStorageHandlers() {
       const result = await dialog.showOpenDialog({
         title: 'Import Collection',
         filters: [
-          { name: 'UltraRPC / JSON', extensions: ['json'] },
+          { name: 'Postman Collection', extensions: ['postman_collection', 'json'] },
+          { name: 'UltraRPC Collection', extensions: ['ultrarpc.json', 'json'] },
+          { name: 'JSON Files', extensions: ['json'] },
         ],
         properties: ['openFile'],
       })
@@ -310,46 +490,74 @@ export function registerStorageHandlers() {
       const content = fs.readFileSync(result.filePaths[0], 'utf-8')
       const data = JSON.parse(content)
 
-      // Support both UltraRPC format and generic array of requests
-      let collectionName: string
-      let requests: SavedRequest[]
+      let collectionName = 'Imported Collection'
+      const items = extractRequests(data)
+      let variables: any[] = []
 
-      if (data._ultrarpc_version && data.collection) {
+      if (data.info && data.info.name) {
+        collectionName = data.info.name
+      } else if (data.collection && data.collection.name) {
         collectionName = data.collection.name
-        requests = data.collection.requests || []
-      } else if (Array.isArray(data)) {
-        collectionName = path.basename(result.filePaths[0], '.json')
-        requests = data
-      } else if (data.name && data.requests) {
+      } else if (data.name) {
         collectionName = data.name
-        requests = data.requests
       } else {
-        return { success: false, error: 'Unrecognized collection format' }
+        collectionName = path.basename(result.filePaths[0], path.extname(result.filePaths[0]))
+      }
+
+      if (data.variable) {
+        variables = (data.variable || []).map((v: any) => ({
+          id: Math.random().toString(36).substring(2, 11),
+          key: v.key,
+          value: v.value,
+          enabled: true
+        }))
+      } else if (data.collection && data.collection.variables) {
+        variables = data.collection.variables
+      }
+
+      if (items.length === 0) {
+        return { success: false, error: 'No valid requests found in file' }
       }
 
       // Create collection folder
       const root = getStorageRoot()
       const id = collectionName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
-      const collDir = path.join(root, id)
-      fs.mkdirSync(collDir, { recursive: true })
+      
+      let finalId = id
+      let counter = 1
+      while (fs.existsSync(path.join(root, finalId))) {
+        finalId = `${id}-${counter++}`
+      }
+      
+      const finalCollDir = path.join(root, finalId)
+      fs.mkdirSync(finalCollDir, { recursive: true })
 
       // Write meta
       fs.writeFileSync(
-        path.join(collDir, '_meta.json'),
-        JSON.stringify({ id, name: collectionName }, null, 2)
+        path.join(finalCollDir, '_meta.json'),
+        JSON.stringify({ id: finalId, name: collectionName, variables }, null, 2)
       )
 
-      // Write requests
-      for (const req of requests) {
-        const reqId = req.id || Math.random().toString(36).substring(2, 11)
-        fs.writeFileSync(
-          path.join(collDir, `${reqId}.json`),
-          JSON.stringify({ ...req, id: reqId }, null, 2)
-        )
+      // Write tree
+      const saveItems = (folderPath: string, itemsToSave: CollectionItem[]) => {
+        for (const item of itemsToSave) {
+          if (item.type === 'folder' && item.items) {
+            const subDir = path.join(folderPath, item.name.replace(/[^a-z0-9 ]+/gi, '_'))
+            fs.mkdirSync(subDir, { recursive: true })
+            saveItems(subDir, item.items)
+          } else if (item.type === 'request' && item.request) {
+            fs.writeFileSync(
+              path.join(folderPath, `${item.request.id}.json`),
+              JSON.stringify(item.request, null, 2)
+            )
+          }
+        }
       }
+      saveItems(finalCollDir, items)
 
-      return { success: true, id, name: collectionName, requestCount: requests.length }
+      return { success: true, id: finalId, name: collectionName, requestCount: items.length }
     } catch (err: any) {
+      console.error('Import Error:', err)
       return { success: false, error: err.message }
     }
   })
@@ -369,46 +577,80 @@ export function registerStorageHandlers() {
       const folderPath = result.filePaths[0]
       const folderName = path.basename(folderPath)
 
-      // Read any .json files in the folder as requests
-      const files = fs.readdirSync(folderPath)
-        .filter(f => f.endsWith('.json') && f !== '_meta.json')
+      const items = buildStaticTree(folderPath)
 
-      const requests: SavedRequest[] = []
-      for (const file of files) {
-        try {
-          requests.push(JSON.parse(fs.readFileSync(path.join(folderPath, file), 'utf-8')))
-        } catch { /* skip */ }
+      if (items.length === 0) {
+        return { success: false, error: 'No valid requests found in the selected folder' }
       }
 
       // Symlink or copy to our storage so it appears in the list
       const root = getStorageRoot()
       const id = folderName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
-      const linkPath = path.join(root, id)
+      const destPath = path.join(root, id)
 
-      // Store a reference file instead of duplicating
-      if (!fs.existsSync(linkPath)) {
-        fs.mkdirSync(linkPath, { recursive: true })
+      if (!fs.existsSync(destPath)) {
+        fs.mkdirSync(destPath, { recursive: true })
       }
 
       fs.writeFileSync(
-        path.join(linkPath, '_meta.json'),
+        path.join(destPath, '_meta.json'),
         JSON.stringify({ id, name: folderName, externalPath: folderPath }, null, 2)
       )
 
-      // Copy requests to our storage
-      for (const req of requests) {
-        const reqId = req.id || Math.random().toString(36).substring(2, 11)
-        fs.writeFileSync(
-          path.join(linkPath, `${reqId}.json`),
-          JSON.stringify({ ...req, id: reqId }, null, 2)
-        )
+      const copyItems = (src: string, dest: string) => {
+        const entries = fs.readdirSync(src, { withFileTypes: true })
+        for (const entry of entries) {
+          const s = path.join(src, entry.name)
+          const d = path.join(dest, entry.name)
+          if (entry.isDirectory()) {
+            fs.mkdirSync(d, { recursive: true })
+            copyItems(s, d)
+          } else if (entry.name.endsWith('.json')) {
+            try {
+              const content = JSON.parse(fs.readFileSync(s, 'utf-8'))
+              const validated = validateRequest(content)
+              if (validated) {
+                fs.writeFileSync(d, JSON.stringify(validated, null, 2))
+              }
+            } catch { /* skip */ }
+          }
+        }
       }
+      copyItems(folderPath, destPath)
 
-      return { success: true, id, name: folderName, requestCount: requests.length, path: folderPath }
+      return { success: true, id, name: folderName, path: folderPath }
     } catch (err: any) {
+      console.error('Open Folder Error:', err)
       return { success: false, error: err.message }
     }
   })
+
+function buildStaticTree(dirPath: string): CollectionItem[] {
+  const items: CollectionItem[] = []
+  const files = fs.readdirSync(dirPath, { withFileTypes: true })
+  
+  for (const entry of files) {
+    const fullPath = path.join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      const subItems = buildStaticTree(fullPath)
+      if (subItems.length > 0) {
+        items.push({
+          id: entry.name,
+          name: entry.name,
+          type: 'folder',
+          items: subItems
+        })
+      }
+    } else if (entry.name.endsWith('.json') || entry.name.endsWith('.postman_collection')) {
+      try {
+        const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
+        const extracted = extractRequests(content)
+        items.push(...extracted)
+      } catch { /* skip */ }
+    }
+  }
+  return items
+}
 
   // ===== History =====
 

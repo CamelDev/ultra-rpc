@@ -56,11 +56,13 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ### 4. Variables & Scripting
 - **Resolution**: UltraRPC resolves `{{variable}}` by checking your **Collection Variables** first, then your **Active Environment**.
+- **Pre-request Scripts**:
+  - Run code *before* the request is sent (e.g., to generate dynamic headers or timestamps).
+  - Use `ultra.env.set('ts', Date.now())` to inject values into subsequent variable resolution.
 - **Post-Response Scripts**:
-  - Go to the **Script** tab in any request.
-  - Write standard JavaScript to extract data: `const id = ultra.response.body.id;`.
+  - Extract data: `const id = ultra.response.body.id;`.
   - Save it for the next request: `ultra.setCollectionVariable('userId', id);`.
-- Use the **Script Console** at the bottom of the tab to debug with `console.log()`.
+- Use the **Script Console** at the bottom of each script tab to debug with `console.log()`.
 
 ---
 
@@ -87,13 +89,15 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **File-based storage** — each collection is a folder, each request is a `.json` file
 - **Collection-Level Variables** — define variables scoped specifically to a collection
 - **Hierarchical Resolution** — Variables are resolved with priority: `Collection > Environment`
+- **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are flattened, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
 - **Import/Export** — Support for `.ultrarpc.json` archives and opening any local folder as a collection
 
 ### 🤖 Scripting & Automation
-- **Post-Response Scripts** — Write JavaScript code to run after any request
+- **Pre-request Scripts** — Write code to prepare variables or headers before execution.
+- **Post-Response Scripts** — Write JavaScript code to run after any request.
 - **The `ultra` Object**:
   - `ultra.response`: Access status, headers, and parsed JSON body
-  - `ultra.setCollectionVariable(key, value)`: Chain requests by saving response data to the collection
+  - `ultra.env.set(key, value)` / `ultra.collection.set(key, value)`: Update variables dynamically.
 - **Script Console**: Integrated log viewer for `console.log()` and `console.error()` calls within scripts
 
 ### 🎨 Premium UI
@@ -223,10 +227,11 @@ UltraRPC/
 - [x] Request scripting (Post-response)
 - [x] Collection Variables
 - [x] Rich gRPC error decoding
+- [x] Pre-request scripts
+- [x] Postman Import (v2.1)
 - [ ] TLS/SSL configuration panel for gRPC (Client Certificates)
 - [ ] WebSocket support
 - [ ] GraphQL support
-- [ ] Pre-request scripts
 - [ ] Response diffing
 - [ ] Plugin system
 

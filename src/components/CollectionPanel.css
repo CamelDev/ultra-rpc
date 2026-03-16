@@ -173,21 +173,43 @@
 }
 
 .coll-no-requests {
-  padding: 6px 30px;
+  padding: 8px 30px;
   font-size: 11px;
   color: var(--text-secondary);
   opacity: 0.5;
+}
+
+.coll-folder-children {
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  margin-left: 14px;
+}
+
+.folder-header {
+  color: var(--text-primary);
+  opacity: 0.8;
+}
+
+.folder-header:hover {
+  opacity: 1;
+}
+
+.folder-icon {
+  margin-right: 2px;
+  color: var(--accent);
+  opacity: 0.7;
 }
 
 .coll-request-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px 5px 28px;
+  padding: 5px 10px;
   cursor: pointer;
   font-size: 12px;
   color: var(--text-secondary);
-  transition: background 0.1s ease;
+  transition: all 0.15s ease;
+  border-radius: 4px;
+  margin: 1px 4px;
 }
 
 .coll-request-item:hover {
@@ -214,27 +236,38 @@
   white-space: nowrap;
 }
 
-.coll-req-delete,
-.coll-req-reorder {
+.coll-request-item:hover .coll-req-actions {
+  opacity: 1;
+}
+
+.coll-req-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
   opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.coll-req-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 2px;
-  transition: var(--transition);
+  padding: 4px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
+  transition: all 0.15s ease;
 }
 
-.coll-request-item:hover .coll-req-delete,
-.coll-request-item:hover .coll-req-reorder {
-  opacity: 0.6;
+.coll-req-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
 }
 
-.coll-req-delete:hover,
-.coll-req-reorder:hover {
-  opacity: 1 !important;
+.coll-req-btn.danger:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .coll-req-delete:hover {

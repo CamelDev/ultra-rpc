@@ -20,24 +20,17 @@ import CollectionPanel from './components/CollectionPanel'
 import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
 import AboutModal from './components/AboutModal'
-import type { Tab, RequestConfig, ResponseData, Environment } from './types'
+import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem } from './types'
 import { createEmptyRequest } from './lib/helpers'
 import pkg from '../package.json'
 
-type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'script'
+type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'pre-request' | 'post-response'
 
 interface HistoryEntry {
   id: string
   request: RequestConfig
-  timestamp: number
   statusCode?: number
-}
-
-interface CollectionData {
-  id: string
-  name: string
-  requests: RequestConfig[]
-  variables?: any[]
+  timestamp: number
 }
 
 const App: React.FC = () => {
@@ -100,7 +93,41 @@ const App: React.FC = () => {
   const [showSettingsPopup, setShowSettingsPopup] = useState(false)
   const [showAboutModal, setShowAboutModal] = useState(false)
   const [wrapLines, setWrapLines] = useState(true)
-  const [editingCollection, setEditingCollection] = useState<CollectionData | null>(null)
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
+
+  // ===== Helpers for Nested Collections =====
+  const getAllRequests = useCallback((collection: Collection): RequestConfig[] => {
+    const requests: RequestConfig[] = []
+    const traverse = (items: CollectionItem[]) => {
+      for (const item of items) {
+        if (item.type === 'request' && item.request) {
+          requests.push(item.request)
+        } else if (item.type === 'folder' && item.items) {
+          traverse(item.items)
+        }
+      }
+    }
+    traverse(collection.items)
+    return requests
+  }, [])
+
+  const findRequestInCollections = useCallback((requestId: string): RequestConfig | null => {
+    for (const coll of collections) {
+      const requests = getAllRequests(coll)
+      const found = requests.find(r => r.id === requestId)
+      if (found) return found
+    }
+    return null
+  }, [collections, getAllRequests])
+
+  const findCollectionByRequestId = useCallback((requestId: string): Collection | null => {
+    for (const coll of collections) {
+      const requests = getAllRequests(coll)
+      if (requests.some(r => r.id === requestId)) return coll
+    }
+    return null
+  }, [collections, getAllRequests])
 
   // ===== Sidebar Resizing =====
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -170,7 +197,6 @@ const App: React.FC = () => {
   }
 
   // ===== Collections =====
-  const [collections, setCollections] = useState<CollectionData[]>([])
 
   // ===== History =====
   const [history, setHistory] = useState<HistoryEntry[]>([])
@@ -280,7 +306,7 @@ const App: React.FC = () => {
   const activeTab = tabs.find(t => t.id === activeTabId)
   const activeRequest = activeTab?.request
   const activeEnv = environments.find(e => e.id === activeEnvId)
-  const activeRequestCollection = activeTab ? collections.find(c => c.requests.some(r => r.id === activeTab.request.id)) : null
+  const activeRequestCollection = activeTab ? findCollectionByRequestId(activeTab.request.id) : null
 
   const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
     setTabs(prev => prev.map(t =>
@@ -337,18 +363,24 @@ const App: React.FC = () => {
     }
   }
 
-  const interpolate = (str: string): string => {
+  const interpolate = (str: string, envOverride?: Environment, collectionsOverride?: Collection[]): string => {
     if (!str) return str
+    
+    // Find collection associated with active request in the override or current set
+    const currentCollections = collectionsOverride || collections
+    const activeColl = activeTab ? currentCollections.find(c => getAllRequests(c).some(r => r.id === activeTab.request.id)) : null
+    const currentEnv = envOverride || activeEnv
+
     return str.replace(/\{\{(\w+)\}\}/g, (_, varName) => {
       // 1. Collection variables
-      if (activeRequestCollection?.variables) {
-        const found = activeRequestCollection.variables.find(v => v.enabled && v.key === varName)
+      if (activeColl?.variables) {
+        const found = activeColl.variables.find(v => v.key === varName && v.enabled)
         if (found) return found.value
       }
 
       // 2. Env variables
-      if (activeEnv) {
-        const found = activeEnv.variables.find(v => v.enabled && v.key === varName)
+      if (currentEnv) {
+        const found = currentEnv.variables.find(v => v.key === varName && v.enabled)
         if (found) return found.value
       }
 
@@ -390,10 +422,7 @@ const App: React.FC = () => {
   const handleSaveActiveRequest = async () => {
     if (!activeRequest) return
     
-    // Check if the current request naturally belongs to any known collection
-    const owningCollection = collections.find(c => 
-      c.requests.some(r => r.id === activeRequest.id)
-    )
+    const owningCollection = findCollectionByRequestId(activeRequest.id)
 
     if (owningCollection) {
       // It's a known request linked to a collection, silently auto-save it
@@ -442,10 +471,110 @@ const App: React.FC = () => {
     ))
   }
 
+  const runPreRequestScript = async (request: RequestConfig): Promise<{ environments: Environment[], collections: Collection[] } | null> => {
+    if (!request.preRequestScript || !request.preRequestScript.trim()) return null
+
+    // We need to work with local copies to avoid race conditions with React state updates
+    let currentEnvs = [...environments]
+    let currentCollections = [...collections]
+    
+    const parentCollection = currentCollections.find(c => getAllRequests(c).some(r => r.id === request.id))
+    
+    const mockConsole = {
+      log: (...args: any[]) => {
+        const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
+        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[PRE-SCRIPT LOG] ${msg}`] }))
+      },
+      error: (...args: any[]) => {
+        const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
+        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[PRE-SCRIPT ERROR] ${msg}`] }))
+      }
+    }
+
+    try {
+      const ultra = {
+        env: {
+          get: (key: string) => {
+            if (!activeEnv) return undefined
+            return activeEnv.variables.find(v => v.key === key && v.enabled)?.value
+          },
+          set: (key: string, value: string) => {
+            if (!activeEnvId) {
+              mockConsole.error('No active environment selected to set variable.')
+              return
+            }
+            currentEnvs = currentEnvs.map(e => {
+              if (e.id === activeEnvId) {
+                const vars = [...e.variables]
+                const idx = vars.findIndex(v => v.key === key)
+                if (idx >= 0) {
+                  vars[idx] = { ...vars[idx], value: String(value) }
+                } else {
+                  vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
+                }
+                const updatedEnv = { ...e, variables: vars }
+                if (window.ultraRpc) window.ultraRpc.saveEnvironments([
+                  ...currentEnvs.filter(other => other.id !== activeEnvId),
+                  updatedEnv
+                ])
+                return updatedEnv
+              }
+              return e
+            })
+            setEnvironments(currentEnvs)
+            mockConsole.log(`[Script] Set env variable: ${key}`)
+          }
+        },
+        collection: {
+          get: (key: string) => {
+            if (!parentCollection?.variables) return undefined
+            return parentCollection.variables.find(v => v.key === key && v.enabled)?.value
+          },
+          set: (key: string, value: string) => {
+            if (!parentCollection) {
+              mockConsole.error('Request must be in a collection to set collection variables.')
+              return
+            }
+            currentCollections = currentCollections.map(c => {
+              if (c.id === parentCollection.id) {
+                const vars = [...(c.variables || [])]
+                const idx = vars.findIndex(v => v.key === key)
+                if (idx >= 0) {
+                  vars[idx] = { ...vars[idx], value: String(value) }
+                } else {
+                  vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
+                }
+                const updated = { ...c, variables: vars }
+                handleSaveCollectionVariables(c.id, vars)
+                return updated
+              }
+              return c
+            })
+            setCollections(currentCollections)
+            mockConsole.log(`[Script] Set collection variable: ${key}`)
+          }
+        },
+        setCollectionVariable: (key: string, value: string) => {
+          ultra.collection.set(key, value)
+        }
+      }
+
+      const script = new Function('ultra', 'console', request.preRequestScript)
+      script(ultra, mockConsole)
+      
+      return { environments: currentEnvs, collections: currentCollections }
+    } catch (err: any) {
+      mockConsole.error(`Pre-request Runtime Error: ${err.message}`)
+      setScriptErrors(prev => ({ ...prev, [activeTabId]: `Pre-request Script Error: ${err.message}` }))
+      throw err // Stop request execution if script fails? Postman usually continues, but maybe we should let user decide. 
+      // For now, let's just log and continue.
+    }
+  }
+
   const runPostResponseScript = async (request: RequestConfig, response: ResponseData) => {
     if (!request.postResponseScript || !request.postResponseScript.trim()) return
 
-    const parentCollection = collections.find(c => c.requests.some(r => r.id === request.id))
+    const parentCollection = findCollectionByRequestId(request.id)
     if (!parentCollection) return
 
     const logs: string[] = []
@@ -482,24 +611,72 @@ const App: React.FC = () => {
         mockConsole.log(`[Script Debug] Error analyzing body: ${e}`)
       }
 
-      const currentVars = [...(parentCollection.variables || [])]
-
       const ultra = {
         response: { ...response, body: bodyObj },
-        setCollectionVariable: (key: string, value: string) => {
-          // Use the latest state of currentVars (shared across calls in this script run)
-          const existingIdx = currentVars.findIndex(v => v.key === key)
-          if (existingIdx >= 0) {
-            currentVars[existingIdx] = { ...currentVars[existingIdx], value: String(value) }
-          } else {
-            currentVars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
+        env: {
+          get: (key: string) => {
+            if (!activeEnv) return undefined
+            return activeEnv.variables.find(v => v.key === key && v.enabled)?.value
+          },
+          set: (key: string, value: string) => {
+            if (!activeEnvId) {
+              mockConsole.error('No active environment selected to set variable.')
+              return
+            }
+            setEnvironments(prev => {
+              const newEnvs = prev.map(e => {
+                if (e.id === activeEnvId) {
+                  const vars = [...e.variables]
+                  const idx = vars.findIndex(v => v.key === key)
+                  if (idx >= 0) {
+                    vars[idx] = { ...vars[idx], value: String(value) }
+                  } else {
+                    vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
+                  }
+                  const updatedEnv = { ...e, variables: vars }
+                  if (window.ultraRpc) window.ultraRpc.saveEnvironments([
+                    ...prev.filter(other => other.id !== activeEnvId),
+                    updatedEnv
+                  ])
+                  return updatedEnv
+                }
+                return e
+              })
+              return newEnvs
+            })
+            mockConsole.log(`[Script] Set env variable: ${key}`)
           }
-          
-          handleSaveCollectionVariables(parentCollection.id, [...currentVars]).then(() => {
-             mockConsole.log(`[Script] Saved variable: ${key}`)
-          }).catch(err => {
-             mockConsole.error(`[Script] Failed to save variable ${key}: ${err.message}`)
-          })
+        },
+        collection: {
+          get: (key: string) => {
+            if (!parentCollection?.variables) return undefined
+            return parentCollection.variables.find(v => v.key === key && v.enabled)?.value
+          },
+          set: (key: string, value: string) => {
+            setCollections(prev => {
+              const target = prev.find(c => c.id === parentCollection.id)
+              if (!target) return prev
+              
+              const vars = [...(target.variables || [])]
+              const existingIdx = vars.findIndex(v => v.key === key)
+              if (existingIdx >= 0) {
+                vars[existingIdx] = { ...vars[existingIdx], value: String(value) }
+              } else {
+                vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
+              }
+              
+              handleSaveCollectionVariables(target.id, vars).then(() => {
+                 mockConsole.log(`[Script] Saved variable: ${key}`)
+              }).catch(err => {
+                 mockConsole.error(`[Script] Failed to save variable ${key}: ${err.message}`)
+              })
+              
+              return prev.map(c => c.id === target.id ? { ...c, variables: vars } : c)
+            })
+          }
+        },
+        setCollectionVariable: (key: string, value: string) => {
+          ultra.collection.set(key, value)
         }
       }
 
@@ -523,7 +700,15 @@ const App: React.FC = () => {
     setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))
     setScriptErrors(prev => ({ ...prev, [activeTabId]: null }))
 
-    const url = interpolate(activeRequest.url)
+    let scriptResult = null
+    try {
+      scriptResult = await runPreRequestScript(activeRequest)
+    } catch (e) {
+      console.error('Pre-request script failed, but continuing request:', e)
+    }
+
+    const updatedEnv = scriptResult?.environments.find(e => e.id === activeEnvId)
+    const url = interpolate(activeRequest.url, updatedEnv, scriptResult?.collections)
     let statusCode: number | undefined
 
     if (activeRequest.type === 'GRPC') {
@@ -532,7 +717,7 @@ const App: React.FC = () => {
 
         const headers: Record<string, string> = {}
         activeRequest.headers.filter(h => h.enabled && h.key).forEach(h => {
-          headers[interpolate(h.key)] = interpolate(h.value)
+          headers[interpolate(h.key, updatedEnv, scriptResult?.collections)] = interpolate(h.value, updatedEnv, scriptResult?.collections)
         })
 
         if (!activeRequest.grpcService) {
@@ -545,7 +730,7 @@ const App: React.FC = () => {
         const result = await window.ultraRpc.grpcCall({
           host: url, insecure: true, headers,
           service: activeRequest.grpcService, method: activeRequest.grpcMethod,
-          payload: interpolate(activeRequest.grpcPayload || '{}'),
+          payload: interpolate(activeRequest.grpcPayload || '{}', updatedEnv, scriptResult?.collections),
           timeoutMs: activeRequest.timeoutMs
         })
         if (result.success && result.data) {
@@ -569,14 +754,14 @@ const App: React.FC = () => {
         let fullUrl = url
         if (enabledParams.length > 0) {
           const searchParams = new URLSearchParams()
-          enabledParams.forEach(p => searchParams.append(interpolate(p.key), interpolate(p.value)))
+          enabledParams.forEach(p => searchParams.append(interpolate(p.key, updatedEnv, scriptResult?.collections), interpolate(p.value, updatedEnv, scriptResult?.collections)))
           fullUrl += (fullUrl.includes('?') ? '&' : '?') + searchParams.toString()
         }
 
         if (window.ultraRpc) {
           const result = await window.ultraRpc.sendRestRequest({
             method: activeRequest.method, url: fullUrl, headers,
-            body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body) : undefined,
+            body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body, updatedEnv, scriptResult?.collections) : undefined,
           })
           if (result.success && result.data) {
             statusCode = result.data.status
@@ -589,7 +774,7 @@ const App: React.FC = () => {
           const start = Date.now()
           const resp = await fetch(fullUrl, {
             method: activeRequest.method, headers,
-            body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body) : undefined,
+            body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body, updatedEnv, scriptResult?.collections) : undefined,
           })
           const body = await resp.text()
           const time = Date.now() - start
@@ -630,7 +815,8 @@ const App: React.FC = () => {
     { key: 'headers', label: 'Headers' },
     { key: 'body', label: 'Body' },
     { key: 'auth', label: 'Options' },
-    { key: 'script', label: 'Script' },
+    { key: 'pre-request', label: 'Pre-request' },
+    { key: 'post-response', label: 'Post-response' },
   ] as { key: RequestTab; label: string }[]).filter(t => {
     if (activeRequest?.type === 'GRPC' && t.key === 'params') return false
     return true
@@ -1001,7 +1187,10 @@ const App: React.FC = () => {
                     {ct.key === 'headers' && activeRequest.headers.filter(h => h.key).length > 0 && (
                       <span className="config-tab-badge">{activeRequest.headers.filter(h => h.key).length}</span>
                     )}
-                    {ct.key === 'script' && activeRequest.postResponseScript && (
+                    {ct.key === 'pre-request' && activeRequest.preRequestScript && (
+                      <span className="config-tab-badge-dot" />
+                    )}
+                    {ct.key === 'post-response' && activeRequest.postResponseScript && (
                       <span className="config-tab-badge-dot" />
                     )}
                   </button>
@@ -1111,7 +1300,68 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  {activeConfigTab === 'script' && (
+                  {activeConfigTab === 'pre-request' && (
+                    <div className="script-section" style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                          Pre-request Script (JavaScript)
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                            Run code before the request is sent. Access <code>ultra.env</code> or <code>ultra.collection</code> to update variables.
+                          </p>
+                          <button 
+                            className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                            style={{ padding: '4px 8px', fontSize: '11px', flexShrink: 0 }}
+                            onClick={() => setWrapLines(!wrapLines)}
+                            title="Toggle Line Wrap"
+                          >
+                            <WrapText size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, minHeight: '150px' }}>
+                        <InterpolatedInput
+                            multiline
+                            className="script-editor"
+                            placeholder="// code here...&#10;ultra.env.set('timestamp', Date.now().toString());"
+                            value={activeRequest.preRequestScript || ''}
+                            onChange={val => updateActiveRequest({ preRequestScript: val })}
+                            activeEnv={activeEnv}
+                            highlightJs={true}
+                            wrapLines={wrapLines}
+                            collectionVariables={activeRequestCollection?.variables}
+                          />
+                      </div>
+                      
+                      {/* Console Log Viewer */}
+                      <div className="script-console glass">
+                        <div className="console-header">
+                          <span className="console-title">Console Output</span>
+                          <button 
+                            className="btn-ghost" 
+                            style={{ fontSize: '10px', padding: '2px 8px' }}
+                            onClick={() => setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <div className="console-logs">
+                          {(scriptLogs[activeTabId] || []).length === 0 ? (
+                            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No logs yet...</div>
+                          ) : (
+                            scriptLogs[activeTabId].map((log, i) => (
+                              <div key={i} className={`console-log-entry ${log.includes('ERROR') ? 'console-log-entry-error' : ''}`}>
+                                {log}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeConfigTab === 'post-response' && (
                     <div className="script-section" style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', height: '100%' }}>
                       <div style={{ marginBottom: '12px' }}>
                         <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
@@ -1162,7 +1412,7 @@ const App: React.FC = () => {
                             <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No logs yet...</div>
                           ) : (
                             scriptLogs[activeTabId].map((log, i) => (
-                              <div key={i} className={`console-log-entry ${log.startsWith('[ERROR]') ? 'console-log-entry-error' : ''}`}>
+                              <div key={i} className={`console-log-entry ${log.includes('ERROR') ? 'console-log-entry-error' : ''}`}>
                                 {log}
                               </div>
                             ))
