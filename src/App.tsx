@@ -83,6 +83,8 @@ const App: React.FC = () => {
   const [activeConfigTab, setActiveConfigTab] = useState<RequestTab>('params')
   const [showEnvPanel, setShowEnvPanel] = useState(false)
   const [showSaveMenu, setShowSaveMenu] = useState(false)
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request', id: string, name: string, collectionId?: string } | null>(null)
 
   // ===== Environments =====
   const [environments, setEnvironments] = useState<Environment[]>([])
@@ -111,15 +113,6 @@ const App: React.FC = () => {
     traverse(collection.items)
     return requests
   }, [])
-
-  const findRequestInCollections = useCallback((requestId: string): RequestConfig | null => {
-    for (const coll of collections) {
-      const requests = getAllRequests(coll)
-      const found = requests.find(r => r.id === requestId)
-      if (found) return found
-    }
-    return null
-  }, [collections, getAllRequests])
 
   const findCollectionByRequestId = useCallback((requestId: string): Collection | null => {
     for (const coll of collections) {
@@ -445,6 +438,7 @@ const App: React.FC = () => {
       }
     } else {
       // It's a new or decoupled request, open the standard picker
+      setSelectedCollectionId(null)
       setShowSaveMenu(true)
     }
   }
@@ -456,6 +450,15 @@ const App: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         handleSaveActiveRequest()
+      }
+
+      // ESC key to close modals
+      if (e.key === 'Escape') {
+        setShowSaveMenu(false)
+        setConfirmDelete(null)
+        setEditingCollection(null)
+        setShowSettingsPopup(false)
+        setShowAboutModal(false)
       }
     }
 
@@ -860,6 +863,8 @@ const App: React.FC = () => {
             onSaveToCollection={saveToCollection}
             onRenameRequest={handleRenameRequest}
             onEditVariables={setEditingCollection}
+            onDeleteRequest={(collId, reqId, name) => setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })}
+            onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
           />
 
           {/* Environment Panel */}
@@ -1099,56 +1104,6 @@ const App: React.FC = () => {
                   )}
                 </button>
 
-                {/* Save Menu Popup */}
-                {showSaveMenu && (
-                  <div 
-                    className="save-menu glass fade-in-tooltip" 
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      right: 0,
-                      width: '240px',
-                      padding: '8px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                      zIndex: 100
-                    }}
-                  >
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px', padding: '0 4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Save to Collection
-                    </div>
-                    {collections.length === 0 && (
-                      <div style={{ padding: '8px 4px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                        No collections yet. Create one in the sidebar.
-                      </div>
-                    )}
-                    {collections.map(c => (
-                      <button 
-                        key={c.id}
-                        className="save-menu-item"
-                        onClick={() => {
-                          saveToCollection(c.id)
-                          setShowSaveMenu(false)
-                        }}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          textAlign: 'left',
-                          padding: '8px 12px',
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-primary)',
-                          fontSize: '13px',
-                          borderRadius: '4px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {c.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Active env selector */}
@@ -1511,6 +1466,12 @@ const App: React.FC = () => {
         </section>
       </main>
 
+      <AboutModal 
+        isOpen={showAboutModal} 
+        onClose={() => setShowAboutModal(false)} 
+        version={pkg.version}
+      />
+
       {/* Collection Variables Modal */}
       {editingCollection && (
         <div className="modal-overlay" onClick={() => setEditingCollection(null)}>
@@ -1559,6 +1520,163 @@ const App: React.FC = () => {
         onClose={() => setShowAboutModal(false)} 
         version={pkg.version}
       />
+
+      {/* Save Request Modal */}
+      {showSaveMenu && (
+        <div className="modal-overlay" onClick={() => setShowSaveMenu(false)}>
+          <motion.div 
+            className="modal-content glass" 
+            style={{ maxWidth: '400px' }}
+            onClick={e => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+          >
+            <div className="modal-header">
+              <h3>Save Request</h3>
+              <button className="btn-ghost" onClick={() => setShowSaveMenu(false)} style={{ padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Select a collection to save this request to:
+              </p>
+              
+              <div className="collection-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {collections.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    No collections found. Create a collection first in the sidebar.
+                  </div>
+                ) : (
+                  collections.map(c => (
+                    <div 
+                      key={c.id}
+                      className={`collection-modal-item ${selectedCollectionId === c.id ? 'active' : ''}`}
+                      onClick={() => setSelectedCollectionId(c.id)}
+                      style={{
+                        padding: '10px 12px',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        marginBottom: '4px',
+                        background: selectedCollectionId === c.id ? 'var(--accent-muted)' : 'transparent',
+                        border: '1px solid',
+                        borderColor: selectedCollectionId === c.id ? 'var(--accent)' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: 'var(--text-primary)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ 
+                        width: '16px', 
+                        height: '16px', 
+                        borderRadius: '50%', 
+                        border: '2px solid var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {selectedCollectionId === c.id && (
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }} />
+                        )}
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: selectedCollectionId === c.id ? 600 : 400 }}>
+                        {c.name}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
+              <button 
+                className="btn-ghost" 
+                onClick={() => setShowSaveMenu(false)}
+                style={{ padding: '8px 16px' }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-primary" 
+                disabled={!selectedCollectionId}
+                onClick={() => {
+                  if (selectedCollectionId) {
+                    saveToCollection(selectedCollectionId)
+                    setShowSaveMenu(false)
+                  }
+                }}
+                style={{ padding: '8px 24px' }}
+              >
+                OK
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+          <motion.div 
+            className="modal-content glass" 
+            style={{ maxWidth: '400px' }}
+            onClick={e => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+          >
+            <div className="modal-header">
+              <h3>Confirm Delete</h3>
+              <button className="btn-ghost" onClick={() => setConfirmDelete(null)} style={{ padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <p style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                Are you sure you want to delete this {confirmDelete.type}?
+              </p>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                <strong>{confirmDelete.name}</strong>
+              </p>
+              {confirmDelete.type === 'collection' && (
+                <p style={{ fontSize: '11px', color: 'var(--danger)', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Info size={12} /> This will also delete all requests inside this collection.
+                </p>
+              )}
+            </div>
+            
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
+              <button 
+                className="btn-ghost" 
+                onClick={() => setConfirmDelete(null)}
+                style={{ padding: '8px 16px' }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-primary" 
+                style={{ background: 'var(--danger)', borderColor: 'var(--danger)', padding: '8px 24px' }}
+                onClick={async () => {
+                  if (!window.ultraRpc) return
+                  if (confirmDelete.type === 'collection') {
+                    await window.ultraRpc.deleteCollection({ collectionId: confirmDelete.id })
+                  } else if (confirmDelete.type === 'request' && confirmDelete.collectionId) {
+                    await window.ultraRpc.deleteRequest({ collectionId: confirmDelete.collectionId, requestId: confirmDelete.id })
+                  }
+                  setConfirmDelete(null)
+                  loadCollections()
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

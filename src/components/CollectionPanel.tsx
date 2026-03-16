@@ -24,6 +24,8 @@ interface Props {
   onSaveToCollection: (collectionId: string) => void
   onRenameRequest: (reqId: string, newName: string) => void
   onEditVariables: (collection: Collection) => void
+  onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
+  onDeleteCollection: (id: string, name: string) => void
 }
 
 const CollectionItemView: React.FC<{
@@ -33,7 +35,8 @@ const CollectionItemView: React.FC<{
   onOpenRequest: (request: RequestConfig) => void
   onRefresh: () => void
   onRenameRequest: (reqId: string, newName: string) => void
-}> = ({ item, collectionId, level, onOpenRequest, onRefresh, onRenameRequest }) => {
+  onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
+}> = ({ item, collectionId, level, onOpenRequest, onRefresh, onRenameRequest, onDeleteRequest }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const [editingReqId, setEditingReqId] = useState<string | null>(null)
   const [reqNameInput, setReqNameInput] = useState('')
@@ -51,10 +54,7 @@ const CollectionItemView: React.FC<{
 
   const deleteRequest = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (window.ultraRpc) {
-      await window.ultraRpc.deleteRequest({ collectionId, requestId: item.id })
-      onRefresh()
-    }
+    onDeleteRequest(collectionId, item.id, item.name || item.request?.name || 'Untitled')
   }
 
   const renameRequest = async (e: React.KeyboardEvent | React.FocusEvent) => {
@@ -92,6 +92,7 @@ const CollectionItemView: React.FC<{
                 onOpenRequest={onOpenRequest}
                 onRefresh={onRefresh}
                 onRenameRequest={onRenameRequest}
+                onDeleteRequest={onDeleteRequest}
               />
             ))}
           </div>
@@ -142,7 +143,7 @@ const CollectionItemView: React.FC<{
   )
 }
 
-const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest, onEditVariables }) => {
+const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest, onEditVariables, onDeleteRequest, onDeleteCollection }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -160,11 +161,8 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
     }
   }
 
-  const deleteCollection = async (id: string) => {
-    if (window.ultraRpc) {
-      await window.ultraRpc.deleteCollection({ collectionId: id })
-      onRefresh()
-    }
+  const deleteCollection = async (id: string, name: string) => {
+    onDeleteCollection(id, name)
   }
 
   const renameCollection = async (id: string) => {
@@ -282,7 +280,7 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
                 <Download size={12} /> Export
               </button>
               <div className="coll-context-divider" />
-              <button className="coll-danger-action" onClick={() => deleteCollection(coll.id)}>
+              <button className="coll-danger-action" onClick={() => deleteCollection(coll.id, coll.name)}>
                 <Trash2 size={12} /> Delete
               </button>
             </div>
@@ -302,6 +300,7 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
                   onOpenRequest={onOpenRequest}
                   onRefresh={onRefresh}
                   onRenameRequest={onRenameRequest}
+                  onDeleteRequest={onDeleteRequest}
                 />
               ))}
             </div>
