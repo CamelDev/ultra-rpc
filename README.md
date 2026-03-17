@@ -41,7 +41,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ### 2. Set Up Environments
 - Click the **Globe** icon in the bottom left to open the Environment Panel.
-- Use the **+** button to create a new environment (e.g., `Staging`).
+- Use the **+** button to create a new environment or the **Import** button to load a Postman environment file.
 - Add keys like `BASE_URL` or `API_KEY`.
 - Select your active environment from the dropdown near the address bar.
 
@@ -90,6 +90,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **Collection-Level Variables** — define variables scoped specifically to a collection
 - **Hierarchical Resolution** — Variables are resolved with priority: `Collection > Environment`
 - **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are flattened, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
+- **Environment Import** — Import Postman environment files (`.json`) directly into the Environment Panel.
 - **Import/Export** — Support for `.ultrarpc.json` archives and opening any local folder as a collection
 
 ### 🤖 Scripting & Automation
@@ -229,6 +230,7 @@ UltraRPC/
 - [x] Rich gRPC error decoding
 - [x] Pre-request scripts
 - [x] Postman Import (v2.1)
+- [x] Postman Environment Import
 - [ ] TLS/SSL configuration panel for gRPC (Client Certificates)
 - [ ] WebSocket support
 - [ ] GraphQL support
