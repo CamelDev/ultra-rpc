@@ -715,6 +715,64 @@ function buildStaticTree(dirPath: string): CollectionItem[] {
     }
   })
 
+  ipcMain.handle('storage:importEnvironment', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Import Postman Environment',
+        filters: [
+          { name: 'Postman Environment', extensions: ['json'] },
+        ],
+        properties: ['openFile'],
+      })
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Cancelled' }
+      }
+
+      const content = fs.readFileSync(result.filePaths[0], 'utf-8')
+      const data = JSON.parse(content)
+
+      const processEnv = (envData: any) => {
+        const name = envData.name || 'Imported Environment'
+        const values = envData.values || []
+        const variables = values.map((v: any) => ({
+          id: Math.random().toString(36).substring(2, 11),
+          key: v.key,
+          value: v.value,
+          enabled: v.enabled !== false
+        }))
+        // Ensure at least one empty row for the UI if it's empty
+        if (variables.length === 0) {
+          variables.push({ id: Math.random().toString(36).substring(2, 11), key: '', value: '', enabled: true })
+        }
+        return {
+          id: Math.random().toString(36).substring(2, 11),
+          name,
+          variables,
+          isActive: false
+        }
+      }
+
+      let imported: any[] = []
+      if (Array.isArray(data)) {
+        imported = data.map(processEnv)
+      } else if (data.info && data.info.schema && data.info.schema.includes('environment')) {
+        // Single environment format
+        imported = [processEnv(data)]
+      } else if (data.values && Array.isArray(data.values)) {
+        // Likely a naked environment object
+        imported = [processEnv(data)]
+      } else {
+        return { success: false, error: 'Invalid Postman Environment format' }
+      }
+
+      return { success: true, environments: imported }
+    } catch (err: any) {
+      console.error('Import Environment Error:', err)
+      return { success: false, error: err.message }
+    }
+  })
+
   // ===== Settings Persistence =====
 
   ipcMain.handle('storage:getSettings', async () => {

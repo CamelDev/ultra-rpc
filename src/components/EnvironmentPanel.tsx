@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, Check, ChevronDown, Edit2, Save } from 'lucide-react'
+import { Plus, Trash2, Check, ChevronDown, Edit2, Save, FileUp } from 'lucide-react'
 import type { Environment, KeyValuePair } from '../types'
 import { emptyKV } from '../lib/helpers'
 import './EnvironmentPanel.css'
@@ -17,6 +17,19 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
   const [nameInput, setNameInput] = useState('')
 
   const uid = () => Math.random().toString(36).substring(2, 11)
+
+  const handleImport = async () => {
+    const result = await window.ultraRpc.importEnvironment()
+    if (result.success && result.environments) {
+      const newEnvs = [...environments, ...result.environments]
+      onChange(newEnvs)
+      if (result.environments.length > 0) {
+        setExpandedId(result.environments[0].id)
+      }
+    } else if (result.error && result.error !== 'Cancelled') {
+      alert(`Import failed: ${result.error}`)
+    }
+  }
 
   const addEnvironment = () => {
     const newEnv: Environment = {
@@ -77,9 +90,14 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
     <div className="env-panel">
       <div className="env-panel-header">
         <span className="env-panel-title">Environments</span>
-        <button className="btn-ghost env-add-btn" onClick={addEnvironment}>
-          <Plus size={14} />
-        </button>
+        <div className="env-panel-actions">
+          <button className="btn-ghost env-action-btn" onClick={handleImport} title="Import Postman Environment">
+            <FileUp size={14} />
+          </button>
+          <button className="btn-ghost env-action-btn" onClick={addEnvironment} title="Add Environment">
+            <Plus size={14} />
+          </button>
+        </div>
       </div>
 
       {environments.length === 0 && (

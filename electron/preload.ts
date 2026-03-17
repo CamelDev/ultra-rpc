@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   // ===== Environments =====
   getEnvironments: () => ipcRenderer.invoke('storage:getEnvironments'),
   saveEnvironments: (envs: any[]) => ipcRenderer.invoke('storage:saveEnvironments', envs),
+  importEnvironment: () => ipcRenderer.invoke('storage:importEnvironment'),
 
   // ===== Settings =====
   getSettings: () => ipcRenderer.invoke('storage:getSettings'),

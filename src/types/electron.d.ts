@@ -47,6 +47,7 @@ export interface UltraRpcApi {
   // Environments
   getEnvironments: () => Promise<{ success: boolean; environments?: any[]; error?: string }>
   saveEnvironments: (envs: any[]) => Promise<{ success: boolean; error?: string }>
+  importEnvironment: () => Promise<{ success: boolean; environments?: any[]; error?: string }>
 
   // Settings
   getSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>

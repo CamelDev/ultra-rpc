@@ -11,6 +11,21 @@
   border-bottom: 1px solid var(--border);
 }
 
+.env-panel-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.env-action-btn {
+  padding: 4px !important;
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+}
+
+.env-action-btn:hover {
+  color: var(--text-primary);
+}
+
 .env-panel-title {
   font-size: 12px;
   font-weight: 600;
