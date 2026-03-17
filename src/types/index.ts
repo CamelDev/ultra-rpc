@@ -24,6 +24,7 @@ export interface RequestConfig {
   grpcMethod?: string
   grpcPayload?: string
   grpcReflection?: boolean
+  envId?: string | null
   timeoutMs?: number
   preRequestScript?: string
   postResponseScript?: string

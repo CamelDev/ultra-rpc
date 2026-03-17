@@ -43,7 +43,9 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - Click the **Globe** icon in the bottom left to open the Environment Panel.
 - Use the **+** button to create a new environment or the **Import** button to load a Postman environment file.
 - Add keys like `BASE_URL` or `API_KEY`.
-- Select your active environment from the dropdown near the address bar.
+- Add keys like `BASE_URL` or `API_KEY`.
+- **Per-Tab Selection**: Select an environment from the dropdown near the address bar. This selection is **specific to the current tab**, allowing you to work across different environments simultaneously.
+- **Inheritance**: New tabs automatically inherit the currently active global environment.
 
 ### 3. Build Your First Request
 - Click the **+** in the top tab bar to open a fresh tab.
@@ -89,6 +91,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **File-based storage** — each collection is a folder, each request is a `.json` file
 - **Collection-Level Variables** — define variables scoped specifically to a collection
 - **Hierarchical Resolution** — Variables are resolved with priority: `Collection > Environment`
+- **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging", with automatic inheritance for new tabs.
 - **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are flattened, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
 - **Environment Import** — Import Postman environment files (`.json`) directly into the Environment Panel.
 - **Import/Export** — Support for `.ultrarpc.json` archives and opening any local folder as a collection
@@ -103,6 +106,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ### 🎨 Premium UI
 - **Resizable Split Layout**: Independent scrolling for request config and response viewer
+- **Three-Column View**: Toggle a side-by-side layout (Request vs Response) in Settings for better visibility on wide monitors.
 - **Unsaved Changes Tracking**: Visual indicators for modified tabs and native "Abandon changes?" prompts
 - **Theme Support**: Midnight (Dark) and Daylight (Light) modes with glassmorphism effects
 - **Reset Layout**: One-click recovery from extreme window/pane resizing in Global Settings
@@ -231,6 +235,8 @@ UltraRPC/
 - [x] Pre-request scripts
 - [x] Postman Import (v2.1)
 - [x] Postman Environment Import
+- [x] Per-Tab Environment Selection
+- [x] Three-Column Layout
 - [ ] Collection runner with reports
 - [ ] Run complex post response scripts
 - [ ] Automated test runner in CI

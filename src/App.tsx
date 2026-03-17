@@ -345,6 +345,7 @@ const App: React.FC = () => {
 
   const addEmptyTab = () => {
     const newReq = createEmptyRequest()
+    newReq.envId = activeEnvId // Inherit global env for new tabs
     const newTab: Tab = { id: newReq.id, request: newReq }
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newReq.id)
@@ -398,7 +399,11 @@ const App: React.FC = () => {
     // Find collection associated with active request in the override or current set
     const currentCollections = collectionsOverride || collections
     const activeColl = activeTab ? currentCollections.find(c => getAllRequests(c).some(r => r.id === activeTab.request.id)) : null
-    const currentEnv = envOverride || activeEnv
+    
+    // Resolve environment: request-level first, then global active
+    const requestEnvId = activeTab?.request.envId
+    const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+    const currentEnv = envOverride || environments.find(e => e.id === effectiveEnvId)
 
     return str.replace(/\{\{(\w+)\}\}/g, (_, varName) => {
       // 1. Collection variables
@@ -534,16 +539,21 @@ const App: React.FC = () => {
       const ultra = {
         env: {
           get: (key: string) => {
-            if (!activeEnv) return undefined
-            return activeEnv.variables.find(v => v.key === key && v.enabled)?.value
+            const requestEnvId = request.envId
+            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const targetEnv = environments.find(e => e.id === effectiveEnvId)
+            if (!targetEnv) return undefined
+            return targetEnv.variables.find(v => v.key === key && v.enabled)?.value
           },
           set: (key: string, value: string) => {
-            if (!activeEnvId) {
-              mockConsole.error('No active environment selected to set variable.')
+            const requestEnvId = request.envId
+            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            if (!effectiveEnvId) {
+              mockConsole.error('No active environment associated with this tab/globally to set variable.')
               return
             }
             currentEnvs = currentEnvs.map(e => {
-              if (e.id === activeEnvId) {
+              if (e.id === effectiveEnvId) {
                 const vars = [...e.variables]
                 const idx = vars.findIndex(v => v.key === key)
                 if (idx >= 0) {
@@ -654,17 +664,22 @@ const App: React.FC = () => {
         response: { ...response, body: bodyObj },
         env: {
           get: (key: string) => {
-            if (!activeEnv) return undefined
-            return activeEnv.variables.find(v => v.key === key && v.enabled)?.value
+            const requestEnvId = request.envId
+            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const targetEnv = environments.find(e => e.id === effectiveEnvId)
+            if (!targetEnv) return undefined
+            return targetEnv.variables.find(v => v.key === key && v.enabled)?.value
           },
           set: (key: string, value: string) => {
-            if (!activeEnvId) {
-              mockConsole.error('No active environment selected to set variable.')
+            const requestEnvId = request.envId
+            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            if (!effectiveEnvId) {
+              mockConsole.error('No active environment associated with this tab/globally to set variable.')
               return
             }
             setEnvironments(prev => {
               const newEnvs = prev.map(e => {
-                if (e.id === activeEnvId) {
+                if (e.id === effectiveEnvId) {
                   const vars = [...e.variables]
                   const idx = vars.findIndex(v => v.key === key)
                   if (idx >= 0) {
@@ -1191,12 +1206,11 @@ const App: React.FC = () => {
                   <Globe size={12} className="env-selector-icon" />
                   <select
                     className="env-selector"
-                    value={activeEnvId || ''}
+                    value={activeRequest.envId !== undefined ? (activeRequest.envId || '') : (activeEnvId || '')}
                     onChange={(e) => {
                       const val = e.target.value;
                       const newId = val === '' ? null : val;
-                      setActiveEnvId(newId);
-                      saveAppSetting('activeEnvId', newId);
+                      updateActiveRequest({ envId: newId });
                     }}
                   >
                     <option value="">No Environment</option>
