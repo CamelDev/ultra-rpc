@@ -231,6 +231,10 @@ UltraRPC/
 - [x] Pre-request scripts
 - [x] Postman Import (v2.1)
 - [x] Postman Environment Import
+- [ ] Collection runner with reports
+- [ ] Run complex post response scripts
+- [ ] Automated test runner in CI
+- [ ] Collection sync with GIT
 - [ ] TLS/SSL configuration panel for gRPC (Client Certificates)
 - [ ] WebSocket support
 - [ ] GraphQL support

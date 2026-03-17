@@ -134,14 +134,20 @@ const Editor: React.FC<Props> = ({
     visible: false, x: 0, y: 0, text: ''
   })
   const tooltipTimeoutId = useRef<any>(null)
+  const onChangeRef = useRef(onChange)
+
+  // Keep the ref updated with the latest onChange prop
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   // Memoize extensions to avoid re-creating the editor too often
   const getExtensions = useCallback(() => {
     const extensions: Extension[] = [
-      language !== 'plain' ? (theme === 'dark' ? oneDark : syntaxHighlighting(lightHighlightStyle)) : [],
+      theme === 'dark' ? oneDark : (language !== 'plain' ? syntaxHighlighting(lightHighlightStyle) : []),
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
-      language !== 'plain' ? variablePlugin : [],
+      variablePlugin,
       (wrapLines && !singleLine) ? EditorView.lineWrapping : [],
       EditorView.theme({
         '&': { height: '100%', backgroundColor: 'transparent' },
@@ -285,8 +291,8 @@ const Editor: React.FC<Props> = ({
       parent: editorRef.current,
       dispatch: (tr) => {
         view.update([tr])
-        if (tr.docChanged && onChange) {
-          onChange(tr.newDoc.toString())
+        if (tr.docChanged && onChangeRef.current) {
+          onChangeRef.current(tr.newDoc.toString())
         }
       }
     })

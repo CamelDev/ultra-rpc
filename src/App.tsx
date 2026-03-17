@@ -133,7 +133,16 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('ultraRpcRequestHeight')
     return saved ? parseInt(saved, 10) : 380
   })
+  const [requestPanelWidth, setRequestPanelWidth] = useState(() => {
+    const saved = localStorage.getItem('ultraRpcRequestWidth')
+    return saved ? parseInt(saved, 10) : 600
+  })
+  const [threeColumnLayout, setThreeColumnLayout] = useState(() => {
+    const saved = localStorage.getItem('ultraRpcThreeColumnLayout')
+    return saved === 'true'
+  })
   const [isResizingResponse, setIsResizingResponse] = useState(false)
+  const [isResizingVertical, setIsResizingVertical] = useState(false)
 
   useEffect(() => {
     if (isResizing) {
@@ -179,14 +188,38 @@ const App: React.FC = () => {
   }, [isResizingResponse, requestPanelHeight])
 
   useEffect(() => {
+    if (isResizingVertical) {
+      const handleMouseMove = (e: MouseEvent) => {
+        const newWidth = e.clientX - sidebarWidth - 4 // 4px for resizer/offsets
+        if (newWidth >= 300 && newWidth <= 1200) {
+          setRequestPanelWidth(newWidth)
+        }
+      }
+      const handleMouseUp = () => {
+        setIsResizingVertical(false)
+        localStorage.setItem('ultraRpcRequestWidth', requestPanelWidth.toString())
+      }
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isResizingVertical, sidebarWidth, requestPanelWidth])
+
+  useEffect(() => {
     localStorage.setItem('ultraRpcSidebarWidth', sidebarWidth.toString())
   }, [sidebarWidth])
 
   const resetLayout = () => {
     localStorage.removeItem('ultraRpcSidebarWidth')
     localStorage.removeItem('ultraRpcRequestHeight')
+    localStorage.removeItem('ultraRpcRequestWidth')
     setSidebarWidth(260)
     setRequestPanelHeight(380)
+    setRequestPanelWidth(600)
+    setShowSettingsPopup(false)
   }
 
   // ===== Collections =====
@@ -207,6 +240,9 @@ const App: React.FC = () => {
         }
         if (res.settings.activeEnvId) {
           setActiveEnvId(res.settings.activeEnvId)
+        }
+        if (res.settings.threeColumnLayout !== undefined) {
+          setThreeColumnLayout(res.settings.threeColumnLayout)
         }
       }
     })
@@ -920,6 +956,7 @@ const App: React.FC = () => {
                     onClick={() => {
                       setTheme('light')
                       if (window.ultraRpc) window.ultraRpc.saveSettings({ theme: 'light' })
+                      setShowSettingsPopup(false)
                     }}
                   >
                     Daylight
@@ -929,10 +966,49 @@ const App: React.FC = () => {
                     onClick={() => {
                       setTheme('dark')
                       if (window.ultraRpc) window.ultraRpc.saveSettings({ theme: 'dark' })
+                      setShowSettingsPopup(false)
                     }}
                   >
                     Midnight
                   </button>
+                </div>
+              </div>
+              <div className="settings-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                <span className="settings-label">Layout</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: threeColumnLayout ? 'var(--text-secondary)' : 'var(--accent)', fontWeight: 600 }}>Vertical</span>
+                  <button 
+                    className="layout-toggle"
+                    onClick={() => {
+                      const newValue = !threeColumnLayout
+                      setThreeColumnLayout(newValue)
+                      localStorage.setItem('ultraRpcThreeColumnLayout', newValue.toString())
+                      saveAppSetting('threeColumnLayout', newValue)
+                      setShowSettingsPopup(false)
+                    }}
+                    style={{
+                      width: '34px',
+                      height: '18px',
+                      borderRadius: '10px',
+                      background: threeColumnLayout ? 'var(--accent)' : 'var(--bg-tertiary)',
+                      border: '1px solid var(--border)',
+                      position: 'relative',
+                      transition: 'all 0.2s ease',
+                      padding: 0
+                    }}
+                  >
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      background: 'white',
+                      position: 'absolute',
+                      top: '2px',
+                      left: threeColumnLayout ? '18px' : '2px',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }} />
+                  </button>
+                  <span style={{ fontSize: '11px', color: threeColumnLayout ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>3-Column</span>
                 </div>
               </div>
               <div className="settings-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
@@ -1029,8 +1105,11 @@ const App: React.FC = () => {
         </header>
 
         {/* Content */}
-        <section className="request-section">
-          <div className="request-top-pane" style={{ height: `${requestPanelHeight}px` }}>
+        <section className={`request-section ${threeColumnLayout ? 'three-column' : ''}`}>
+          <div 
+            className="request-top-pane" 
+            style={threeColumnLayout ? { width: `${requestPanelWidth}px`, height: '100%' } : { height: `${requestPanelHeight}px` }}
+          >
             <motion.div
               key={activeTabId}
               initial={{ opacity: 0, y: 8 }}
@@ -1449,12 +1528,19 @@ const App: React.FC = () => {
             </motion.div>
           </div>
 
-          <div 
-            className={`h-resizer ${isResizingResponse ? 'resizing' : ''}`}
-            onMouseDown={() => setIsResizingResponse(true)}
-          />
+          {threeColumnLayout ? (
+            <div 
+              className={`v-resizer ${isResizingVertical ? 'resizing' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); setIsResizingVertical(true) }}
+            />
+          ) : (
+            <div 
+              className={`h-resizer ${isResizingResponse ? 'resizing' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); setIsResizingResponse(true) }}
+            />
+          )}
 
-          <div className="request-bottom-pane">
+          <div className="request-bottom-pane" style={threeColumnLayout ? { flex: 1, height: '100%' } : {}}>
             <h3 className="section-label">Response</h3>
             <ResponseViewer 
               response={responses[activeTabId] || null} 

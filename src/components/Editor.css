@@ -129,3 +129,26 @@
 .cm-theme-one-dark .cm-property {
   color: #79b8ff !important;
 }
+
+/* Variable Tooltip */
+.env-tooltip {
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@keyframes fadeInTooltip {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.fade-in-tooltip {
+  animation: fadeInTooltip 0.2s ease-out forwards;
+}
