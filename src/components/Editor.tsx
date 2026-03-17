@@ -142,7 +142,7 @@ const Editor: React.FC<Props> = ({
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       language !== 'plain' ? variablePlugin : [],
-      wrapLines ? EditorView.lineWrapping : [],
+      (wrapLines && !singleLine) ? EditorView.lineWrapping : [],
       EditorView.theme({
         '&': { height: '100%', backgroundColor: 'transparent' },
         '.cm-scroller': { overflow: 'auto' },
@@ -158,7 +158,20 @@ const Editor: React.FC<Props> = ({
           '.cm-property': { color: '#0550ae !important' },        // unquoted property keys → dark blue
           '.cm-json-key, .cm-json-key *': { color: '#0550ae !important' },
           '.cm-json-value, .cm-json-value *': { color: '#116329 !important' },
-        }) : {})
+        }) : {}),
+        ...(singleLine ? {
+          '.cm-content': { 
+            whiteSpace: 'nowrap !important',
+          },
+          '.cm-line': { 
+            display: 'inline-block !important',
+            padding: '0 !important',
+          },
+          '.cm-scroller': {
+            overflowX: 'auto !important',
+            overflowY: 'hidden !important',
+          }
+        } : {})
       }),
       EditorView.domEventHandlers({
         focus: () => setIsFocused(true),
@@ -205,11 +218,16 @@ const Editor: React.FC<Props> = ({
       extensions.push(jsonPlugin)
     }
     if (language === 'javascript') extensions.push(javascript())
-    if (!singleLine) {
-      extensions.push(lineNumbers())
-      extensions.push(highlightActiveLine())
-      extensions.push(highlightActiveLineGutter())
-    }
+      if (!singleLine) {
+        extensions.push(lineNumbers())
+        extensions.push(highlightActiveLine())
+        extensions.push(highlightActiveLineGutter())
+      } else {
+        // Strict single line: filter out newlines
+        extensions.push(EditorState.transactionFilter.of(tr => {
+          return tr.docChanged && tr.newDoc.lines > 1 ? [] : tr
+        }))
+      }
     if (placeholder) extensions.push(cmPlaceholder(placeholder))
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 

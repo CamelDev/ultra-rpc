@@ -32,14 +32,22 @@
   padding-bottom: 4px;
 }
 
+.editor-container.singleline {
+  height: 34px;
+  min-height: 34px;
+}
+
 .editor-container.singleline .cm-scroller {
   padding-top: 0;
   padding-bottom: 0;
+  display: flex;
+  align-items: center;
 }
 
 .editor-container.singleline .cm-content {
   padding: 0 10px !important;
-  line-height: 30px !important; /* Slightly less than 32px height to account for borders */
+  line-height: 32px !important;
+  min-height: 32px !important;
 }
 
 /* Custom variable highlighting */
