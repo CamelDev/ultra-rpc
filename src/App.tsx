@@ -84,7 +84,7 @@ const App: React.FC = () => {
   const [showEnvPanel, setShowEnvPanel] = useState(false)
   const [showSaveMenu, setShowSaveMenu] = useState(false)
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request', id: string, name: string, collectionId?: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder', id: string, name: string, collectionId?: string } | null>(null)
 
   // ===== Environments =====
   const [environments, setEnvironments] = useState<Environment[]>([])
@@ -905,7 +905,6 @@ const App: React.FC = () => {
           />
 
           <div className="sidebar-divider" />
-
           {/* Collections Panel */}
           <CollectionPanel
             collections={collections}
@@ -915,6 +914,7 @@ const App: React.FC = () => {
             onRenameRequest={handleRenameRequest}
             onEditVariables={setEditingCollection}
             onDeleteRequest={(collId, reqId, name) => setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })}
+            onDeleteFolder={(collId, folderName) => setConfirmDelete({ type: 'folder', id: folderName, name: folderName, collectionId: collId })}
             onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
           />
 
@@ -1477,7 +1477,7 @@ const App: React.FC = () => {
                   )}
                 </div>
 
-                {/* ==== gRPC specific fields (below content now) ==== */}
+                {/*   // ===== gRPC specific fields (below content now) ==== */}
                 {activeRequest.type === 'GRPC' && (
                   (() => {
                     const isLocked = !!activeRequestCollection || !!responses[activeTabId];
@@ -1747,6 +1747,11 @@ const App: React.FC = () => {
                   <Info size={12} /> This will also delete all requests inside this collection.
                 </p>
               )}
+              {confirmDelete.type === 'folder' && (
+                <p style={{ fontSize: '11px', color: 'var(--danger)', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Info size={12} /> This will also delete all requests inside this folder.
+                </p>
+              )}
             </div>
             
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
@@ -1766,6 +1771,8 @@ const App: React.FC = () => {
                     await window.ultraRpc.deleteCollection({ collectionId: confirmDelete.id })
                   } else if (confirmDelete.type === 'request' && confirmDelete.collectionId) {
                     await window.ultraRpc.deleteRequest({ collectionId: confirmDelete.collectionId, requestId: confirmDelete.id })
+                  } else if (confirmDelete.type === 'folder' && confirmDelete.collectionId) {
+                    await window.ultraRpc.deleteFolder({ collectionId: confirmDelete.collectionId, folderPath: confirmDelete.name })
                   }
                   setConfirmDelete(null)
                   loadCollections()

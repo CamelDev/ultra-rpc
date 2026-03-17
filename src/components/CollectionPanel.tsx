@@ -25,6 +25,7 @@ interface Props {
   onRenameRequest: (reqId: string, newName: string) => void
   onEditVariables: (collection: Collection) => void
   onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
+  onDeleteFolder: (collectionId: string, folderName: string) => void
   onDeleteCollection: (id: string, name: string) => void
 }
 
@@ -36,7 +37,8 @@ const CollectionItemView: React.FC<{
   onRefresh: () => void
   onRenameRequest: (reqId: string, newName: string) => void
   onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
-}> = ({ item, collectionId, level, onOpenRequest, onRefresh, onRenameRequest, onDeleteRequest }) => {
+  onDeleteFolder: (collectionId: string, folderName: string) => void
+}> = ({ item, collectionId, level, onOpenRequest, onRefresh, onRenameRequest, onDeleteRequest, onDeleteFolder }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const [editingReqId, setEditingReqId] = useState<string | null>(null)
   const [reqNameInput, setReqNameInput] = useState('')
@@ -55,6 +57,11 @@ const CollectionItemView: React.FC<{
   const deleteRequest = async (e: React.MouseEvent) => {
     e.stopPropagation()
     onDeleteRequest(collectionId, item.id, item.name || item.request?.name || 'Untitled')
+  }
+
+  const deleteFolder = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onDeleteFolder(collectionId, item.name)
   }
 
   const renameRequest = async (e: React.KeyboardEvent | React.FocusEvent) => {
@@ -80,12 +87,18 @@ const CollectionItemView: React.FC<{
           <Folder size={13} className="folder-icon" />
           <span className="coll-name">{item.name}</span>
           <span className="coll-count">{item.items?.length || 0}</span>
+          
+          <div className="folder-actions" onClick={e => e.stopPropagation()}>
+            <button className="coll-req-btn danger" title="Delete Folder" onClick={deleteFolder}>
+              <Trash2 size={11} />
+            </button>
+          </div>
         </div>
         {isExpanded && item.items && (
           <div className="coll-folder-children">
             {item.items.map(child => (
               <CollectionItemView 
-                key={child.id} 
+                key={child.name || child.id} 
                 item={child} 
                 collectionId={collectionId}
                 level={level + 1}
@@ -93,6 +106,7 @@ const CollectionItemView: React.FC<{
                 onRefresh={onRefresh}
                 onRenameRequest={onRenameRequest}
                 onDeleteRequest={onDeleteRequest}
+                onDeleteFolder={onDeleteFolder}
               />
             ))}
           </div>
@@ -143,7 +157,7 @@ const CollectionItemView: React.FC<{
   )
 }
 
-const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest, onEditVariables, onDeleteRequest, onDeleteCollection }) => {
+const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest, onEditVariables, onDeleteRequest, onDeleteFolder, onDeleteCollection }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -293,7 +307,7 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
               )}
               {coll.items.map(item => (
                 <CollectionItemView 
-                  key={item.id} 
+                  key={item.name || item.id} 
                   item={item} 
                   collectionId={coll.id}
                   level={0}
@@ -301,6 +315,7 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
                   onRefresh={onRefresh}
                   onRenameRequest={onRenameRequest}
                   onDeleteRequest={onDeleteRequest}
+                  onDeleteFolder={onDeleteFolder}
                 />
               ))}
             </div>

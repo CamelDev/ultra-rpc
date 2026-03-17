@@ -24,6 +24,20 @@ const getSettingsPath = () => {
   return p
 }
 
+const findFileRecursively = (dir: string, filename: string): string | null => {
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      const found = findFileRecursively(fullPath, filename)
+      if (found) return found
+    } else if (entry.name === filename) {
+      return fullPath
+    }
+  }
+  return null
+}
+
 interface SavedRequest {
   id: string
   name: string
@@ -325,8 +339,14 @@ export function registerStorageHandlers() {
       }
 
       const filename = `${args.request.id}.json`
+      // Check if file exists recursively first (to update in its current folder)
+      let targetPath = findFileRecursively(collDir, filename)
+      if (!targetPath) {
+        targetPath = path.join(collDir, filename)
+      }
+
       fs.writeFileSync(
-        path.join(collDir, filename),
+        targetPath,
         JSON.stringify(args.request, null, 2)
       )
 
@@ -340,9 +360,16 @@ export function registerStorageHandlers() {
   ipcMain.handle('storage:deleteRequest', async (_event, args: { collectionId: string; requestId: string }) => {
     try {
       const root = getStorageRoot()
-      const filePath = path.join(root, args.collectionId, `${args.requestId}.json`)
+      const collDir = path.join(root, args.collectionId)
 
-      if (fs.existsSync(filePath)) {
+      if (!fs.existsSync(collDir)) {
+        return { success: false, error: 'Collection not found' }
+      }
+
+      const filename = `${args.requestId}.json`
+      const filePath = findFileRecursively(collDir, filename)
+
+      if (filePath && fs.existsSync(filePath)) {
         fs.unlinkSync(filePath)
       }
 
@@ -359,6 +386,22 @@ export function registerStorageHandlers() {
       const collDir = path.join(root, args.collectionId)
       if (fs.existsSync(collDir)) {
         fs.rmSync(collDir, { recursive: true, force: true })
+      }
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Delete a folder within a collection
+  ipcMain.handle('storage:deleteFolder', async (_event, args: { collectionId: string; folderPath: string }) => {
+    try {
+      const root = getStorageRoot()
+      // Note: folderPath is the relative path from the collection root
+      const fullPath = path.join(root, args.collectionId, args.folderPath)
+      
+      if (fs.existsSync(fullPath)) {
+        fs.rmSync(fullPath, { recursive: true, force: true })
       }
       return { success: true }
     } catch (err: any) {
