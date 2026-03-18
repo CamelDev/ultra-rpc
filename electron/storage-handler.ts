@@ -60,7 +60,7 @@ interface SavedRequest {
 interface SavedCollection {
   id: string
   name: string
-  items: CollectionItem[]
+  children: CollectionItem[]
   variables?: any[]
 }
 
@@ -69,7 +69,7 @@ interface CollectionItem {
   name: string
   type: 'folder' | 'request'
   request?: SavedRequest
-  items?: CollectionItem[]
+  children?: CollectionItem[]
 }
 
 const validateRequest = (req: any): SavedRequest | null => {
@@ -100,32 +100,119 @@ const validateRequest = (req: any): SavedRequest | null => {
   }
 }
 
+const findRequestByIdRecursively = (dir: string, requestId: string): string | null => {
+  const filename = `${requestId}.json`
+  return findFileRecursively(dir, filename)
+}
+
+const findFolderByIdRecursively = (dir: string, folderId: string): string | null => {
+  const metaPath = path.join(dir, '_meta.json')
+  if (fs.existsSync(metaPath)) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+      if (meta.id === folderId) return dir
+    } catch { /* skip */ }
+  }
+  
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const found = findFolderByIdRecursively(path.join(dir, entry.name), folderId)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const updateOrderMeta = (dirPath: string, itemId: string, action: 'add' | 'remove', index?: number) => {
+  const metaPath = path.join(dirPath, '_meta.json')
+  let meta: any = { id: path.basename(dirPath), name: path.basename(dirPath), requestOrder: [] }
+  if (fs.existsSync(metaPath)) {
+    try { 
+      meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) 
+    } catch { /* skip */ }
+  }
+  if (!meta.requestOrder) meta.requestOrder = []
+
+  const existingIdx = meta.requestOrder.indexOf(itemId)
+  if (existingIdx !== -1) meta.requestOrder.splice(existingIdx, 1)
+
+  if (action === 'add') {
+    if (typeof index === 'number') {
+      meta.requestOrder.splice(index, 0, itemId)
+    } else {
+      meta.requestOrder.push(itemId)
+    }
+  }
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+}
+
+/**
+ * Ensures that the requestOrder in _meta.json matches the actual files on disk.
+ * - Removes dead IDs
+ * - Adds missing IDs
+ * - Deduplicates
+ */
+const verifyAndRepairOrder = (dirPath: string, discoveredIds: string[]): string[] => {
+  const metaPath = path.join(dirPath, '_meta.json')
+  let meta: any = { id: path.basename(dirPath), name: path.basename(dirPath), requestOrder: [] }
+  
+  if (fs.existsSync(metaPath)) {
+    try {
+      meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+    } catch { /* skip */ }
+  }
+
+  const currentOrder: string[] = Array.isArray(meta.requestOrder) ? meta.requestOrder : []
+  
+  // 1. Filter out IDs that no longer exist on disk
+  const existingOrder = currentOrder.filter(id => discoveredIds.includes(id))
+  
+  // 2. Add IDs from disk that are missing in the order
+  const missingInOrder = discoveredIds.filter(id => !existingOrder.includes(id))
+  
+  // 3. Combine and deduplicate
+  const finalOrder = [...new Set([...existingOrder, ...missingInOrder])]
+
+  const hasChanged = JSON.stringify(currentOrder) !== JSON.stringify(finalOrder)
+  if (hasChanged || !meta.requestOrder) {
+    meta.requestOrder = finalOrder
+    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+  }
+
+  return finalOrder
+}
+
 const extractRequests = (data: any): CollectionItem[] => {
-  const items: CollectionItem[] = []
+  const children: CollectionItem[] = []
 
   if (data.info && data.info.schema && data.info.schema.includes('postman')) {
     // Postman v2.1 format
-    const mapItems = (postmanItems: any[]): CollectionItem[] => {
+    const mapItems = (postmanItems: any[], pathPrefix = 'pm'): CollectionItem[] => {
       const results: CollectionItem[] = []
-      for (const item of postmanItems) {
+      for (let i = 0; i < postmanItems.length; i++) {
+        const item = postmanItems[i]
+        const stableId = `${pathPrefix}_${i}`
+        
         if (item.item && Array.isArray(item.item)) {
           results.push({
-            id: Math.random().toString(36).substring(2, 11),
+            id: stableId,
             name: item.name || 'Folder',
             type: 'folder',
-            items: mapItems(item.item)
+            children: mapItems(item.item, stableId)
           })
         } else if (item.request) {
           const req = item.request
+          const requestId = stableId
           const mapped: any = {
-            id: Math.random().toString(36).substring(2, 11),
+            id: requestId,
             name: item.name || 'Untitled Request',
             type: 'REST',
             method: typeof req.method === 'string' ? req.method : 'GET',
             url: typeof req.url === 'string' ? req.url : (req.url?.raw || ''),
             params: [],
-            headers: (req.header || []).map((h: any) => ({
-              id: Math.random().toString(36).substring(2, 11),
+            headers: (req.header || []).map((h: any, hi: number) => ({
+              id: `${requestId}_h_${hi}`,
               key: h.key,
               value: h.value,
               enabled: !h.disabled
@@ -163,19 +250,19 @@ const extractRequests = (data: any): CollectionItem[] => {
       }
       return results
     }
-    items.push(...mapItems(data.item || []))
+    children.push(...mapItems(data.item || []))
   } else if (data._ultrarpc_version && data.collection) {
     // UltraRPC format (handling legacy flat and new nested)
-    const rawItems = data.collection.items || []
+    const rawItems = data.collection.children || data.collection.items || []
     if (rawItems.length > 0) {
-      items.push(...rawItems)
+      children.push(...rawItems)
     } else {
       // Legacy flat requests
       const rawReqs = data.collection.requests || []
       for (const r of rawReqs) {
         const validated = validateRequest(r)
         if (validated) {
-          items.push({
+          children.push({
             id: validated.id,
             name: validated.name,
             type: 'request',
@@ -189,7 +276,7 @@ const extractRequests = (data: any): CollectionItem[] => {
     for (const r of data) {
       const validated = validateRequest(r)
       if (validated) {
-        items.push({
+        children.push({
           id: validated.id,
           name: validated.name,
           type: 'request',
@@ -201,7 +288,7 @@ const extractRequests = (data: any): CollectionItem[] => {
     // Single request
     const validated = validateRequest(data)
     if (validated) {
-      items.push({
+      children.push({
         id: validated.id,
         name: validated.name,
         type: 'request',
@@ -210,7 +297,7 @@ const extractRequests = (data: any): CollectionItem[] => {
     }
   }
 
-  return items
+  return children
 }
 
 export function registerStorageHandlers() {
@@ -226,10 +313,9 @@ export function registerStorageHandlers() {
       const collections: SavedCollection[] = []
 
       const buildTree = (dirPath: string): CollectionItem[] => {
-        const items: CollectionItem[] = []
+        const childrenList: CollectionItem[] = []
         const files = fs.readdirSync(dirPath, { withFileTypes: true })
         
-        // Load meta for ordering if it exists in this folder
         let order: string[] = []
         const metaPath = path.join(dirPath, '_meta.json')
         if (fs.existsSync(metaPath)) {
@@ -242,19 +328,35 @@ export function registerStorageHandlers() {
         for (const entry of files) {
           if (entry.name === '_meta.json') continue
 
+          const fullPath = path.join(dirPath, entry.name)
+
           if (entry.isDirectory()) {
-            items.push({
-              id: entry.name,
-              name: entry.name, // Will be overridden by meta if we add folder meta later
+            // Ensure folder has an ID in _meta.json
+            let folderId = entry.name
+            const subMetaPath = path.join(fullPath, '_meta.json')
+            if (fs.existsSync(subMetaPath)) {
+              try {
+                const subMeta = JSON.parse(fs.readFileSync(subMetaPath, 'utf-8'))
+                if (subMeta.id) folderId = subMeta.id
+              } catch { /* */ }
+            } else {
+              // Create default meta for folders to have stable IDs
+              folderId = Math.random().toString(36).substring(2, 11)
+              fs.writeFileSync(subMetaPath, JSON.stringify({ id: folderId, name: entry.name }, null, 2))
+            }
+
+            childrenList.push({
+              id: folderId,
+              name: entry.name,
               type: 'folder',
-              items: buildTree(path.join(dirPath, entry.name))
+              children: buildTree(fullPath)
             })
           } else if (entry.name.endsWith('.json')) {
             try {
-              const content = JSON.parse(fs.readFileSync(path.join(dirPath, entry.name), 'utf-8'))
+              const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
               const validated = validateRequest(content)
               if (validated) {
-                items.push({
+                childrenList.push({
                   id: validated.id,
                   name: validated.name,
                   type: 'request',
@@ -265,11 +367,14 @@ export function registerStorageHandlers() {
           }
         }
 
-        // Apply ordering if meta exists
-        if (order.length > 0) {
-          items.sort((a, b) => {
-            const idxA = order.indexOf(a.id)
-            const idxB = order.indexOf(b.id)
+        // Apply ordering and repair if needed
+        const discoveredIds = childrenList.map(item => item.id)
+        const validatedOrder = verifyAndRepairOrder(dirPath, discoveredIds)
+
+        if (validatedOrder.length > 0) {
+          childrenList.sort((a, b) => {
+            const idxA = validatedOrder.indexOf(a.id)
+            const idxB = validatedOrder.indexOf(b.id)
             if (idxA !== -1 && idxB !== -1) return idxA - idxB
             if (idxA !== -1) return -1
             if (idxB !== -1) return 1
@@ -277,7 +382,7 @@ export function registerStorageHandlers() {
           })
         }
 
-        return items
+        return childrenList
       }
 
       for (const dir of dirs) {
@@ -293,7 +398,7 @@ export function registerStorageHandlers() {
         collections.push({
           id: meta.id,
           name: meta.name,
-          items: buildTree(collPath),
+          children: buildTree(collPath),
           variables: meta.variables || []
         })
       }
@@ -443,19 +548,53 @@ export function registerStorageHandlers() {
     }
   })
 
-  // Reorder requests in a collection
-  ipcMain.handle('storage:reorderRequests', async (_event, args: { collectionId: string; order: string[] }) => {
+  // Move an item (request or folder) to a new location
+  ipcMain.handle('storage:moveItem', async (_event, args: { collectionId: string; itemId: string; targetParentId: string | null; newIndex: number }) => {
     try {
       const root = getStorageRoot()
-      const metaPath = path.join(root, args.collectionId, '_meta.json')
-      let meta: any = { id: args.collectionId, name: args.collectionId, variables: [] }
-      if (fs.existsSync(metaPath)) {
-        try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
+      const collDir = path.join(root, args.collectionId)
+      
+      if (!fs.existsSync(collDir)) return { success: false, error: 'Collection not found' }
+
+      // 1. Find the item (request or folder)
+      let sourcePath = findRequestByIdRecursively(collDir, args.itemId)
+      let isRequest = true
+      if (!sourcePath) {
+        sourcePath = findFolderByIdRecursively(collDir, args.itemId)
+        isRequest = false
       }
-      meta.requestOrder = args.order
-      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+
+      if (!sourcePath) return { success: false, error: 'Item not found' }
+
+      // 2. Find the target parent
+      let targetParentPath = collDir
+      if (args.targetParentId) {
+        const foundPath = findFolderByIdRecursively(collDir, args.targetParentId)
+        if (!foundPath) return { success: false, error: 'Target parent not found' }
+        targetParentPath = foundPath
+      }
+
+      // 3. Determine new path
+      const itemName = path.basename(sourcePath)
+      const newPath = path.join(targetParentPath, itemName)
+
+      const sourceParentPath = path.dirname(sourcePath)
+
+      // 4. Move the file/folder if necessary
+      if (sourcePath !== newPath) {
+        if (fs.existsSync(newPath)) {
+             return { success: false, error: 'An item with that name already exists in target' }
+        }
+        fs.renameSync(sourcePath, newPath)
+      }
+
+      // 5. Update ordering in source parent and target parent
+      updateOrderMeta(sourceParentPath, args.itemId, 'remove')
+      updateOrderMeta(targetParentPath, args.itemId, 'add', args.newIndex)
+
       return { success: true }
     } catch (err: any) {
+      console.error('Move Item Error:', err)
       return { success: false, error: err.message }
     }
   })
@@ -534,7 +673,7 @@ export function registerStorageHandlers() {
       const data = JSON.parse(content)
 
       let collectionName = 'Imported Collection'
-      const items = extractRequests(data)
+      const children = extractRequests(data)
       let variables: any[] = []
 
       if (data.info && data.info.name) {
@@ -558,7 +697,7 @@ export function registerStorageHandlers() {
         variables = data.collection.variables
       }
 
-      if (items.length === 0) {
+      if (children.length === 0) {
         return { success: false, error: 'No valid requests found in file' }
       }
 
@@ -582,12 +721,12 @@ export function registerStorageHandlers() {
       )
 
       // Write tree
-      const saveItems = (folderPath: string, itemsToSave: CollectionItem[]) => {
-        for (const item of itemsToSave) {
-          if (item.type === 'folder' && item.items) {
+      const saveItems = (folderPath: string, childrenToSave: CollectionItem[]) => {
+        for (const item of childrenToSave) {
+          if (item.type === 'folder' && item.children) {
             const subDir = path.join(folderPath, item.name.replace(/[^a-z0-9 ]+/gi, '_'))
             fs.mkdirSync(subDir, { recursive: true })
-            saveItems(subDir, item.items)
+            saveItems(subDir, item.children)
           } else if (item.type === 'request' && item.request) {
             fs.writeFileSync(
               path.join(folderPath, `${item.request.id}.json`),
@@ -596,9 +735,9 @@ export function registerStorageHandlers() {
           }
         }
       }
-      saveItems(finalCollDir, items)
+      saveItems(finalCollDir, children)
 
-      return { success: true, id: finalId, name: collectionName, requestCount: items.length }
+      return { success: true, id: finalId, name: collectionName, requestCount: children.length }
     } catch (err: any) {
       console.error('Import Error:', err)
       return { success: false, error: err.message }
@@ -620,9 +759,9 @@ export function registerStorageHandlers() {
       const folderPath = result.filePaths[0]
       const folderName = path.basename(folderPath)
 
-      const items = buildStaticTree(folderPath)
+      const children = buildStaticTree(folderPath)
 
-      if (items.length === 0) {
+      if (children.length === 0) {
         return { success: false, error: 'No valid requests found in the selected folder' }
       }
 
@@ -669,7 +808,7 @@ export function registerStorageHandlers() {
   })
 
 function buildStaticTree(dirPath: string): CollectionItem[] {
-  const items: CollectionItem[] = []
+  const childrenList: CollectionItem[] = []
   const files = fs.readdirSync(dirPath, { withFileTypes: true })
   
   for (const entry of files) {
@@ -677,22 +816,22 @@ function buildStaticTree(dirPath: string): CollectionItem[] {
     if (entry.isDirectory()) {
       const subItems = buildStaticTree(fullPath)
       if (subItems.length > 0) {
-        items.push({
+        childrenList.push({
           id: entry.name,
           name: entry.name,
           type: 'folder',
-          items: subItems
+          children: subItems
         })
       }
     } else if (entry.name.endsWith('.json') || entry.name.endsWith('.postman_collection')) {
       try {
         const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
         const extracted = extractRequests(content)
-        items.push(...extracted)
+        childrenList.push(...extracted)
       } catch { /* skip */ }
     }
   }
-  return items
+  return childrenList
 }
 
   // ===== History =====

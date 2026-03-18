@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   deleteCollection: (args: any) => ipcRenderer.invoke('storage:deleteCollection', args),
   renameCollection: (args: any) => ipcRenderer.invoke('storage:renameCollection', args),
   reorderRequests: (args: any) => ipcRenderer.invoke('storage:reorderRequests', args),
+  moveItem: (args: { collectionId: string; itemId: string; targetParentId: string | null; newIndex: number }) => 
+    ipcRenderer.invoke('storage:moveItem', args),
   exportCollection: (args: any) => ipcRenderer.invoke('storage:exportCollection', args),
   importCollection: () => ipcRenderer.invoke('storage:importCollection'),
   openFolder: () => ipcRenderer.invoke('storage:openFolder'),

@@ -122,8 +122,26 @@ body {
 .sidebar-divider {
   height: 1px;
   background: var(--border);
-  margin: 4px 10px;
+  margin: 8px 10px;
   flex-shrink: 0;
+}
+
+/* New Environment Container at the bottom of sidebar */
+.sidebar-env-container {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.1);
+  max-height: 40%;
+}
+
+.sidebar-env-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sidebar-env-content::-webkit-scrollbar {
+  width: 4px;
 }
 
 /* ===== Typography & UI Elements ===== */

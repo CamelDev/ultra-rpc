@@ -101,16 +101,16 @@ const App: React.FC = () => {
   // ===== Helpers for Nested Collections =====
   const getAllRequests = useCallback((collection: Collection): RequestConfig[] => {
     const requests: RequestConfig[] = []
-    const traverse = (items: CollectionItem[]) => {
-      for (const item of items) {
+    const traverse = (children: CollectionItem[]) => {
+      for (const item of children) {
         if (item.type === 'request' && item.request) {
           requests.push(item.request)
-        } else if (item.type === 'folder' && item.items) {
-          traverse(item.items)
+        } else if (item.type === 'folder' && item.children) {
+          traverse(item.children)
         }
       }
     }
-    traverse(collection.items)
+    traverse(collection.children)
     return requests
   }, [])
 
@@ -230,6 +230,7 @@ const App: React.FC = () => {
   // ===== Load persisted data on mount =====
   useEffect(() => {
     if (!window.ultraRpc) return
+
     window.ultraRpc.getEnvironments().then(res => {
       if (res.success && res.environments) setEnvironments(res.environments)
     })
@@ -918,11 +919,12 @@ const App: React.FC = () => {
             onDeleteFolder={(collId, folderName) => setConfirmDelete({ type: 'folder', id: folderName, name: folderName, collectionId: collId })}
             onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
           />
-
-          {/* Environment Panel */}
-          {showEnvPanel && (
-            <>
-              <div className="sidebar-divider" />
+        </nav>
+        
+        {/* Environment Panel (Pinned at bottom) */}
+        {showEnvPanel && (
+          <div className="sidebar-env-container">
+            <div className="sidebar-env-content no-scrollbar">
               <EnvironmentPanel
                 environments={environments}
                 onChange={handleEnvChange}
@@ -930,9 +932,9 @@ const App: React.FC = () => {
                 onSetActive={setActiveEnvId}
                 onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
               />
-            </>
-          )}
-        </nav>
+            </div>
+          </div>
+        )}
 
         <div style={{ padding: '12px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
           <button 

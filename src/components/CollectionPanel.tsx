@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import {
   Folder,
   Plus,
@@ -14,8 +14,9 @@ import {
   Zap,
   Save,
 } from 'lucide-react'
+import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import './CollectionPanel.css'
-import type { Collection, CollectionItem, RequestConfig } from '../types'
+import type { Collection, CollectionItem, RequestConfig, KeyValuePair } from '../types'
 
 interface Props {
   collections: Collection[]
@@ -29,141 +30,149 @@ interface Props {
   onDeleteCollection: (id: string, name: string) => void
 }
 
-const CollectionItemView: React.FC<{
-  item: CollectionItem
-  collectionId: string
-  level: number
-  onOpenRequest: (request: RequestConfig) => void
-  onRefresh: () => void
-  onRenameRequest: (reqId: string, newName: string) => void
-  onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
-  onDeleteFolder: (collectionId: string, folderName: string) => void
-}> = ({ item, collectionId, level, onOpenRequest, onRefresh, onRenameRequest, onDeleteRequest, onDeleteFolder }) => {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [editingReqId, setEditingReqId] = useState<string | null>(null)
-  const [reqNameInput, setReqNameInput] = useState('')
+type TreeDataItem = {
+  id: string; // unique for tree
+  realId: string; // actual id on disk
+  name: string;
+  type: 'collection' | 'folder' | 'request';
+  children?: TreeDataItem[];
+  request?: RequestConfig;
+  variables?: KeyValuePair[];
+};
 
-  const methodColor = (m: string) => {
-    switch (m) {
-      case 'GET': return '#22c55e'
-      case 'POST': return '#f59e0b'
-      case 'PUT': return '#3b82f6'
-      case 'DELETE': return '#ef4444'
-      case 'PATCH': return '#8b5cf6'
-      default: return '#a855f7'
-    }
+const methodColor = (m: string) => {
+  switch (m) {
+    case 'GET': return '#22c55e'
+    case 'POST': return '#f59e0b'
+    case 'PUT': return '#3b82f6'
+    case 'DELETE': return '#ef4444'
+    case 'PATCH': return '#8b5cf6'
+    default: return '#a855f7'
   }
-
-  const deleteRequest = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onDeleteRequest(collectionId, item.id, item.name || item.request?.name || 'Untitled')
-  }
-
-  const deleteFolder = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onDeleteFolder(collectionId, item.name)
-  }
-
-  const renameRequest = async (e: React.KeyboardEvent | React.FocusEvent) => {
-    if ((e as any).key && (e as any).key !== 'Enter') return
-    if (!reqNameInput.trim() || !window.ultraRpc || !item.request) return
-    
-    const updatedRequest = { ...item.request, name: reqNameInput.trim() }
-    await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as any })
-    setEditingReqId(null)
-    onRenameRequest(item.id, updatedRequest.name)
-    onRefresh()
-  }
-
-  if (item.type === 'folder') {
-    return (
-      <div className="coll-folder">
-        <div 
-          className="coll-item-header folder-header" 
-          style={{ paddingLeft: `${level * 12 + 8}px` }}
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-          <Folder size={13} className="folder-icon" />
-          <span className="coll-name">{item.name}</span>
-          <span className="coll-count">{item.items?.length || 0}</span>
-          
-          <div className="folder-actions" onClick={e => e.stopPropagation()}>
-            <button className="coll-req-btn danger" title="Delete Folder" onClick={deleteFolder}>
-              <Trash2 size={11} />
-            </button>
-          </div>
-        </div>
-        {isExpanded && item.items && (
-          <div className="coll-folder-children">
-            {item.items.map(child => (
-              <CollectionItemView 
-                key={child.name || child.id} 
-                item={child} 
-                collectionId={collectionId}
-                level={level + 1}
-                onOpenRequest={onOpenRequest}
-                onRefresh={onRefresh}
-                onRenameRequest={onRenameRequest}
-                onDeleteRequest={onDeleteRequest}
-                onDeleteFolder={onDeleteFolder}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  const req = item.request!
-  return (
-    <div
-      className="coll-request-item"
-      style={{ paddingLeft: `${level * 12 + 8}px` }}
-      onClick={() => onOpenRequest(req)}
-    >
-      <FileJson size={13} className="coll-req-icon" />
-      <span className="coll-req-method" style={{ color: methodColor(req.type === 'GRPC' ? 'GRPC' : req.method) }}>
-        {req.type === 'GRPC' ? 'gRPC' : req.method}
-      </span>
-      {editingReqId === item.id ? (
-        <input
-          className="coll-rename-input"
-          style={{ flex: 1, padding: '2px 4px' }}
-          value={reqNameInput}
-          onChange={e => setReqNameInput(e.target.value)}
-          onKeyDown={renameRequest}
-          onBlur={renameRequest}
-          onClick={e => e.stopPropagation()}
-          autoFocus
-        />
-      ) : (
-        <span className="coll-req-name">{req.name || req.url || 'Untitled'}</span>
-      )}
-
-      <div className="coll-req-actions" onClick={e => e.stopPropagation()}>
-        <button
-          className="coll-req-btn"
-          title="Rename"
-          onClick={() => { setEditingReqId(item.id); setReqNameInput(req.name || req.url || '') }}
-        >
-          <Edit2 size={11} />
-        </button>
-        <button className="coll-req-btn danger" title="Delete" onClick={deleteRequest}>
-          <Trash2 size={11} />
-        </button>
-      </div>
-    </div>
-  )
 }
 
-const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenRequest, onSaveToCollection, onRenameRequest, onEditVariables, onDeleteRequest, onDeleteFolder, onDeleteCollection }) => {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+const CollectionPanel: React.FC<Props> = ({
+  collections,
+  onRefresh,
+  onOpenRequest,
+  onSaveToCollection,
+  onRenameRequest,
+  onEditVariables,
+  onDeleteRequest,
+  onDeleteFolder,
+  onDeleteCollection,
+}) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
   const [showNewInput, setShowNewInput] = useState(false)
   const [newName, setNewName] = useState('')
   const [contextMenu, setContextMenu] = useState<string | null>(null)
+  const treeRef = React.useRef<TreeApi<TreeDataItem>>(null)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const [treeHeight, setTreeHeight] = useState(400)
+
+  React.useEffect(() => {
+    if (!containerRef.current) return
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.height > 0) {
+          setTreeHeight(entry.contentRect.height)
+        }
+      }
+    })
+    resizeObserver.observe(containerRef.current)
+    return () => resizeObserver.disconnect()
+  }, [])
+
+  // Map collections to a single tree data structure with unique IDs
+  const treeData = useMemo<TreeDataItem[]>(() => {
+    const usedIds = new Set<string>()
+    const ensureUnique = (id: string): string => {
+      let finalId = id
+      let counter = 1
+      while (usedIds.has(finalId)) {
+        finalId = `${id}_dup_${counter++}`
+      }
+      usedIds.add(finalId)
+      return finalId
+    }
+
+    const mapItems = (items: CollectionItem[]): TreeDataItem[] => {
+      return items.map(item => ({
+        id: ensureUnique(item.id),
+        realId: item.id,
+        name: item.name,
+        type: item.type as 'folder' | 'request',
+        children: item.children ? mapItems(item.children) : undefined,
+        request: item.request,
+      }))
+    }
+
+    return collections.map(coll => ({
+      id: ensureUnique(coll.id),
+      realId: coll.id,
+      name: coll.name,
+      type: 'collection' as const,
+      children: mapItems(coll.children || []),
+      variables: coll.variables,
+    }))
+  }, [collections])
+
+  const findCollectionIdForId = useCallback((realId: string, items: TreeDataItem[], parentCollId: string): string | null => {
+    for (const item of items) {
+      if (item.realId === realId) return parentCollId
+      if (item.children) {
+        const found = findCollectionIdForId(realId, item.children, parentCollId)
+        if (found) return found
+      }
+    }
+    return null
+  }, [])
+
+  const getCollectionIdOfNode = (node: NodeApi<TreeDataItem> | null): string | null => {
+    let current: NodeApi<TreeDataItem> | null = node
+    while (current) {
+      if (current.data.type === 'collection') return current.data.id
+      current = current.parent
+    }
+    return null
+  }
+
+  const onMove = async ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
+    if (!window.ultraRpc || !treeRef.current) return
+
+    // Convert tree IDs back to real IDs and get target real parent ID
+    const targetNode = parentId ? treeRef.current.get(parentId) : null
+    const targetParentRealId = targetNode ? targetNode.data.realId : null
+
+    for (const id of dragIds) {
+      const draggedNode = treeRef.current.get(id)
+      if (!draggedNode) continue
+      const realItemId = draggedNode.data.realId
+
+      let collectionId: string | null = null
+      for (const coll of treeData) {
+        if (coll.realId === realItemId) continue
+        if (findCollectionIdForId(realItemId, coll.children || [], coll.realId)) {
+          collectionId = coll.realId
+          break
+        }
+      }
+
+      if (collectionId) {
+        const isTargetRoot = collections.some(c => c.id === targetParentRealId)
+        const targetParentIdForBackend = isTargetRoot ? null : targetParentRealId
+
+        await window.ultraRpc.moveItem({
+          collectionId,
+          itemId: realItemId,
+          targetParentId: targetParentIdForBackend,
+          newIndex: index
+        })
+      }
+    }
+    onRefresh()
+  }
 
   const createCollection = async () => {
     if (!newName.trim()) return
@@ -175,23 +184,22 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
     }
   }
 
-  const deleteCollection = async (id: string, name: string) => {
-    onDeleteCollection(id, name)
-  }
+  const handleRename = async (node: NodeApi<TreeDataItem>) => {
+    if (!nameInput.trim() || !window.ultraRpc) return
+    
+    const collectionId = getCollectionIdOfNode(node)
+    if (!collectionId) return
 
-  const renameCollection = async (id: string) => {
-    if (!nameInput.trim()) return
-    if (window.ultraRpc) {
-      await window.ultraRpc.renameCollection({ collectionId: id, newName: nameInput.trim() })
-      setEditingId(null)
-      onRefresh()
+    if (node.data.type === 'collection') {
+      await window.ultraRpc.renameCollection({ collectionId: node.data.id, newName: nameInput.trim() })
+    } else if (node.data.type === 'request' && node.data.request) {
+      const updatedRequest = { ...node.data.request, name: nameInput.trim() }
+      await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as RequestConfig })
+      onRenameRequest(node.data.id, updatedRequest.name)
     }
-  }
-
-  const exportCollection = async (id: string) => {
-    if (window.ultraRpc) {
-      await window.ultraRpc.exportCollection({ collectionId: id })
-    }
+    
+    setEditingId(null)
+    onRefresh()
   }
 
   const importCollection = async () => {
@@ -207,6 +215,135 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
       if (result.success) onRefresh()
     }
   }
+
+  const NodeRenderer = useMemo(() => {
+    return ({ node, style, dragHandle }: NodeRendererProps<TreeDataItem>) => {
+      const isEditing = editingId === node.data.id
+      const type = node.data.type
+      const isCollection = type === 'collection'
+      const isFolder = type === 'folder'
+      const isRequest = type === 'request'
+      const request = node.data.request
+
+      const handleDelete = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        const collectionId = getCollectionIdOfNode(node)
+        if (!collectionId) return
+
+        if (isFolder) {
+          onDeleteFolder(collectionId, node.data.name)
+        } else if (isRequest && request) {
+          onDeleteRequest(collectionId, node.data.id, request.name || 'Untitled')
+        }
+      }
+
+      return (
+        <div 
+          ref={dragHandle as (el: HTMLDivElement | null) => void}
+          style={style} 
+          className={`tree-node ${node.isSelected ? 'selected' : ''}`}
+          onClick={() => {
+            if (isRequest && request) onOpenRequest(request)
+            else node.toggle()
+          }}
+        >
+          <div className="tree-node-content" style={{ paddingLeft: node.level * 14 }}>
+            {/* Chevron for nesting */}
+            {(isCollection || isFolder) && (
+              <div className="tree-node-chevron" onClick={(e) => { e.stopPropagation(); node.toggle(); }}>
+                {node.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </div>
+            )}
+            {!isCollection && !isFolder && <div style={{ width: 16 }} />}
+
+            <div className="tree-node-icon">
+              {isCollection || isFolder ? (
+                <Folder size={16} className={isCollection ? 'collection-icon' : 'folder-icon'} />
+              ) : (
+                <FileJson size={15} className="coll-req-icon" />
+              )}
+            </div>
+
+            {isRequest && request && (
+              <span className="coll-req-method-label" style={{ 
+                color: methodColor(request.type === 'GRPC' ? 'GRPC' : request.method),
+                borderColor: methodColor(request.type === 'GRPC' ? 'GRPC' : request.method) + '44'
+              }}>
+                {request.type === 'GRPC' ? 'gRPC' : request.method}
+              </span>
+            )}
+
+            {isEditing ? (
+              <input
+                className="coll-rename-input"
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleRename(node)}
+                onBlur={() => handleRename(node)}
+                onClick={e => e.stopPropagation()}
+                autoFocus
+              />
+            ) : (
+              <span className="tree-node-name">
+                {isRequest && request ? (request.name || request.url || 'Untitled') : node.data.name}
+              </span>
+            )}
+
+            {(isCollection || isFolder) && <span className="coll-count">{node.data.children?.length || 0}</span>}
+
+            <div className="tree-node-actions" onClick={e => e.stopPropagation()}>
+              {isCollection ? (
+                <button
+                  className="btn-ghost coll-action-btn"
+                  onClick={() => setContextMenu(contextMenu === node.data.id ? null : node.data.id)}
+                >
+                  <MoreHorizontal size={13} />
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="coll-req-btn"
+                    title="Rename"
+                    onClick={() => { setEditingId(node.data.id); setNameInput(isRequest && request ? request.name : node.data.name) }}
+                  >
+                    <Edit2 size={11} />
+                  </button>
+                  <button className="coll-req-btn danger" title="Delete" onClick={handleDelete}>
+                    <Trash2 size={11} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {isCollection && contextMenu === node.data.id && (
+            <div className="coll-context-menu" onClick={(e) => { e.stopPropagation(); setContextMenu(null); }}>
+              <button onClick={() => onSaveToCollection(node.data.id)}>
+                <Save size={12} /> Save current request
+              </button>
+              <button onClick={() => { setEditingId(node.data.id); setNameInput(node.data.name) }}>
+                <Edit2 size={12} /> Rename
+              </button>
+              <button onClick={() => onEditVariables(node.data as unknown as Collection)}>
+                <Zap size={12} /> Variables
+              </button>
+              <button onClick={() => window.ultraRpc?.exportCollection({ collectionId: node.data.id })}>
+                <Download size={12} /> Export
+              </button>
+              <div className="coll-context-divider" />
+              <button className="coll-danger-action" onClick={() => onDeleteCollection(node.data.id, node.data.name)}>
+                <Trash2 size={12} /> Delete
+              </button>
+            </div>
+          )}
+        </div>
+      )
+    }
+  }, [
+    editingId, nameInput, contextMenu, 
+    onOpenRequest, onSaveToCollection, onEditVariables, 
+    onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename
+  ])
 
   return (
     <div className="coll-panel">
@@ -248,80 +385,21 @@ const CollectionPanel: React.FC<Props> = ({ collections, onRefresh, onOpenReques
         </div>
       )}
 
-      {collections.map(coll => (
-        <div className="coll-item-group" key={coll.id}>
-          <div
-            className="coll-item-header collection-root"
-            onClick={() => setExpandedId(expandedId === coll.id ? null : coll.id)}
-          >
-            {expandedId === coll.id ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-            {editingId === coll.id ? (
-              <input
-                className="coll-rename-input"
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && renameCollection(coll.id)}
-                onClick={e => e.stopPropagation()}
-                autoFocus
-              />
-            ) : (
-              <span className="coll-name">{coll.name}</span>
-            )}
-            <span className="coll-count">{coll.items.length}</span>
-
-            <div className="coll-item-actions" onClick={e => e.stopPropagation()}>
-              <button
-                className="btn-ghost coll-action-btn"
-                onClick={() => setContextMenu(contextMenu === coll.id ? null : coll.id)}
-              >
-                <MoreHorizontal size={13} />
-              </button>
-            </div>
-          </div>
-
-          {contextMenu === coll.id && (
-            <div className="coll-context-menu" onClick={() => setContextMenu(null)}>
-              <button onClick={() => onSaveToCollection(coll.id)}>
-                <Save size={12} /> Save current request
-              </button>
-              <button onClick={() => { setEditingId(coll.id); setNameInput(coll.name) }}>
-                <Edit2 size={12} /> Rename
-              </button>
-              <button onClick={() => onEditVariables(coll)}>
-                <Zap size={12} /> Variables
-              </button>
-              <button onClick={() => exportCollection(coll.id)}>
-                <Download size={12} /> Export
-              </button>
-              <div className="coll-context-divider" />
-              <button className="coll-danger-action" onClick={() => deleteCollection(coll.id, coll.name)}>
-                <Trash2 size={12} /> Delete
-              </button>
-            </div>
-          )}
-
-          {expandedId === coll.id && (
-            <div className="coll-tree">
-              {coll.items.length === 0 && (
-                <div className="coll-no-requests">No requests saved</div>
-              )}
-              {coll.items.map(item => (
-                <CollectionItemView 
-                  key={item.name || item.id} 
-                  item={item} 
-                  collectionId={coll.id}
-                  level={0}
-                  onOpenRequest={onOpenRequest}
-                  onRefresh={onRefresh}
-                  onRenameRequest={onRenameRequest}
-                  onDeleteRequest={onDeleteRequest}
-                  onDeleteFolder={onDeleteFolder}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+      <div className="coll-tree-container" ref={containerRef}>
+        <Tree
+          ref={treeRef}
+          data={treeData}
+          onMove={onMove}
+          indent={14}
+          rowHeight={28}
+          width="100%"
+          height={treeHeight} 
+          disableDrop={(args: any) => args.parentNode?.data?.type === 'request'}
+          disableDrag={(node: any) => node.data?.type === 'collection'}
+        >
+          {NodeRenderer}
+        </Tree>
+      </div>
     </div>
   )
 }

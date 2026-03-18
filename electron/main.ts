@@ -1,4 +1,29 @@
 import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron'
+import fs from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
+import { createRequire } from 'module'
+import { registerRestHandlers } from './rest-handler'
+import { registerGrpcHandlers } from './grpc-handler'
+import { registerStorageHandlers } from './storage-handler'
+
+process.on('uncaughtException', (err) => {
+  try {
+    const logPath = join(app.getPath('userData'), 'crash-report.txt')
+    fs.appendFileSync(logPath, `\nUNCAUGHT EXCEPTION:\n${err.stack || err.message || err}\n`)
+  } catch (e) { /* ignore */ }
+  console.error('UNCAUGHT EXCEPTION:', err)
+})
+
+process.on('unhandledRejection', (reason) => {
+  try {
+    const logPath = join(app.getPath('userData'), 'crash-report.txt')
+    fs.appendFileSync(logPath, `\nUNHANDLED REJECTION:\n${reason}\n`)
+  } catch (e) { /* ignore */ }
+  console.error('UNHANDLED REJECTION:', reason)
+})
+
+app.setName('UltraRPC')
 app.setName('UltraRPC')
 
 const template: Electron.MenuItemConstructorOptions[] = [
@@ -62,15 +87,6 @@ const template: Electron.MenuItemConstructorOptions[] = [
 const menu = Menu.buildFromTemplate(template)
 Menu.setApplicationMenu(menu)
 
-import { join } from 'path'
-import { fileURLToPath } from 'url'
-import { dirname } from 'path'
-import { createRequire } from 'module'
-import fs from 'fs'
-import { registerRestHandlers } from './rest-handler'
-import { registerGrpcHandlers } from './grpc-handler'
-import { registerStorageHandlers } from './storage-handler'
-
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
@@ -80,55 +96,69 @@ globalThis.require = createRequire(import.meta.url)
 process.env.DIST = join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : join(process.env.DIST, '../public')
 
-let win: BrowserWindow | null
+let win: BrowserWindow | null = null
 let readyToClose = false
 
 const skipLock = process.argv.includes('--no-lock')
-const gotTheLock = skipLock ? true : app.requestSingleInstanceLock()
+try {
+  const gotTheLock = skipLock ? true : app.requestSingleInstanceLock()
 
-if (!gotTheLock) {
-  app.quit()
-} else {
-  app.on('second-instance', () => {
-    if (win) {
-      if (win.isMinimized()) win.restore()
-      win.focus()
-    }
-  })
-
-  // Register IPC handlers
-  registerRestHandlers()
-  registerGrpcHandlers()
-  registerStorageHandlers()
-
-  // Utils
-  ipcMain.handle('app:openExternal', async (_, url: string) => {
-    await shell.openExternal(url)
-  })
-
-  ipcMain.handle('app:confirm-close', () => {
-    readyToClose = true
-    if (win) saveWindowState(win)
+  if (!gotTheLock) {
     app.quit()
-  })
+  } else {
+    app.on('second-instance', () => {
+      if (win) {
+        if (win.isMinimized()) win.restore()
+        win.focus()
+      }
+    })
 
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
+    // Register IPC handlers
+    registerRestHandlers()
+    registerGrpcHandlers()
+    registerStorageHandlers()
+
+    // Utils
+    ipcMain.handle('app:openExternal', async (_, url: string) => {
+      await shell.openExternal(url)
+    })
+
+    ipcMain.handle('app:confirm-close', () => {
+      readyToClose = true
+      if (win) saveWindowState(win)
       app.quit()
-      win = null
-    }
-  })
+    })
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    app.on('window-all-closed', () => {
+      if (process.platform !== 'darwin') {
+        app.quit()
+        win = null
+      }
+    })
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow()
+      }
+    })
+
+    app.whenReady().then(() => {
+      console.log('>>> APP READY, CREATING WINDOW...')
       createWindow()
-    }
-  })
-
-  app.whenReady().then(createWindow)
+    }).catch(err => {
+      console.error('>>> app.whenReady failed:', err)
+    })
+  }
+} catch (err: any) {
+  try {
+    const logPath = join(app.getPath('userData'), 'crash-report.txt')
+    fs.appendFileSync(logPath, `\nFATAL ERROR DURING SETUP:\n${err.stack || err.message || err}\n`)
+  } catch (e) { /* ignore */ }
+  console.error('FATAL ERROR DURING SETUP:', err)
+  process.exit(1)
 }
 
-const getWindowStatePath = () => {
+function getWindowStatePath() {
   return join(app.getPath('userData'), 'window-state.json')
 }
 
@@ -155,51 +185,58 @@ function saveWindowState(window: BrowserWindow) {
 }
 
 function createWindow() {
-  const windowState = loadWindowState()
+  console.log('>>> ENTERING createWindow()')
+  try {
+    const windowState = loadWindowState()
+    console.log('>>> WINDOW STATE LOADED:', windowState)
 
-  win = new BrowserWindow({
-    width: windowState.width,
-    height: windowState.height,
-    x: windowState.x,
-    y: windowState.y,
-    minWidth: 900,
-    minHeight: 600,
-    webPreferences: {
-      preload: join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-    titleBarStyle: 'hidden',
-    icon: join(process.env.VITE_PUBLIC!, 'icon.png'),
-    titleBarOverlay: {
-      color: '#18181b',
-      symbolColor: '#fafafa',
-      height: 40,
-    },
-    backgroundColor: '#09090b',
-  })
+    win = new BrowserWindow({
+      width: windowState.width,
+      height: windowState.height,
+      x: windowState.x,
+      y: windowState.y,
+      minWidth: 900,
+      minHeight: 600,
+      webPreferences: {
+        preload: join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+      titleBarStyle: 'hidden',
+      icon: join(process.env.VITE_PUBLIC!, 'icon.png'),
+      titleBarOverlay: {
+        color: '#18181b',
+        symbolColor: '#fafafa',
+        height: 40,
+      },
+      backgroundColor: '#09090b',
+    })
 
-  // Save state on resize and move
-  const saveState = () => saveWindowState(win!)
-  win.on('resized', saveState)
-  win.on('moved', saveState)
-  
-  win.on('close', (e) => {
-    if (readyToClose) return
-    e.preventDefault()
-    win?.webContents.send('app:request-close')
-  })
+    // Save state on resize and move
+    const saveState = () => win && saveWindowState(win)
+    win.on('resized', saveState)
+    win.on('moved', saveState)
+    
+    win.on('close', (e) => {
+      if (readyToClose) return
+      e.preventDefault()
+      win?.webContents.send('app:request-close')
+    })
 
-  // Set the macOS Dock icon
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.setIcon(join(process.env.VITE_PUBLIC!, 'icon.png'))
-  }
+    // Set the macOS Dock icon
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.setIcon(join(process.env.VITE_PUBLIC!, 'icon.png'))
+    }
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    win.loadURL(process.env.VITE_DEV_SERVER_URL)
-  } else {
-    win.loadFile(join(process.env.DIST!, 'index.html'))
+    if (process.env.VITE_DEV_SERVER_URL) {
+      win.loadURL(process.env.VITE_DEV_SERVER_URL)
+    } else {
+      console.log('>>> LOADING LOCAL FILE')
+      win.loadFile(join(process.env.DIST!, 'index.html'))
+    }
+  } catch (err: any) {
+    console.error('>>> createWindow failed:', err)
+    throw err
   }
 }
-

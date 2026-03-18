@@ -53,14 +53,14 @@ export interface CollectionItem {
   name: string
   type: CollectionItemType
   request?: RequestConfig
-  items?: CollectionItem[]
+  children?: CollectionItem[]
   isExpanded?: boolean
 }
 
 export interface Collection {
   id: string
   name: string
-  items: CollectionItem[]
+  children: CollectionItem[]
   variables?: KeyValuePair[]
 }
 
