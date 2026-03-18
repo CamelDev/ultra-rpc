@@ -14,12 +14,13 @@ interface MethodInfo {
 
 interface Props {
   host: string
+  insecure?: boolean
   headers: Record<string, string>
   onSelectService: (service: string) => void
   onSelectMethod: (service: string, method: string, sampleBody?: string) => void
 }
 
-const GrpcReflectionPanel: React.FC<Props> = ({ host, headers, onSelectService, onSelectMethod }) => {
+const GrpcReflectionPanel: React.FC<Props> = ({ host, insecure = false, headers, onSelectService, onSelectMethod }) => {
   const [services, setServices] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +50,7 @@ const GrpcReflectionPanel: React.FC<Props> = ({ host, headers, onSelectService, 
     try {
       const result = await window.ultraRpc.grpcReflect({
         host: host.trim(),
-        insecure: true,
+        insecure,
         headers,
       })
 
@@ -80,7 +81,7 @@ const GrpcReflectionPanel: React.FC<Props> = ({ host, headers, onSelectService, 
     try {
       const result = await window.ultraRpc.grpcMethods({
         host: host.trim(),
-        insecure: true,
+        insecure,
         headers,
         serviceName,
       })

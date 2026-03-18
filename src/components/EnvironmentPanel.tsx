@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, Check, ChevronDown, Edit2, Save, FileUp } from 'lucide-react'
+import { Plus, Trash2, Check, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff } from 'lucide-react'
 import type { Environment, KeyValuePair } from '../types'
 import { emptyKV } from '../lib/helpers'
 import './EnvironmentPanel.css'
@@ -9,9 +9,10 @@ interface Props {
   onChange: (environments: Environment[]) => void
   activeEnvId: string | null
   onSetActive: (id: string | null) => void
+  onDeleteRequest: (id: string, name: string) => void
 }
 
-const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId, onSetActive }) => {
+const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId, onSetActive, onDeleteRequest }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -46,10 +47,6 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
     setExpandedId(newEnv.id)
   }
 
-  const removeEnvironment = (id: string) => {
-    onChange(environments.filter(e => e.id !== id))
-    if (activeEnvId === id) onSetActive(null)
-  }
 
   const updateVariable = (envId: string, varId: string, field: keyof KeyValuePair, value: string | boolean) => {
     onChange(environments.map(env => {
@@ -73,6 +70,14 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
       if (env.id !== envId) return env
       const vars = env.variables.filter(v => v.id !== varId)
       return { ...env, variables: vars.length === 0 ? [emptyKV()] : vars }
+    }))
+  }
+
+  const toggleSslVerification = (envId: string) => {
+    onChange(environments.map(env => {
+      if (env.id !== envId) return env
+      const current = env.sslVerification !== false // default true
+      return { ...env, sslVerification: !current }
     }))
   }
 
@@ -142,7 +147,7 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
               >
                 <Check size={13} />
               </button>
-              <button className="btn-ghost env-action env-delete" onClick={() => removeEnvironment(env.id)}>
+              <button className="btn-ghost env-action env-delete" onClick={() => onDeleteRequest(env.id, env.name)}>
                 <Trash2 size={13} />
               </button>
             </div>
@@ -150,6 +155,19 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
 
           {expandedId === env.id && (
             <div className="env-item-body">
+              {/* SSL Verification Toggle */}
+              <div className="env-ssl-row">
+                <button
+                  className={`env-ssl-toggle ${env.sslVerification !== false ? 'env-ssl-on' : 'env-ssl-off'}`}
+                  onClick={() => toggleSslVerification(env.id)}
+                  title={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'}
+                >
+                  {env.sslVerification !== false
+                    ? <><ShieldCheck size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-on">ON</span></>
+                    : <><ShieldOff size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-off">OFF</span></>}
+                </button>
+              </div>
+
               {env.variables.map(v => (
                 <div className="env-var-row" key={v.id}>
                   <input

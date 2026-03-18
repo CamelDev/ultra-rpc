@@ -70,6 +70,7 @@ export interface Environment {
   name: string
   variables: KeyValuePair[]
   isActive: boolean
+  sslVerification?: boolean // true = validate SSL certs (default), false = skip validation
 }
 
 // ===== gRPC Types =====

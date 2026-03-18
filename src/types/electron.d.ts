@@ -6,6 +6,7 @@ export interface UltraRpcApi {
     url: string
     headers: Record<string, string>
     body?: string
+    insecure?: boolean
   }) => Promise<{
     success: boolean
     data?: { status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }

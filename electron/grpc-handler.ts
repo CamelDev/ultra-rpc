@@ -150,12 +150,33 @@ message ErrorResponse {
   const grpcProto = grpc.loadPackageDefinition(packageDefinition) as any
 
   const isSecure = host.startsWith('https://') || host.endsWith(':443') || host.includes(':443/');
-  const useInsecure = isSecure ? false : insecure;
   const cleanHost = host.replace(/^https?:\/\//, '').split('/')[0];
 
-  const credentials = useInsecure
-    ? grpc.credentials.createInsecure()
-    : grpc.credentials.createSsl()
+  console.log(`[gRPC Backend] createReflectionClient: host=${host}, cleanHost=${cleanHost}, isSecure=${isSecure}, insecure=${insecure}`)
+
+  let credentials: grpc.ChannelCredentials
+  if (isSecure && insecure) {
+    console.log(`[gRPC Backend] Using SSL with hostname & trust verification bypass (insecure=true)`)
+    // HTTPS host with SSL verification disabled: use SSL but skip hostname/cert check
+    credentials = grpc.credentials.createSsl(
+      null, null, null,
+      { 
+        checkServerIdentity: () => undefined,
+        rejectUnauthorized: false, // Bypass trust verification for self-signed certs
+        // @ts-ignore - passing to underlying tls socket
+        'grpc.ssl_target_name_override': cleanHost,
+        'grpc.default_authority': cleanHost
+      }
+    )
+  } else if (isSecure) {
+    console.log(`[gRPC Backend] Using full SSL verification`)
+    // HTTPS host or secure port: full SSL verification
+    credentials = grpc.credentials.createSsl()
+  } else {
+    console.log(`[gRPC Backend] Using insecure credentials (no TLS)`)
+    // Plain HTTP host: no TLS at all
+    credentials = grpc.credentials.createInsecure()
+  }
 
   return new grpcProto.grpc.reflection.v1alpha.ServerReflection(cleanHost, credentials)
 }
@@ -327,7 +348,7 @@ export function registerGrpcHandlers() {
 
       const client = createReflectionClient(args.host, args.insecure, metadata)
 
-      return new Promise((resolve, reject) => {
+      return await new Promise((resolve) => {
         const call = client.ServerReflectionInfo(metadata)
         const services: string[] = []
 
@@ -366,7 +387,7 @@ export function registerGrpcHandlers() {
 
       const client = createReflectionClient(args.host, args.insecure, metadata)
 
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         const call = client.ServerReflectionInfo(metadata)
         const descriptorBuffers: Buffer[] = []
 
@@ -453,11 +474,9 @@ export function registerGrpcHandlers() {
     }
   })
 
-
   // ===== Execute a gRPC unary call =====
   ipcMain.handle('grpc:call', async (_event, req: GrpcRequest) => {
     const start = Date.now()
-
     try {
       const metadata = new grpc.Metadata()
       for (const [key, value] of Object.entries(req.headers || {})) {
@@ -465,12 +484,35 @@ export function registerGrpcHandlers() {
       }
 
       const isSecure = req.host.startsWith('https://') || req.host.endsWith(':443') || req.host.includes(':443/');
-      const useInsecure = isSecure ? false : req.insecure;
       const cleanHost = req.host.replace(/^https?:\/\//, '').split('/')[0];
 
-      const credentials = useInsecure
-        ? grpc.credentials.createInsecure()
-        : grpc.credentials.createSsl()
+      if (req.insecure) {
+        console.log(`[gRPC Backend] Request has insecure=true`)
+      } else {
+        console.log(`[gRPC Backend] Request has insecure=false`)
+      }
+      
+      let credentials: grpc.ChannelCredentials
+      if (isSecure && req.insecure) {
+        console.log(`[gRPC Backend] Using SSL with hostname & trust verification bypass (insecure=true)`)
+        // HTTPS host with SSL verification disabled: use SSL but skip hostname/cert check
+        credentials = grpc.credentials.createSsl(
+          null, null, null,
+            { 
+              checkServerIdentity: () => undefined,
+              rejectUnauthorized: false, // Bypass trust verification for self-signed certs
+              // @ts-ignore - passing to underlying tls socket
+              'grpc.ssl_target_name_override': cleanHost,
+              'grpc.default_authority': cleanHost
+            }
+        )
+      } else if (isSecure) {
+        // HTTPS host or secure port: full SSL verification
+        credentials = grpc.credentials.createSsl()
+      } else {
+        // Plain HTTP host: no TLS at all
+        credentials = grpc.credentials.createInsecure()
+      }
 
       const callOptions: grpc.CallOptions = {}
       const timeout = req.timeoutMs && req.timeoutMs > 0 ? req.timeoutMs : 60000

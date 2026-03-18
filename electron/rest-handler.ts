@@ -8,6 +8,7 @@ interface RestRequest {
   url: string
   headers: Record<string, string>
   body?: string
+  insecure?: boolean
 }
 
 export function registerRestHandlers() {
@@ -18,17 +19,22 @@ export function registerRestHandlers() {
       const parsedUrl = new URL(req.url)
       const isHttps = parsedUrl.protocol === 'https:'
       const transport = isHttps ? https : http
+      const insecure = req.insecure === true
+      if (isHttps) {
+        console.log(`[REST Backend] ${req.method} ${req.url} (isHttps=true, insecure=${insecure})`)
+      }
 
       const result = await new Promise<{ status: number; statusText: string; headers: Record<string, string>; body: string }>((resolve, reject) => {
-        const options: http.RequestOptions = {
+        const options: any = {
           hostname: parsedUrl.hostname,
           port: parsedUrl.port || (isHttps ? 443 : 80),
           path: parsedUrl.pathname + parsedUrl.search,
           method: req.method,
           headers: req.headers,
+          rejectUnauthorized: !insecure, // Respect environment setting
         }
 
-        const request = transport.request(options, (response) => {
+        const request = transport.request(options as any, (response) => {
           const chunks: Buffer[] = []
           response.on('data', (chunk: Buffer) => chunks.push(chunk))
           response.on('end', () => {

@@ -84,7 +84,7 @@ const App: React.FC = () => {
   const [showEnvPanel, setShowEnvPanel] = useState(false)
   const [showSaveMenu, setShowSaveMenu] = useState(false)
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder', id: string, name: string, collectionId?: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder' | 'environment', id: string, name: string, collectionId?: string } | null>(null)
 
   // ===== Environments =====
   const [environments, setEnvironments] = useState<Environment[]>([])
@@ -561,16 +561,12 @@ const App: React.FC = () => {
                 } else {
                   vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
                 }
-                const updatedEnv = { ...e, variables: vars }
-                if (window.ultraRpc) window.ultraRpc.saveEnvironments([
-                  ...currentEnvs.filter(other => other.id !== activeEnvId),
-                  updatedEnv
-                ])
-                return updatedEnv
+                return { ...e, variables: vars }
               }
               return e
             })
             setEnvironments(currentEnvs)
+            if (window.ultraRpc) window.ultraRpc.saveEnvironments(currentEnvs)
             mockConsole.log(`[Script] Set env variable: ${key}`)
           }
         },
@@ -687,15 +683,11 @@ const App: React.FC = () => {
                   } else {
                     vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
                   }
-                  const updatedEnv = { ...e, variables: vars }
-                  if (window.ultraRpc) window.ultraRpc.saveEnvironments([
-                    ...prev.filter(other => other.id !== activeEnvId),
-                    updatedEnv
-                  ])
-                  return updatedEnv
+                  return { ...e, variables: vars }
                 }
                 return e
               })
+              if (window.ultraRpc) window.ultraRpc.saveEnvironments(newEnvs)
               return newEnvs
             })
             mockConsole.log(`[Script] Set env variable: ${key}`)
@@ -781,8 +773,12 @@ const App: React.FC = () => {
           throw new Error('Enter a method name to call.')
         }
 
+        const effectiveEnvId = activeRequest.envId || activeEnvId
+        const currentEnv = scriptResult?.environments.find(e => e.id === effectiveEnvId) || environments.find(e => e.id === effectiveEnvId)
+        const isInsecure = currentEnv?.sslVerification === false
+
         const result = await window.ultraRpc.grpcCall({
-          host: url, insecure: true, headers,
+          host: url, insecure: isInsecure, headers,
           service: activeRequest.grpcService, method: activeRequest.grpcMethod,
           payload: interpolate(activeRequest.grpcPayload || '{}', updatedEnv, scriptResult?.collections),
           timeoutMs: activeRequest.timeoutMs
@@ -812,10 +808,15 @@ const App: React.FC = () => {
           fullUrl += (fullUrl.includes('?') ? '&' : '?') + searchParams.toString()
         }
 
+        const effectiveEnvId = activeRequest.envId || activeEnvId
+        const currentEnv = scriptResult?.environments.find(e => e.id === effectiveEnvId) || environments.find(e => e.id === effectiveEnvId)
+        const isInsecure = currentEnv?.sslVerification === false
+
         if (window.ultraRpc) {
           const result = await window.ultraRpc.sendRestRequest({
             method: activeRequest.method, url: fullUrl, headers,
             body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body, updatedEnv, scriptResult?.collections) : undefined,
+            insecure: isInsecure
           })
           if (result.success && result.data) {
             statusCode = result.data.status
@@ -927,6 +928,7 @@ const App: React.FC = () => {
                 onChange={handleEnvChange}
                 activeEnvId={activeEnvId}
                 onSetActive={setActiveEnvId}
+                onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
               />
             </>
           )}
@@ -1515,6 +1517,11 @@ const App: React.FC = () => {
                         {!isLocked && (
                           <GrpcReflectionPanel
                             host={interpolate(activeRequest.url)}
+                            insecure={(() => {
+                              const effectiveEnvId = activeRequest.envId || activeEnvId
+                              const currentEnv = environments.find(e => e.id === effectiveEnvId)
+                              return currentEnv?.sslVerification === false
+                            })()}
                             headers={(() => {
                               const h: Record<string, string> = {}
                               activeRequest.headers.filter(hdr => hdr.enabled && hdr.key).forEach(hdr => {
@@ -1766,16 +1773,21 @@ const App: React.FC = () => {
                 className="btn-primary" 
                 style={{ background: 'var(--danger)', borderColor: 'var(--danger)', padding: '8px 24px' }}
                 onClick={async () => {
-                  if (!window.ultraRpc) return
-                  if (confirmDelete.type === 'collection') {
-                    await window.ultraRpc.deleteCollection({ collectionId: confirmDelete.id })
-                  } else if (confirmDelete.type === 'request' && confirmDelete.collectionId) {
-                    await window.ultraRpc.deleteRequest({ collectionId: confirmDelete.collectionId, requestId: confirmDelete.id })
-                  } else if (confirmDelete.type === 'folder' && confirmDelete.collectionId) {
-                    await window.ultraRpc.deleteFolder({ collectionId: confirmDelete.collectionId, folderPath: confirmDelete.name })
+                  const rpc = window.ultraRpc
+                  if (confirmDelete.type === 'collection' && rpc) {
+                    await rpc.deleteCollection({ collectionId: confirmDelete.id })
+                  } else if (confirmDelete.type === 'request' && confirmDelete.collectionId && rpc) {
+                    await rpc.deleteRequest({ collectionId: confirmDelete.collectionId, requestId: confirmDelete.id })
+                  } else if (confirmDelete.type === 'folder' && confirmDelete.collectionId && rpc) {
+                    await rpc.deleteFolder({ collectionId: confirmDelete.collectionId, folderPath: confirmDelete.name })
+                  } else if (confirmDelete.type === 'environment') {
+                    const newEnvs = environments.filter(e => e.id !== confirmDelete.id)
+                    setEnvironments(newEnvs)
+                    if (rpc) await rpc.saveEnvironments(newEnvs)
+                    if (activeEnvId === confirmDelete.id) setActiveEnvId(null)
                   }
                   setConfirmDelete(null)
-                  loadCollections()
+                  if (rpc) loadCollections()
                 }}
               >
                 Delete
