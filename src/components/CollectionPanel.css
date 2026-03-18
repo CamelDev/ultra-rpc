@@ -222,7 +222,7 @@
 .tree-node-content {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
   padding-right: 8px;
@@ -252,7 +252,7 @@
 }
 
 .tree-node-chevron {
-  width: 16px;
+  width: 12px;
   display: flex;
   align-items: center;
   justify-content: center;

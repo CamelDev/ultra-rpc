@@ -119,6 +119,36 @@
   background-color: rgba(255, 255, 255, 0.03);
 }
 
+/* Fold Gutter Styling */
+.cm-foldGutter {
+  width: 28px;
+}
+
+.cm-foldGutter span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 20px;
+  transition: color 0.2s, transform 0.2s;
+}
+
+.cm-foldGutter span:hover {
+  color: var(--accent);
+}
+
+.cm-foldPlaceholder {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin: 0 2px;
+  font-size: 12px;
+}
+
 /* JSON string values — green */
 .cm-theme-one-dark .cm-string {
   color: #85e89d !important;

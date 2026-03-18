@@ -1,12 +1,23 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { EditorState, StateEffect, type Extension } from '@codemirror/state'
-import { EditorView, keymap, placeholder as cmPlaceholder, lineNumbers, highlightActiveLine, highlightActiveLineGutter, type DecorationSet, ViewPlugin, ViewUpdate, Decoration } from '@codemirror/view'
+import { EditorState, StateEffect, type Extension, RangeSetBuilder } from '@codemirror/state'
+import { 
+  EditorView, 
+  keymap, 
+  placeholder as cmPlaceholder, 
+  lineNumbers, 
+  highlightActiveLine, 
+  highlightActiveLineGutter, 
+  type DecorationSet, 
+  ViewPlugin, 
+  ViewUpdate, 
+  Decoration
+} from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { javascript } from '@codemirror/lang-javascript'
+import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
+import { syntaxHighlighting, HighlightStyle, codeFolding, foldGutter, foldKeymap, bracketMatching } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
-import { RangeSetBuilder } from '@codemirror/state'
 import { createPortal } from 'react-dom'
 import type { Environment } from '../types'
 import './Editor.css'
@@ -133,7 +144,7 @@ const Editor: React.FC<Props> = ({
   const [tooltip, setTooltip] = useState<{ visible: boolean, x: number, y: number, text: string }>({
     visible: false, x: 0, y: 0, text: ''
   })
-  const tooltipTimeoutId = useRef<any>(null)
+  const tooltipTimeoutId = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onChangeRef = useRef(onChange)
 
   // Keep the ref updated with the latest onChange prop
@@ -220,10 +231,24 @@ const Editor: React.FC<Props> = ({
     ]
 
     if (language === 'json') {
-      extensions.push(javascript())
+      extensions.push(json())
       extensions.push(jsonPlugin)
+      if (!singleLine) {
+        extensions.push(codeFolding())
+        extensions.push(foldGutter())
+        extensions.push(bracketMatching())
+        extensions.push(keymap.of(foldKeymap))
+      }
     }
-    if (language === 'javascript') extensions.push(javascript())
+    if (language === 'javascript') {
+      extensions.push(javascript())
+      if (!singleLine) {
+        extensions.push(codeFolding())
+        extensions.push(foldGutter())
+        extensions.push(bracketMatching())
+        extensions.push(keymap.of(foldKeymap))
+      }
+    }
       if (!singleLine) {
         extensions.push(lineNumbers())
         extensions.push(highlightActiveLine())
@@ -238,7 +263,7 @@ const Editor: React.FC<Props> = ({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, activeEnv, collectionVariables, theme])
+  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, activeEnv, collectionVariables, theme, jsonPlugin])
 
   const resolveVariable = useCallback((varName: string) => {
     let titleText = `Variable: ${varName} (Not found)`

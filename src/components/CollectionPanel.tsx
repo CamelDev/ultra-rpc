@@ -9,7 +9,6 @@ import {
   FolderOpen,
   ChevronDown,
   ChevronRight,
-  FileJson,
   MoreHorizontal,
   Zap,
   Save,
@@ -247,22 +246,20 @@ const CollectionPanel: React.FC<Props> = ({
             else node.toggle()
           }}
         >
-          <div className="tree-node-content" style={{ paddingLeft: node.level * 14 }}>
+          <div className="tree-node-content" style={{ paddingLeft: node.level * 6 }}>
             {/* Chevron for nesting */}
             {(isCollection || isFolder) && (
               <div className="tree-node-chevron" onClick={(e) => { e.stopPropagation(); node.toggle(); }}>
                 {node.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </div>
             )}
-            {!isCollection && !isFolder && <div style={{ width: 16 }} />}
+            {!isCollection && !isFolder && <div style={{ width: 0 }} />}
 
-            <div className="tree-node-icon">
-              {isCollection || isFolder ? (
+            {(isCollection || isFolder) && (
+              <div className="tree-node-icon">
                 <Folder size={16} className={isCollection ? 'collection-icon' : 'folder-icon'} />
-              ) : (
-                <FileJson size={15} className="coll-req-icon" />
-              )}
-            </div>
+              </div>
+            )}
 
             {isRequest && request && (
               <span className="coll-req-method-label" style={{ 
@@ -390,7 +387,7 @@ const CollectionPanel: React.FC<Props> = ({
           ref={treeRef}
           data={treeData}
           onMove={onMove}
-          indent={14}
+          indent={6}
           rowHeight={28}
           width="100%"
           height={treeHeight} 
