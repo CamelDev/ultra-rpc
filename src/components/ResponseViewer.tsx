@@ -13,6 +13,7 @@ interface Props {
 
 const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading, theme = 'dark' }) => {
   const [showHeaders, setShowHeaders] = React.useState(false)
+  const [showTrailers, setShowTrailers] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
 
   const formattedBody = useMemo(() => {
@@ -26,6 +27,11 @@ const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading
 
   const statusClass = useMemo(() => {
     if (!response) return ''
+    
+    if (response.type === 'GRPC') {
+      return response.status === 0 ? 'status-success' : 'status-error'
+    }
+
     if (response.status >= 200 && response.status < 300) return 'status-success'
     if (response.status >= 400 && response.status < 500) return 'status-warning'
     if (response.status >= 500) return 'status-error'
@@ -87,7 +93,9 @@ const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading
       <div className="response-status-bar">
         <div className="response-stats">
           <span className={`response-status-badge ${statusClass}`}>
-            {response.status >= 200 && response.status < 400 ? (
+            {response.type === 'GRPC' ? (
+              response.status === 0 ? <CheckCircle size={14} /> : <XCircle size={14} />
+            ) : response.status >= 200 && response.status < 400 ? (
               <CheckCircle size={14} />
             ) : (
               <XCircle size={14} />
@@ -116,7 +124,7 @@ const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading
       {/* Headers collapsible */}
       <button className="response-headers-toggle" onClick={() => setShowHeaders(!showHeaders)}>
         {showHeaders ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        Response Headers ({Object.keys(response.headers).length})
+        {response.type === 'GRPC' ? 'Initial Metadata' : 'Response Headers'} ({Object.keys(response.headers).length})
       </button>
       {showHeaders && (
         <div className="response-headers">
@@ -127,6 +135,32 @@ const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading
             </div>
           ))}
         </div>
+      )}
+
+      {/* Trailers collapsible (gRPC only) */}
+      {response.type === 'GRPC' && (
+        <>
+          <button className="response-headers-toggle" onClick={() => setShowTrailers(!showTrailers)}>
+            {showTrailers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            Trailing Metadata ({response.trailers ? Object.keys(response.trailers).length : 0})
+          </button>
+          {showTrailers && (
+            <div className="response-headers">
+              {response.trailers && Object.keys(response.trailers).length > 0 ? (
+                Object.entries(response.trailers).map(([key, value]) => (
+                  <div className="response-header-row" key={key}>
+                    <span className="response-header-key">{key}</span>
+                    <span className="response-header-value">{value}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="response-header-row">
+                  <span className="response-header-muted italic">No trailers received</span>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Body */}

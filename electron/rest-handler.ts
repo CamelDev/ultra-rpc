@@ -66,6 +66,7 @@ export function registerRestHandlers() {
         success: true,
         data: {
           ...result,
+          type: 'REST',
           time,
           size: Buffer.byteLength(result.body, 'utf-8'),
         },

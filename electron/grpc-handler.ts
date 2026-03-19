@@ -28,6 +28,26 @@ interface ServiceInfo {
 // ===== gRPC Server Reflection v1 =====
 // Follows the grpc.reflection.v1alpha.ServerReflection spec
 
+function metadataToObject(metadata: grpc.Metadata): Record<string, string> {
+  const obj: Record<string, string> = {}
+  if (!metadata) return obj
+  
+  const json = metadata.toJSON()
+  for (const [key, values] of Object.entries(json)) {
+    if (Array.isArray(values)) {
+      obj[key] = values.map(v => {
+        if (typeof v === 'object' && v !== null && (v as any).type === 'Buffer') {
+          return Buffer.from((v as any).data).toString('base64')
+        }
+        return String(v)
+      }).join(', ')
+    } else {
+      obj[key] = String(values)
+    }
+  }
+  return obj
+}
+
 function formatGrpcError(err: any): string {
   let msg = `gRPC error (${err.code}): ${err.message || err.details || 'Call failed'}`
 
@@ -547,28 +567,103 @@ export function registerGrpcHandlers() {
             return
           }
 
+          let responseHeaders = {}
+          let responseTrailers = {}
+
           if (methodFn.responseStream) {
             const call = methodFn.call(client, payload, metadata, callOptions)
+            call.on('metadata', (m: grpc.Metadata) => {
+              responseHeaders = metadataToObject(m)
+            })
             const responses: any[] = []
             call.on('data', (response: any) => responses.push(response))
             call.on('error', (err: any) => {
               const time = Date.now() - start
-              resolve({ success: false, error: formatGrpcError(err), code: err.code, time })
+              const errorMsg = formatGrpcError(err)
+              resolve({ 
+                success: true, 
+                data: { 
+                  type: 'GRPC',
+                  status: err.code, 
+                  statusText: err.details || 'Stream Error', 
+                  headers: responseHeaders, 
+                  trailers: responseTrailers || metadataToObject(err.metadata),
+                  body: errorMsg,
+                  time, 
+                  size: Buffer.byteLength(errorMsg, 'utf-8') 
+                } 
+              })
+            })
+            call.on('status', (status: grpc.StatusObject) => {
+              responseTrailers = metadataToObject(status.metadata)
             })
             call.on('end', () => {
               const time = Date.now() - start
               const body = JSON.stringify(responses, null, 2)
-              resolve({ success: true, data: { status: 0, statusText: 'OK (Stream Finished)', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') } })
+              resolve({ 
+                success: true, 
+                data: { 
+                  type: 'GRPC',
+                  status: 0, 
+                  statusText: 'OK (Stream Finished)', 
+                  headers: responseHeaders, 
+                  trailers: responseTrailers,
+                  body, 
+                  time, 
+                  size: Buffer.byteLength(body, 'utf-8') 
+                } 
+              })
             })
           } else {
-            methodFn.call(client, payload, metadata, callOptions, (err: any, response: any) => {
+            const call = methodFn.call(client, payload, metadata, callOptions, (err: any, responseBody: any) => {
               const time = Date.now() - start
               if (err) {
-                resolve({ success: false, error: formatGrpcError(err), code: err.code, time })
+                console.log(`[gRPC Backend] Unary call error: ${err.message}. Capturing metadata/trailers.`)
+                setTimeout(() => {
+                  const errorMsg = formatGrpcError(err)
+                  resolve({ 
+                    success: true, 
+                    data: { 
+                      type: 'GRPC',
+                      status: err.code, 
+                      statusText: err.details || 'Error', // statusText from gRPC
+                      headers: responseHeaders, 
+                      trailers: responseTrailers,
+                      body: errorMsg,
+                      time, 
+                      size: Buffer.byteLength(errorMsg, 'utf-8') 
+                    } 
+                  })
+                }, 10)
               } else {
-                const body = JSON.stringify(response, null, 2)
-                resolve({ success: true, data: { status: 0, statusText: 'OK', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') } })
+                console.log(`[gRPC Backend] Unary call success. Waiting for status for trailers.`)
+                // Use a small delay to ensure 'status' event is processed if it fires in same tick
+                setTimeout(() => {
+                  const body = JSON.stringify(responseBody, null, 2)
+                  console.log(`[gRPC Backend] Resolving unary call with trailers:`, JSON.stringify(responseTrailers))
+                  resolve({ 
+                    success: true, 
+                    data: { 
+                      type: 'GRPC',
+                      status: 0, 
+                      statusText: 'OK', 
+                      headers: responseHeaders, 
+                      trailers: responseTrailers,
+                      body, 
+                      time, 
+                      size: Buffer.byteLength(body, 'utf-8') 
+                    } 
+                  })
+                }, 10)
               }
+            })
+            call.on('metadata', (m: grpc.Metadata) => {
+              responseHeaders = metadataToObject(m)
+              console.log(`[gRPC Backend] Captured metadata (headers):`, JSON.stringify(responseHeaders))
+            })
+            call.on('status', (status: grpc.StatusObject) => {
+              responseTrailers = metadataToObject(status.metadata)
+              console.log(`[gRPC Backend] Captured status (trailers):`, JSON.stringify(responseTrailers))
             })
           }
         })
@@ -655,6 +750,9 @@ export function registerGrpcHandlers() {
       const genericClient = new grpc.Client(cleanHost, credentials)
 
       return new Promise((resolve) => {
+        let responseHeaders = {}
+        let responseTrailers = {}
+
         if (isServerStreaming) {
           const call = genericClient.makeServerStreamRequest(
             fullMethodPath,
@@ -669,26 +767,37 @@ export function registerGrpcHandlers() {
             callOptions
           )
 
+          call.on('metadata', (m: grpc.Metadata) => {
+            responseHeaders = metadataToObject(m)
+          })
+
           const responses: any[] = []
           call.on('data', (response: any) => {
-            console.log(`[gRPC Backend] Raw response type: ${responseType.fullName}`)
             const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
-            console.log(`[gRPC Backend] Converted keys: ${Object.keys(responseObj).join(', ')}`)
-            if (responseObj.priced_offers && responseObj.priced_offers.length > 0) {
-               console.log(`[gRPC Backend] First offer keys: ${Object.keys(responseObj.priced_offers[0]).join(', ')}`)
-            }
             responses.push(responseObj)
           })
 
           call.on('error', (err: any) => {
             const time = Date.now() - start
             genericClient.close()
+            const errorMsg = formatGrpcError(err)
             resolve({
-              success: false,
-              error: formatGrpcError(err),
-              code: err.code,
-              time,
+              success: true,
+              data: { 
+                type: 'GRPC',
+                status: err.code, 
+                statusText: err.details || 'Stream Error', 
+                headers: responseHeaders, 
+                trailers: responseTrailers || metadataToObject(err.metadata),
+                body: errorMsg,
+                time, 
+                size: Buffer.byteLength(errorMsg, 'utf-8') 
+              },
             })
+          })
+
+          call.on('status', (status: grpc.StatusObject) => {
+            responseTrailers = metadataToObject(status.metadata)
           })
 
           call.on('end', () => {
@@ -697,46 +806,82 @@ export function registerGrpcHandlers() {
             const body = JSON.stringify(responses, null, 2)
             resolve({
               success: true,
-              data: { status: 0, statusText: 'OK (Stream Finished)', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') },
+              data: { 
+                type: 'GRPC',
+                status: 0, 
+                statusText: 'OK (Stream Finished)', 
+                headers: responseHeaders, 
+                trailers: responseTrailers,
+                body, 
+                time, 
+                size: Buffer.byteLength(body, 'utf-8') 
+              },
             })
           })
         } else {
-          genericClient.makeUnaryRequest(
+          const call = genericClient.makeUnaryRequest(
             fullMethodPath,
             (msg: any) => {
               const fixedPayload = parseMapsToArrays(requestType, msg)
-              console.log(`[gRPC Backend] Final payload for ${fullMethodPath}:`, JSON.stringify(fixedPayload, null, 2))
               return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
             },
             (buf: Buffer) => responseType.decode(buf),
             payload,
             metadata,
             callOptions,
-            (err: any, response: any) => {
+            (err: any, responseBody: any) => {
               const time = Date.now() - start
               genericClient.close()
               if (err) {
-                resolve({
-                  success: false,
-                  error: formatGrpcError(err),
-                  code: err.code,
-                  time,
-                })
+                console.log(`[gRPC Backend] Generic unary call error: ${err.message}. Capturing metadata/trailers.`)
+                setTimeout(() => {
+                  const errorMsg = formatGrpcError(err)
+                  resolve({
+                    success: true,
+                    data: { 
+                      type: 'GRPC',
+                      status: err.code, 
+                      statusText: err.details || 'Error', 
+                      headers: responseHeaders, 
+                      trailers: responseTrailers,
+                      body: errorMsg,
+                      time, 
+                      size: Buffer.byteLength(errorMsg, 'utf-8') 
+                    },
+                  })
+                }, 10)
               } else {
-                console.log(`[gRPC Backend] Raw response type: ${responseType.fullName}`)
-                const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
-                console.log(`[gRPC Backend] Converted keys: ${Object.keys(responseObj).join(', ')}`)
-                if (responseObj.priced_offers && responseObj.priced_offers.length > 0) {
-                   console.log(`[gRPC Backend] First offer keys: ${Object.keys(responseObj.priced_offers[0]).join(', ')}`)
-                }
-                const body = JSON.stringify(responseObj, null, 2)
-                resolve({
-                  success: true,
-                  data: { status: 0, statusText: 'OK', headers: {}, body, time, size: Buffer.byteLength(body, 'utf-8') },
-                })
+                console.log(`[gRPC Backend] Generic unary call success. Waiting for status for trailers.`)
+                setTimeout(() => {
+                  const responseObj = responseType.toObject(responseBody, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
+                  const body = JSON.stringify(responseObj, null, 2)
+                  console.log(`[gRPC Backend] Resolving generic unary call with trailers:`, JSON.stringify(responseTrailers))
+                  resolve({
+                    success: true,
+                    data: { 
+                      type: 'GRPC',
+                      status: 0, 
+                      statusText: 'OK', 
+                      headers: responseHeaders, 
+                      trailers: responseTrailers,
+                      body, 
+                      time, 
+                      size: Buffer.byteLength(body, 'utf-8') 
+                    },
+                  })
+                }, 10)
               }
             }
           )
+
+          call.on('metadata', (m: grpc.Metadata) => {
+            responseHeaders = metadataToObject(m)
+            console.log(`[gRPC Backend] Captured generic metadata (headers):`, JSON.stringify(responseHeaders))
+          })
+          call.on('status', (status: grpc.StatusObject) => {
+            responseTrailers = metadataToObject(status.metadata)
+            console.log(`[gRPC Backend] Captured generic status (trailers):`, JSON.stringify(responseTrailers))
+          })
         }
       })
     } catch (err: any) {

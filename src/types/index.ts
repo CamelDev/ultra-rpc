@@ -31,9 +31,11 @@ export interface RequestConfig {
 }
 
 export interface ResponseData {
+  type: RequestType
   status: number
   statusText: string
   headers: Record<string, string>
+  trailers?: Record<string, string>
   body: string
   time: number // ms
   size: number // bytes

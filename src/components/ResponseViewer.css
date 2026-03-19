@@ -188,6 +188,14 @@
   word-break: break-all;
 }
 
+.response-header-muted {
+  color: var(--text-muted);
+}
+
+.italic {
+  font-style: italic;
+}
+
 /* Body */
 .response-body-container {
   flex: 1;
