@@ -309,6 +309,8 @@ const App: React.FC = () => {
       if (res.warnings && res.warnings.length > 0) {
         res.warnings.forEach(w => addToast({ type: 'warning', message: w }))
       }
+    } else {
+      addToast({ type: 'error', message: res.error || 'Failed to load collections' })
     }
   }
 

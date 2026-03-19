@@ -29,7 +29,7 @@ export interface UltraRpcApi {
 
   // Collections
   listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; children: any[]; variables?: any[]; path?: string }[]; warnings?: string[]; error?: string }>
-  createCollection: (args: { name: string }) => Promise<{ success: boolean; id?: string; error?: string }>
+  createCollection: (args: { name: string; path?: string }) => Promise<{ success: boolean; id?: string; error?: string }>
   saveCollectionVariables: (args: { collectionId: string; variables: any[] }) => Promise<{ success: boolean; error?: string }>
   saveRequest: (args: { collectionId: string; request: any }) => Promise<{ success: boolean; error?: string }>
   deleteRequest: (args: { collectionId: string; requestId: string }) => Promise<{ success: boolean; error?: string }>
@@ -44,6 +44,8 @@ export interface UltraRpcApi {
   getCollectionPath: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   showCollectionInFolder: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
   moveCollection: (args: { collectionId: string; currentPath?: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
+  pickFolder: () => Promise<{ success: boolean; path?: string; error?: string }>
+  linkCollection: () => Promise<{ success: boolean; path?: string; error?: string }>
 
   // History
   getHistory: () => Promise<{ success: boolean; history?: any[]; error?: string }>

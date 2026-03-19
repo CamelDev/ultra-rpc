@@ -360,18 +360,32 @@ export function registerStorageHandlers() {
       const loadCollectionFromDir = (collDir: string, displayPath: string): SavedCollection | null => {
         const metaPath = path.join(collDir, '_meta.json')
         const dirName = path.basename(collDir)
-        let meta: any = { id: dirName, name: dirName, variables: [] }
+        
+        // The directory name is the source of truth for the collection name.
+        // The ID is the slugified directory name to ensure valid paths and consistency.
+        const name = dirName
+        const id = dirName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+        let meta: any = { variables: [] }
         if (fs.existsSync(metaPath)) {
-          try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* use defaults */ }
+          try {
+            meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+          } catch { /* use defaults */ }
         }
-        // Backfill path into meta
-        if (!meta.path) {
-          meta.path = displayPath
+
+        // Clean up or backfill meta (we no longer store name, and ID should match dir slug)
+        let changed = false
+        if (meta.name) { delete meta.name; changed = true }
+        if (meta.id !== id) { meta.id = id; changed = true }
+        if (!meta.path) { meta.path = displayPath; changed = true }
+
+        if (changed) {
           try { fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2)) } catch { /* ignore */ }
         }
+
         return {
-          id: meta.id || dirName,
-          name: meta.name || dirName,
+          id,
+          name,
           children: buildTree(collDir),
           variables: meta.variables || [],
           path: displayPath
@@ -407,43 +421,130 @@ export function registerStorageHandlers() {
           warnings.push(`Collection folder not found: ${extPath}`)
           continue
         }
-        const metaPath = path.join(extPath, '_meta.json')
-        if (!fs.existsSync(metaPath)) {
-          warnings.push(`No collection metadata (_meta.json) found at: ${extPath}`)
-          continue
-        }
         const coll = loadCollectionFromDir(extPath, extPath)
-        if (coll && !seenIds.has(coll.id)) {
-          seenIds.add(coll.id)
-          collections.push(coll)
+        if (coll) {
+          if (!seenIds.has(coll.id)) {
+            seenIds.add(coll.id)
+            collections.push(coll)
+          }
         }
       }
 
       return { success: true, collections, warnings }
     } catch (err: any) {
-      console.error('List Collections Error:', err)
       return { success: false, error: err.message }
     }
   })
 
   // Create a new collection
-  ipcMain.handle('storage:createCollection', async (_event, args: { name: string }) => {
+  ipcMain.handle('storage:createCollection', async (_event, args: { name: string, path?: string }) => {
     try {
       const root = getStorageRoot()
       const id = args.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
-      const collDir = path.join(root, id)
+      
+      let collDir: string
+      if (args.path) {
+        collDir = path.join(args.path, id)
+      } else {
+        collDir = path.join(root, id)
+      }
 
       if (fs.existsSync(collDir)) {
-        return { success: false, error: 'Collection with that name already exists' }
+        return { success: false, error: 'Collection with that name already exists in the target location' }
       }
 
       fs.mkdirSync(collDir, { recursive: true })
+      
+      const meta = { id, path: collDir }
       fs.writeFileSync(
         path.join(collDir, '_meta.json'),
-        JSON.stringify({ id, name: args.name }, null, 2)
+        JSON.stringify(meta, null, 2)
       )
 
+      // If external path, register in settings
+      if (args.path) {
+        const settingsPath = getSettingsPath()
+        let settings: any = {}
+        if (fs.existsSync(settingsPath)) {
+          try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
+        }
+        const paths: string[] = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
+        if (!paths.includes(collDir)) paths.push(collDir)
+        settings.collectionPaths = paths
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+      }
+
       return { success: true, id }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Pick a folder for collection creation or import
+  ipcMain.handle('storage:pickFolder', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Select Collection Parent Folder',
+        properties: ['openDirectory', 'createDirectory'],
+      })
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Cancelled' }
+      }
+      return { success: true, path: result.filePaths[0] }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Link an existing folder as a collection
+  ipcMain.handle('storage:linkCollection', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Select Existing Collection Folder',
+        properties: ['openDirectory'],
+      })
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Cancelled' }
+      }
+
+      const folderPath = result.filePaths[0]
+      const folderName = path.basename(folderPath)
+      const metaPath = path.join(folderPath, '_meta.json')
+
+      // Check for meta, create if missing, or update if exists
+      // Favor the folder name as the ID base for new links to avoid collisions
+      const derivedId = folderName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
+
+      if (!fs.existsSync(metaPath)) {
+        fs.writeFileSync(
+          metaPath,
+          JSON.stringify({ id: derivedId, path: folderPath }, null, 2)
+        )
+      } else {
+        // Ensure path and ID are updated in meta if it exists (ensuring uniqueness)
+        try {
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+          meta.path = folderPath
+          // If the folder name was changed manually, the ID in meta might still be old.
+          // We'll update it to match the folder name to avoid collisions if they copied/renamed.
+          meta.id = derivedId
+          delete meta.name // clean up old name property
+          fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+        } catch { /* ignore */ }
+      }
+
+      // Register in settings
+      const settingsPath = getSettingsPath()
+      let settings: any = {}
+      if (fs.existsSync(settingsPath)) {
+        try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
+      }
+      const paths: string[] = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
+      if (!paths.includes(folderPath)) paths.push(folderPath)
+      settings.collectionPaths = paths
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+
+      return { success: true, path: folderPath }
     } catch (err: any) {
       return { success: false, error: err.message }
     }
@@ -534,61 +635,76 @@ export function registerStorageHandlers() {
   ipcMain.handle('storage:renameCollection', async (_event, args: { collectionId: string; newName: string }) => {
     try {
       const root = getStorageRoot()
-      const oldDir = path.join(root, args.collectionId)
+      let oldDir = path.join(root, args.collectionId)
+      let isExternal = false
 
       if (!fs.existsSync(oldDir)) {
-        return { success: false, error: 'Collection not found' }
-      }
-
-      const trimmedName = args.newName.trim()
-      if (!trimmedName) {
-        return { success: false, error: 'Name cannot be empty' }
-      }
-
-      // Compute the new directory slug
-      const newSlug = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-      const newDir = path.join(root, newSlug)
-
-      // Check for duplicate: another dir already has this slug
-      if (newSlug !== args.collectionId && fs.existsSync(newDir)) {
-        return { success: false, error: `A collection named "${trimmedName}" already exists` }
-      }
-
-      // Also check for name collision in other collections' meta
-      const dirs = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory())
-      for (const dir of dirs) {
-        if (dir.name === args.collectionId) continue
-        const otherMeta = path.join(root, dir.name, '_meta.json')
-        if (fs.existsSync(otherMeta)) {
+        // Check external paths
+        const settingsPath = getSettingsPath()
+        let settings: any = {}
+        if (fs.existsSync(settingsPath)) {
+          try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
+        }
+        const paths: string[] = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
+        const extPath = paths.find(p => {
           try {
-            const m = JSON.parse(fs.readFileSync(otherMeta, 'utf-8'))
-            if (m.name && m.name.trim().toLowerCase() === trimmedName.toLowerCase()) {
-              return { success: false, error: `A collection named "${trimmedName}" already exists` }
-            }
-          } catch { /* skip */ }
+            const m = JSON.parse(fs.readFileSync(path.join(p, '_meta.json'), 'utf-8'))
+            return m.id === args.collectionId
+          } catch { return false }
+        })
+        if (extPath) {
+          oldDir = extPath
+          isExternal = true
+        } else {
+          return { success: false, error: 'Collection not found' }
         }
       }
 
-      // Rename directory if slug changed
-      if (newSlug !== args.collectionId) {
-        fs.renameSync(oldDir, newDir)
+      const trimmedName = args.newName.trim()
+      if (!trimmedName) return { success: false, error: 'Name cannot be empty' }
+
+      const newSlug = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      const parentDir = path.dirname(oldDir)
+      const newDir = path.join(parentDir, newSlug)
+
+      if (newSlug !== path.basename(oldDir) && fs.existsSync(newDir)) {
+        return { success: false, error: `A folder named "${newSlug}" already exists in that location` }
       }
 
-      // Update _meta.json with new id, name, and path
+      fs.renameSync(oldDir, newDir)
+
+      // Update _meta.json
       const metaPath = path.join(newDir, '_meta.json')
-      let meta: any = { id: newSlug, name: trimmedName }
+      let meta: any = { id: newSlug }
       if (fs.existsSync(metaPath)) {
         try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
       }
       meta.id = newSlug
-      meta.name = trimmedName
-      if (meta.path && !meta.externalPath) {
+      delete meta.name // Only directory name is valid for the collection name
+      if (isExternal || meta.path) {
         meta.path = newDir
       }
       fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
 
+      // Update settings.json if external
+      if (isExternal) {
+        const settingsPath = getSettingsPath()
+        let settings: any = {}
+        if (fs.existsSync(settingsPath)) {
+          try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
+        }
+        const paths = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
+        const idx = paths.indexOf(oldDir)
+        if (idx !== -1) {
+          paths[idx] = newDir
+          settings.collectionPaths = paths
+          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+        }
+      }
+
       return { success: true, newId: newSlug }
     } catch (err: any) {
+      console.error('[storage] Rename Collection Error:', err)
       return { success: false, error: err.message }
     }
   })

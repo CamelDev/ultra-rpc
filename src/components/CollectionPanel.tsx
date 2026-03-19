@@ -1,21 +1,23 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Folder,
   Plus,
   Trash2,
   Edit2,
-  Download,
   Upload,
-  FolderOpen,
-  ChevronDown,
   ChevronRight,
-  MoreHorizontal,
+  ChevronDown,
+  FolderSearch,
+  Move,
+  FolderOpen,
+  X,
   Zap,
   Save,
   Clipboard,
-  FolderSearch,
-  Move,
+  Folder,
+  MoreHorizontal,
+  Download,
+  Link,
 } from 'lucide-react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import './CollectionPanel.css'
@@ -32,6 +34,83 @@ interface Props {
   onDeleteFolder: (collectionId: string, folderName: string) => void
   onDeleteCollection: (id: string, name: string) => void
   onMoveCollection: (collectionId: string, currentPath?: string) => void
+}
+
+// ─── Create Collection Modal ────────────────────────────────────────────────
+interface CreateCollectionModalProps {
+  onClose: () => void
+  onConfirm: (name: string, path?: string) => void
+}
+
+const CreateCollectionModal: React.FC<CreateCollectionModalProps> = ({ onClose, onConfirm }) => {
+  const [name, setName] = useState('')
+  const [path, setPath] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const handleBrowse = async () => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.pickFolder()
+    if (res.success && res.path) {
+      setPath(res.path)
+    }
+  }
+
+  const handleCreate = () => {
+    if (!name.trim()) {
+      setError('Name is required')
+      return
+    }
+    onConfirm(name.trim(), path || undefined)
+  }
+
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content glass" onClick={e => e.stopPropagation()} style={{ width: '400px' }}>
+        <div className="modal-header">
+          <h3>New Collection</h3>
+          <button className="btn-ghost" onClick={onClose} style={{ padding: '4px' }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>NAME</label>
+            <input
+              autoFocus
+              className={error ? 'coll-rename-input--error' : ''}
+              placeholder="e.g. My API"
+              value={name}
+              onChange={e => { setName(e.target.value); setError(null) }}
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            />
+            {error && <div style={{ fontSize: '11px', color: 'var(--danger)', marginTop: '2px' }}>{error}</div>}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>PATH (OPTIONAL)</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                style={{ flex: 1 }}
+                placeholder="Default storage"
+                value={path}
+                readOnly
+              />
+              <button className="btn-ghost" onClick={handleBrowse} style={{ padding: '0 12px', background: 'var(--bg-tertiary)' }} title="Pick Folder">
+                <FolderOpen size={16} />
+              </button>
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              If empty, it will be saved in the default app directory.
+            </p>
+          </div>
+        </div>
+        <div className="modal-footer" style={{ padding: '16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleCreate}>Create Collection</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
 }
 
 type TreeDataItem = {
@@ -68,6 +147,44 @@ const methodColor = (m: string) => {
     case 'PATCH': return '#8b5cf6'
     default: return '#a855f7'
   }
+}
+
+// ─── Inline Rename Input ───────────────────────────────────────────────────
+interface InlineRenameInputProps {
+  initialValue: string
+  error: string | null
+  onConfirm: (val: string) => void
+  onCancel: () => void
+  onChange?: () => void
+}
+
+const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
+  initialValue, error, onConfirm, onCancel, onChange
+}) => {
+  const [val, setVal] = useState(initialValue)
+  
+  return (
+    <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+      <input
+        className={`coll-rename-input${error ? ' coll-rename-input--error' : ''}`}
+        value={val}
+        onChange={e => { setVal(e.target.value); if (onChange) onChange() }}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter') onConfirm(val)
+          if (e.key === 'Escape') onCancel()
+        }}
+        onKeyUp={e => e.stopPropagation()}
+        onKeyPress={e => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
+        autoFocus
+        style={{ width: '100%' }}
+      />
+      {error && (
+        <div className="coll-rename-error">{error}</div>
+      )}
+    </div>
+  )
 }
 
 // ─── Portal Context Menu ────────────────────────────────────────────────────
@@ -172,8 +289,7 @@ const CollectionPanel: React.FC<Props> = ({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
   const [renameError, setRenameError] = useState<string | null>(null)
-  const [showNewInput, setShowNewInput] = useState(false)
-  const [newName, setNewName] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const treeRef = React.useRef<TreeApi<TreeDataItem>>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -281,18 +397,33 @@ const CollectionPanel: React.FC<Props> = ({
     onRefresh()
   }
 
-  const createCollection = async () => {
-    if (!newName.trim()) return
+  const handleCreateCollection = async (name: string, path?: string) => {
     if (window.ultraRpc) {
-      await window.ultraRpc.createCollection({ name: newName.trim() })
-      setNewName('')
-      setShowNewInput(false)
-      onRefresh()
+      const res = await window.ultraRpc.createCollection({ name, path })
+      if (res.success) {
+        setShowCreateModal(false)
+        onRefresh()
+      } else {
+        // We could show an alert or just let the user try again
+        alert(res.error || 'Failed to create collection')
+      }
     }
   }
 
-  const handleRename = async (node: NodeApi<TreeDataItem>, dismissOnBlur = true) => {
-    if (!nameInput.trim() || !window.ultraRpc) {
+  const handleLinkCollection = async () => {
+    if (window.ultraRpc) {
+      const res = await window.ultraRpc.linkCollection()
+      if (res.success) {
+        onRefresh()
+      } else if (res.error !== 'Cancelled') {
+        alert(res.error || 'Failed to link collection')
+      }
+    }
+  }
+
+  const handleRename = async (node: NodeApi<TreeDataItem>, newValue?: string, dismissOnBlur = true) => {
+    const freshName = (newValue ?? nameInput).trim()
+    if (!freshName || !window.ultraRpc) {
       if (dismissOnBlur) { setEditingId(null); setRenameError(null) }
       return
     }
@@ -301,14 +432,14 @@ const CollectionPanel: React.FC<Props> = ({
     if (!collectionId) return
 
     if (node.data.type === 'collection') {
-      const result = await window.ultraRpc.renameCollection({ collectionId: node.data.realId, newName: nameInput.trim() })
+      const result = await window.ultraRpc.renameCollection({ collectionId: node.data.realId, newName: freshName })
       if (!result.success) {
         setRenameError(result.error || 'Rename failed')
-        return // keep editing so the user can fix the name
+        return
       }
       setRenameError(null)
     } else if (node.data.type === 'request' && node.data.request) {
-      const updatedRequest = { ...node.data.request, name: nameInput.trim() }
+      const updatedRequest = { ...node.data.request, name: freshName }
       await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as RequestConfig })
       onRenameRequest(node.data.id, updatedRequest.name)
     }
@@ -407,27 +538,13 @@ const CollectionPanel: React.FC<Props> = ({
             )}
 
             {isEditing ? (
-              <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-                <input
-                  className={`coll-rename-input${renameError ? ' coll-rename-input--error' : ''}`}
-                  value={nameInput}
-                  onChange={e => { setNameInput(e.target.value); setRenameError(null) }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleRename(node)
-                    if (e.key === 'Escape') { setEditingId(null); setRenameError(null) }
-                  }}
-                  onBlur={() => {
-                    if (renameError) { setEditingId(null); setRenameError(null) }
-                    else handleRename(node)
-                  }}
-                  onClick={e => e.stopPropagation()}
-                  autoFocus
-                  style={{ width: '100%' }}
-                />
-                {renameError && (
-                  <div className="coll-rename-error">{renameError}</div>
-                )}
-              </div>
+              <InlineRenameInput
+                initialValue={nameInput}
+                error={renameError}
+                onConfirm={(val) => handleRename(node, val)}
+                onCancel={() => { setEditingId(null); setRenameError(null) }}
+                onChange={() => setRenameError(null)}
+              />
             ) : (
               <span className="tree-node-name">
                 {isRequest && request ? (request.name || request.url || 'Untitled') : node.data.name}
@@ -464,7 +581,7 @@ const CollectionPanel: React.FC<Props> = ({
       )
     }
   }, [
-    editingId, nameInput,
+    editingId,
     onOpenRequest, onSaveToCollection, onEditVariables,
     onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename
   ])
@@ -476,8 +593,11 @@ const CollectionPanel: React.FC<Props> = ({
           <Folder size={14} /> Collections
         </span>
         <div className="coll-header-actions">
-          <button className="btn-ghost coll-btn" onClick={() => setShowNewInput(!showNewInput)} title="New collection">
-            <Plus size={14} />
+          <button className="btn-ghost" onClick={() => setShowCreateModal(true)} title="New Collection">
+            <Plus size={16} />
+          </button>
+          <button className="btn-ghost" onClick={handleLinkCollection} title="Link existing folder">
+            <Link size={14} />
           </button>
           <button className="btn-ghost coll-btn" onClick={importCollection} title="Import collection">
             <Upload size={14} />
@@ -488,22 +608,14 @@ const CollectionPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {showNewInput && (
-        <div className="coll-new-input">
-          <input
-            placeholder="Collection name..."
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && createCollection()}
-            autoFocus
-          />
-          <button className="btn-primary coll-create-btn" onClick={createCollection}>
-            <Plus size={12} />
-          </button>
-        </div>
+      {showCreateModal && (
+        <CreateCollectionModal
+          onClose={() => setShowCreateModal(false)}
+          onConfirm={handleCreateCollection}
+        />
       )}
 
-      {collections.length === 0 && !showNewInput && (
+      {collections.length === 0 && !showCreateModal && (
         <div className="coll-empty">
           No collections yet
         </div>
@@ -520,6 +632,7 @@ const CollectionPanel: React.FC<Props> = ({
           height={treeHeight}
           disableDrop={(args: any) => args.parentNode?.data?.type === 'request'}
           disableDrag={(node: any) => node.data?.type === 'collection'}
+          openByDefault={false}
         >
           {NodeRenderer}
         </Tree>
