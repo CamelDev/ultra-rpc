@@ -189,6 +189,25 @@ npm run package:linux
 
 ---
 
+## 🛡️ Running Unsigned Applications
+
+Since UltraRPC is not yet code-signed with Apple or Microsoft developer certificates, your OS may block it by default. Here is how to run it anyway:
+
+### 🍎 macOS ("Open Anyway")
+When you first open the `.dmg` and drag the app to your folder, you might see a warning that Apple cannot check it for malicious software.
+1. Right-click (or Control-click) the **UltraRPC.app** in your Applications folder and select **Open**.
+2. A dialog will appear. Click **Open** again.
+3. If that doesn't work, go to **System Settings > Privacy & Security**. 
+4. Scroll down to the "Security" section and click **Open Anyway** next to the UltraRPC warning.
+
+### 🪟 Windows ("Run Anyway")
+When you run the installer, Windows SmartScreen may show a "Windows protected your PC" blue window.
+1. Click the **More info** link under the main text.
+2. A new button **Run anyway** will appear. Click it to proceed with the installation.
+
+
+---
+
 ## 📂 Project Structure
 
 ```

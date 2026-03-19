@@ -71,8 +71,7 @@ const App: React.FC = () => {
     return '1'
   })
 
-  const [editingTabId, setEditingTabId] = useState<string | null>(null)
-  const [tabNameInput, setTabNameInput] = useState('')
+
 
   // ===== Per-tab response state =====
   const [responses, setResponses] = useState<Record<string, ResponseData | null>>({})
@@ -1245,40 +1244,13 @@ const App: React.FC = () => {
                   {tab.request.type === 'GRPC' ? 'gRPC' : tab.request.method}
                 </span>
                 
-                {editingTabId === tab.id ? (
-                  <input
-                    className="tab-title-input"
-                    value={tabNameInput}
-                    onChange={(e) => setTabNameInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, request: { ...t.request, name: tabNameInput } } : t))
-                        setEditingTabId(null)
-                      }
-                    }}
-                    onBlur={() => {
-                      setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, request: { ...t.request, name: tabNameInput } } : t))
-                      setEditingTabId(null)
-                    }}
-                    autoFocus
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', minWidth: '80px', flex: 1 }}
-                  />
-                ) : (
-                  <span 
-                    className="tab-title" 
-                    onDoubleClick={(e) => {
-                      e.stopPropagation()
-                      setEditingTabId(tab.id)
-                      setTabNameInput(tab.request.name || tab.request.url || '')
-                    }}
-                    title="Double-click to rename"
-                    style={{ color: tab.isDirty ? 'var(--danger)' : 'var(--text-primary)' }}
-                  >
-                    {tab.request.name || tab.request.url || 'Untitled'}
-                    {tab.isDirty ? '*' : ''}
-                  </span>
-                )}
+                <span 
+                  className="tab-title" 
+                  style={{ color: tab.isDirty ? 'var(--danger)' : 'var(--text-primary)' }}
+                >
+                  {tab.request.name || tab.request.url || 'Untitled'}
+                  {tab.isDirty ? '*' : ''}
+                </span>
                 
                 <button className="tab-close" onClick={(e) => removeTab(e, tab.id)}>
                   <X size={12} />
