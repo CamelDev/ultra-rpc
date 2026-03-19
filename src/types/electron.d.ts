@@ -1,3 +1,5 @@
+import { RequestType } from './index'
+
 // Type declarations for the ultraRpc API exposed via preload
 export interface UltraRpcApi {
   // REST
@@ -9,7 +11,7 @@ export interface UltraRpcApi {
     insecure?: boolean
   }) => Promise<{
     success: boolean
-    data?: { status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
+    data?: { type: RequestType; status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
     error?: string
     time?: number
   }>
@@ -23,7 +25,7 @@ export interface UltraRpcApi {
   }>
   grpcCall: (args: { host: string; insecure: boolean; headers: Record<string, string>; service: string; method: string; payload: string; protoPath?: string; timeoutMs?: number }) => Promise<{
     success: boolean
-    data?: { status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
+    data?: { type: RequestType; status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
     error?: string; code?: number; time?: number
   }>
 

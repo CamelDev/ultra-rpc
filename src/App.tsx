@@ -984,7 +984,7 @@ const App: React.FC = () => {
           const respHeaders: Record<string, string> = {}
           resp.headers.forEach((v, k) => { respHeaders[k] = v })
           statusCode = resp.status
-          const respData = { status: resp.status, statusText: resp.statusText, headers: respHeaders, body, time, size: new Blob([body]).size }
+          const respData = { type: 'REST' as const, status: resp.status, statusText: resp.statusText, headers: respHeaders, body, time, size: new Blob([body]).size }
           setResponses(prev => ({
             ...prev,
             [activeTabId]: respData,
