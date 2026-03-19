@@ -372,6 +372,28 @@ const App: React.FC = () => {
     }
   }
 
+  const handleCloneCollection = async (collectionId: string) => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.cloneCollection({ collectionId })
+    if (res.success) {
+      addToast({ type: 'success', message: 'Collection cloned successfully' })
+      loadCollections()
+    } else {
+      addToast({ type: 'error', message: res.error || 'Failed to clone collection' })
+    }
+  }
+
+  const handleCloneRequest = async (collectionId: string, requestId: string) => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.cloneRequest({ collectionId, requestId })
+    if (res.success) {
+      addToast({ type: 'success', message: 'Request cloned successfully' })
+      loadCollections()
+    } else {
+      addToast({ type: 'error', message: res.error || 'Failed to clone request' })
+    }
+  }
+
   const loadHistory = async () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.getHistory()
@@ -521,15 +543,18 @@ const App: React.FC = () => {
   // ===== Save current request to collection =====
   const saveToCollection = async (collectionId: string) => {
     if (!activeRequest || !window.ultraRpc) return
-    await window.ultraRpc.saveRequest({ collectionId, request: activeRequest })
+    const res = await window.ultraRpc.saveRequest({ collectionId, request: activeRequest })
     
-    // Clear dirty flag on active tab and remember the collection
-    setTabs(prev => prev.map(t => 
-      t.id === activeTabId ? { ...t, isDirty: false, owningCollectionId: collectionId } : t
-    ))
-
-    loadCollections()
-    setShowSaveMenu(false)
+    if (res.success) {
+      // Clear dirty flag on active tab and remember the collection
+      setTabs(prev => prev.map(t => 
+        t.id === activeTabId ? { ...t, isDirty: false, owningCollectionId: collectionId } : t
+      ))
+      loadCollections()
+      setShowSaveMenu(false)
+    } else {
+      addToast({ type: 'error', message: res.error || 'Failed to save request' })
+    }
   }
 
   const handleSaveActiveRequest = async () => {
@@ -576,21 +601,32 @@ const App: React.FC = () => {
     
     if (dirtyTabsWithCollection.length === 0) return
 
+    const savedIds: string[] = []
+
     for (const item of dirtyTabsWithCollection) {
-      await window.ultraRpc.saveRequest({ collectionId: item.collectionId, request: item.tab.request })
+      const res = await window.ultraRpc.saveRequest({ collectionId: item.collectionId, request: item.tab.request })
+      if (res.success) {
+        savedIds.push(item.tab.id)
+      } else {
+        addToast({ type: 'error', message: `Failed to save ${item.tab.request.name || 'Untitled'}: ${res.error}` })
+      }
     }
 
-    // Clear dirty flags for saved tabs
-    setTabs(prev => prev.map(t => {
-      const savedItem = dirtyTabsWithCollection.find(st => st.tab.id === t.id)
-      if (savedItem) {
-        return { ...t, isDirty: false, owningCollectionId: savedItem.collectionId }
-      }
-      return t
-    }))
+    // Clear dirty flags for successfully saved tabs
+    if (savedIds.length > 0) {
+      setTabs(prev => prev.map(t => {
+        const savedItem = dirtyTabsWithCollection.find(st => st.tab.id === t.id && savedIds.includes(t.id))
+        if (savedItem) {
+          return { ...t, isDirty: false, owningCollectionId: savedItem.collectionId }
+        }
+        return t
+      }))
+      loadCollections()
+    }
 
-    loadCollections()
-    addToast({ type: 'success', message: `Saved ${dirtyTabsWithCollection.length} request(s)` })
+    if (savedIds.length > 0) {
+      addToast({ type: 'success', message: `Saved ${savedIds.length} request(s)` })
+    }
   }, [tabs, findCollectionByRequestId, loadCollections])
 
   // Keyboard Shortcuts
@@ -1173,6 +1209,8 @@ const App: React.FC = () => {
             onDeleteFolder={(collId, folderName) => setConfirmDelete({ type: 'folder', id: folderName, name: folderName, collectionId: collId })}
             onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
             onMoveCollection={handleMoveCollection}
+            onCloneCollection={handleCloneCollection}
+            onCloneRequest={handleCloneRequest}
           />
         </nav>
 
@@ -1915,18 +1953,44 @@ const App: React.FC = () => {
                 style={{ background: 'var(--danger)', borderColor: 'var(--danger)', padding: '8px 24px' }}
                 onClick={async () => {
                   const rpc = window.ultraRpc
+                  let tabsToClose: string[] = []
+
                   if (confirmDelete.type === 'collection' && rpc) {
                     await rpc.deleteCollection({ collectionId: confirmDelete.id })
+                    tabsToClose = tabs.filter(t => t.owningCollectionId === confirmDelete.id).map(t => t.id)
                   } else if (confirmDelete.type === 'request' && confirmDelete.collectionId && rpc) {
                     await rpc.deleteRequest({ collectionId: confirmDelete.collectionId, requestId: confirmDelete.id })
+                    tabsToClose = [confirmDelete.id]
                   } else if (confirmDelete.type === 'folder' && confirmDelete.collectionId && rpc) {
                     await rpc.deleteFolder({ collectionId: confirmDelete.collectionId, folderPath: confirmDelete.name })
+                    // Recursively finding all requests in a folder is hard here, 
+                    // but we can at least close the ones that have this folder in their path if we had it.
+                    // For now, let's just refresh and see.
+                    // Actually, let's at least close requests whose owningCollectionId matches.
+                    // But we don't have folder info in tabs easily.
                   } else if (confirmDelete.type === 'environment') {
                     const newEnvs = environments.filter(e => e.id !== confirmDelete.id)
                     setEnvironments(newEnvs)
                     if (rpc) await rpc.saveEnvironments(newEnvs)
                     if (activeEnvId === confirmDelete.id) setActiveEnvId(null)
                   }
+
+                  if (tabsToClose.length > 0) {
+                    setTabs(prev => {
+                      const remaining = prev.filter(t => !tabsToClose.includes(t.id))
+                      if (remaining.length === 0) {
+                        const newReq = createEmptyRequest()
+                        const newTab = { id: newReq.id, request: newReq }
+                        setActiveTabId(newTab.id)
+                        return [newTab]
+                      }
+                      if (tabsToClose.includes(activeTabId)) {
+                        setActiveTabId(remaining[0].id)
+                      }
+                      return remaining
+                    })
+                  }
+
                   setConfirmDelete(null)
                   if (rpc) loadCollections()
                 }}

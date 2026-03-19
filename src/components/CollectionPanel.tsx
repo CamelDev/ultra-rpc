@@ -12,6 +12,7 @@ import {
   FolderOpen,
   X,
   Zap,
+  Copy,
   Clipboard,
   Folder,
   MoreHorizontal,
@@ -28,11 +29,13 @@ interface Props {
   onRefresh: () => void
   onOpenRequest: (request: RequestConfig) => void
   onRenameRequest: (reqId: string, newName: string) => void
+  onCloneRequest: (collectionId: string, requestId: string) => void
   onEditVariables: (collection: Collection) => void
   onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
   onDeleteFolder: (collectionId: string, folderName: string) => void
   onDeleteCollection: (id: string, name: string) => void
   onMoveCollection: (collectionId: string, currentPath?: string) => void
+  onCloneCollection: (id: string) => void
 }
 
 // ─── Create Collection Modal ────────────────────────────────────────────────
@@ -196,13 +199,14 @@ interface CollContextMenuProps {
   onCopyPath: (node: TreeDataItem) => void
   onShowInFolder: (realId: string) => void
   onMove: (id: string, path?: string) => void
+  onClone: (id: string) => void
   onDelete: (id: string, name: string) => void
 }
 
 const CollContextMenu: React.FC<CollContextMenuProps> = ({
   menu, onClose,
   onRename, onEditVariables, onExport,
-  onCopyPath, onShowInFolder, onMove, onDelete,
+  onCopyPath, onShowInFolder, onMove, onClone, onDelete,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -245,6 +249,9 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
         <button onClick={() => { onExport(menu.node.id); onClose() }}>
           <Download size={12} /> Export
         </button>
+        <button onClick={() => { onClone(menu.node.id); onClose() }}>
+          <Copy size={12} /> Clone
+        </button>
         <div className="coll-context-divider" />
         <button onClick={() => { onCopyPath(menu.node); onClose() }}>
           <Clipboard size={12} /> Copy path
@@ -274,11 +281,13 @@ const CollectionPanel: React.FC<Props> = ({
   onRefresh,
   onOpenRequest,
   onRenameRequest,
+  onCloneRequest,
   onEditVariables,
   onDeleteRequest,
   onDeleteFolder,
   onDeleteCollection,
   onMoveCollection,
+  onCloneCollection,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -352,7 +361,7 @@ const CollectionPanel: React.FC<Props> = ({
   const getCollectionIdOfNode = (node: NodeApi<TreeDataItem> | null): string | null => {
     let current: NodeApi<TreeDataItem> | null = node
     while (current) {
-      if (current.data.type === 'collection') return current.data.id
+      if (current.data.type === 'collection') return current.data.realId
       current = current.parent
     }
     return null
@@ -369,22 +378,41 @@ const CollectionPanel: React.FC<Props> = ({
       if (!draggedNode) continue
       const realItemId = draggedNode.data.realId
 
-      let collectionId: string | null = null
+      // 1. Find source collection ID
+      let sourceCollectionId: string | null = null
       for (const coll of treeData) {
         if (coll.realId === realItemId) continue
         if (findCollectionIdForId(realItemId, coll.children || [], coll.realId)) {
-          collectionId = coll.realId
+          sourceCollectionId = coll.realId
           break
         }
       }
 
-      if (collectionId) {
+      // 2. Find target collection ID
+      let targetCollectionId: string | null = null
+      if (targetParentRealId) {
+        // If parent is a collection root
+        if (collections.some(c => c.id === targetParentRealId)) {
+          targetCollectionId = targetParentRealId
+        } else {
+          // If parent is a subfolder, find its collection
+          for (const coll of treeData) {
+            if (findCollectionIdForId(targetParentRealId, coll.children || [], coll.realId)) {
+              targetCollectionId = coll.realId
+              break
+            }
+          }
+        }
+      }
+
+      if (sourceCollectionId && targetCollectionId) {
         const isTargetRoot = collections.some(c => c.id === targetParentRealId)
         const targetParentIdForBackend = isTargetRoot ? null : targetParentRealId
 
         await window.ultraRpc.moveItem({
-          collectionId,
+          collectionId: sourceCollectionId,
           itemId: realItemId,
+          targetCollectionId,
           targetParentId: targetParentIdForBackend,
           newIndex: index
         })
@@ -437,7 +465,7 @@ const CollectionPanel: React.FC<Props> = ({
     } else if (node.data.type === 'request' && node.data.request) {
       const updatedRequest = { ...node.data.request, name: freshName }
       await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as RequestConfig })
-      onRenameRequest(node.data.id, updatedRequest.name)
+      onRenameRequest(node.data.realId, updatedRequest.name)
     }
 
     setEditingId(null)
@@ -488,9 +516,9 @@ const CollectionPanel: React.FC<Props> = ({
         if (!collectionId) return
 
         if (isFolder) {
-          onDeleteFolder(collectionId, node.data.name)
+          onDeleteFolder(collectionId, node.data.realId)
         } else if (isRequest && request) {
-          onDeleteRequest(collectionId, node.data.id, request.name || 'Untitled')
+          onDeleteRequest(collectionId, node.data.realId, request.name || 'Untitled')
         }
       }
 
@@ -574,6 +602,18 @@ const CollectionPanel: React.FC<Props> = ({
                   >
                     <Edit2 size={11} />
                   </button>
+                  <button
+                    className="coll-req-btn"
+                    data-tooltip="Clone"
+                    data-tooltip-pos="top"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const collId = getCollectionIdOfNode(node);
+                      if (collId) onCloneRequest(collId, node.data.realId);
+                    }}
+                  >
+                    <Copy size={11} />
+                  </button>
                   <button className="coll-req-btn danger" data-tooltip="Delete" data-tooltip-pos="top" onClick={handleDelete}>
                     <Trash2 size={11} />
                   </button>
@@ -656,6 +696,7 @@ const CollectionPanel: React.FC<Props> = ({
           onCopyPath={handleMenuCopyPath}
           onShowInFolder={handleMenuShowInFolder}
           onMove={onMoveCollection}
+          onClone={onCloneCollection}
           onDelete={onDeleteCollection}
         />
       )}

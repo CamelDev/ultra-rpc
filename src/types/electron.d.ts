@@ -36,8 +36,10 @@ export interface UltraRpcApi {
   deleteFolder: (args: { collectionId: string; folderPath: string }) => Promise<{ success: boolean; error?: string }>
   deleteCollection: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
   renameCollection: (args: { collectionId: string; newName: string }) => Promise<{ success: boolean; newId?: string; error?: string }>
+  cloneCollection: (args: { collectionId: string }) => Promise<{ success: boolean; id?: string; error?: string }>
+  cloneRequest: (args: { collectionId: string; requestId: string }) => Promise<{ success: boolean; id?: string; error?: string }>
   reorderRequests: (args: { collectionId: string; order: string[] }) => Promise<{ success: boolean; error?: string }>
-  moveItem: (args: { collectionId: string; itemId: string; targetParentId: string | null; newIndex: number }) => Promise<{ success: boolean; error?: string }>
+  moveItem: (args: { collectionId: string; itemId: string; targetCollectionId?: string; targetParentId: string | null; newIndex: number }) => Promise<{ success: boolean; error?: string }>
   exportCollection: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   importCollection: () => Promise<{ success: boolean; id?: string; name?: string; requestCount?: number; error?: string }>
   openFolder: () => Promise<{ success: boolean; id?: string; name?: string; requestCount?: number; path?: string; error?: string }>

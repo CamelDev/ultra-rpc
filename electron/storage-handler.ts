@@ -73,7 +73,7 @@ interface CollectionItem {
   children?: CollectionItem[]
 }
 
-const validateRequest = (req: any): SavedRequest | null => {
+const validateRequest = (req: any, idOverride?: string): SavedRequest | null => {
   if (!req || typeof req !== 'object') return null
 
   // Basic heuristic: a request should have at least a URL or a name + method
@@ -82,7 +82,7 @@ const validateRequest = (req: any): SavedRequest | null => {
   if (!req.method && req.type !== 'GRPC') return null
 
   return {
-    id: req.id || Math.random().toString(36).substring(2, 11),
+    id: idOverride || req.id || Math.random().toString(36).substring(2, 11),
     name: req.name || req.url || 'Untitled Request',
     type: req.type || 'REST',
     method: req.method || 'GET',
@@ -103,7 +103,11 @@ const validateRequest = (req: any): SavedRequest | null => {
 
 const findRequestByIdRecursively = (dir: string, requestId: string): string | null => {
   const filename = `${requestId}.json`
-  return findFileRecursively(dir, filename)
+  console.log(`[storage] findRequestByIdRecursively: searching for ${filename} in ${dir}`)
+  const found = findFileRecursively(dir, filename)
+  if (found) console.log(`[storage] Found request at: ${found}`)
+  else console.warn(`[storage] Request NOT found: ${filename} in ${dir}`)
+  return found
 }
 
 const findFolderByIdRecursively = (dir: string, folderId: string): string | null => {
@@ -125,7 +129,7 @@ const findFolderByIdRecursively = (dir: string, folderId: string): string | null
   return null
 }
 
-const updateOrderMeta = (dirPath: string, itemId: string, action: 'add' | 'remove', index?: number) => {
+const updateOrderMeta = (dirPath: string, itemId: string, action: 'add' | 'remove' | 'add-after', index?: number, refId?: string) => {
   const metaPath = path.join(dirPath, '_meta.json')
   let meta: any = { id: path.basename(dirPath), name: path.basename(dirPath), requestOrder: [] }
   if (fs.existsSync(metaPath)) {
@@ -144,8 +148,51 @@ const updateOrderMeta = (dirPath: string, itemId: string, action: 'add' | 'remov
     } else {
       meta.requestOrder.push(itemId)
     }
+  } else if (action === 'add-after' && refId) {
+    const idx = meta.requestOrder.indexOf(refId)
+    if (idx !== -1) {
+      meta.requestOrder.splice(idx + 1, 0, itemId)
+    } else {
+      meta.requestOrder.push(itemId)
+    }
   }
   fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+}
+
+const getCollectionDir = (collectionId: string): string | null => {
+  console.log('[storage] Resolving collection dir for:', collectionId)
+  const root = getStorageRoot()
+  const defaultDir = path.join(root, collectionId)
+  if (fs.existsSync(defaultDir)) {
+    console.log('[storage] Found in default root:', defaultDir)
+    return defaultDir
+  }
+
+  // Check external paths
+  const settingsPath = getSettingsPath()
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+      const paths: string[] = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
+      console.log('[storage] Checking external paths:', paths)
+      const extPath = paths.find(p => {
+        if (!fs.existsSync(p)) return false
+        try {
+          const m = JSON.parse(fs.readFileSync(path.join(p, '_meta.json'), 'utf-8'))
+          return m.id === collectionId
+        } catch { return false }
+      })
+      if (extPath) {
+        console.log('[storage] Found in external path:', extPath)
+        return extPath
+      }
+    } catch (e) {
+      console.error('[storage] Error reading settings:', e)
+    }
+  }
+
+  console.warn('[storage] Collection NOT found for ID:', collectionId)
+  return null
 }
 
 /**
@@ -238,7 +285,7 @@ const extractRequests = (data: any): CollectionItem[] => {
             }
           }
 
-          const validated = validateRequest(mapped)
+          const validated = validateRequest(mapped, requestId)
           if (validated) {
             results.push({
               id: validated.id,
@@ -261,7 +308,7 @@ const extractRequests = (data: any): CollectionItem[] => {
       // Legacy flat requests
       const rawReqs = data.collection.requests || []
       for (const r of rawReqs) {
-        const validated = validateRequest(r)
+        const validated = validateRequest(r, r.id)
         if (validated) {
           children.push({
             id: validated.id,
@@ -336,8 +383,17 @@ export function registerStorageHandlers() {
           } else if (entry.name.endsWith('.json')) {
             try {
               const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
-              const validated = validateRequest(content)
-              if (validated) childrenList.push({ id: validated.id, name: validated.name, type: 'request', request: validated })
+              const idFromDisk = path.basename(entry.name, '.json')
+              const validated = validateRequest(content, idFromDisk)
+              if (validated) {
+                // Ensure internal ID matches filename
+                if (validated.id !== idFromDisk) {
+                  validated.id = idFromDisk
+                  // We don't necessarily need to write it back immediately, 
+                  // but the UI must use the filename-based ID.
+                }
+                childrenList.push({ id: validated.id, name: validated.name, type: 'request', request: validated })
+              }
             } catch { /* skip corrupt */ }
           }
         }
@@ -553,11 +609,9 @@ export function registerStorageHandlers() {
   // Save a request to a collection
   ipcMain.handle('storage:saveRequest', async (_event, args: { collectionId: string; request: SavedRequest }) => {
     try {
-      const root = getStorageRoot()
-      const collDir = path.join(root, args.collectionId)
-
-      if (!fs.existsSync(collDir)) {
-        return { success: false, error: 'Collection not found' }
+      const collDir = getCollectionDir(args.collectionId)
+      if (!collDir) {
+        return { success: false, error: 'Collection not found: ' + args.collectionId }
       }
 
       const filename = `${args.request.id}.json`
@@ -581,10 +635,8 @@ export function registerStorageHandlers() {
   // Delete a request from a collection
   ipcMain.handle('storage:deleteRequest', async (_event, args: { collectionId: string; requestId: string }) => {
     try {
-      const root = getStorageRoot()
-      const collDir = path.join(root, args.collectionId)
-
-      if (!fs.existsSync(collDir)) {
+      const collDir = getCollectionDir(args.collectionId)
+      if (!collDir) {
         return { success: false, error: 'Collection not found' }
       }
 
@@ -604,10 +656,24 @@ export function registerStorageHandlers() {
   // Delete a collection
   ipcMain.handle('storage:deleteCollection', async (_event, args: { collectionId: string }) => {
     try {
-      const root = getStorageRoot()
-      const collDir = path.join(root, args.collectionId)
-      if (fs.existsSync(collDir)) {
+      const collDir = getCollectionDir(args.collectionId)
+      if (collDir && fs.existsSync(collDir)) {
         fs.rmSync(collDir, { recursive: true, force: true })
+        
+        // If it was an external path, remove from settings
+        const root = getStorageRoot()
+        if (!collDir.startsWith(root)) {
+           const settingsPath = getSettingsPath()
+           if (fs.existsSync(settingsPath)) {
+              try {
+                const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+                if (Array.isArray(settings.collectionPaths)) {
+                  settings.collectionPaths = settings.collectionPaths.filter((p: string) => p !== collDir)
+                  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+                }
+              } catch { /* skip */ }
+           }
+        }
       }
       return { success: true }
     } catch (err: any) {
@@ -618,10 +684,10 @@ export function registerStorageHandlers() {
   // Delete a folder within a collection
   ipcMain.handle('storage:deleteFolder', async (_event, args: { collectionId: string; folderPath: string }) => {
     try {
-      const root = getStorageRoot()
-      // Note: folderPath is the relative path from the collection root
-      const fullPath = path.join(root, args.collectionId, args.folderPath)
-
+      const collDir = getCollectionDir(args.collectionId)
+      if (!collDir) return { success: false, error: 'Collection not found' }
+      
+      const fullPath = path.join(collDir, args.folderPath)
       if (fs.existsSync(fullPath)) {
         fs.rmSync(fullPath, { recursive: true, force: true })
       }
@@ -634,31 +700,15 @@ export function registerStorageHandlers() {
   // Rename a collection — renames dir to match new name slug, checks for duplicates
   ipcMain.handle('storage:renameCollection', async (_event, args: { collectionId: string; newName: string }) => {
     try {
-      const root = getStorageRoot()
-      let oldDir = path.join(root, args.collectionId)
+      let oldDir = getCollectionDir(args.collectionId)
       let isExternal = false
 
-      if (!fs.existsSync(oldDir)) {
-        // Check external paths
-        const settingsPath = getSettingsPath()
-        let settings: any = {}
-        if (fs.existsSync(settingsPath)) {
-          try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
-        }
-        const paths: string[] = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
-        const extPath = paths.find(p => {
-          try {
-            const m = JSON.parse(fs.readFileSync(path.join(p, '_meta.json'), 'utf-8'))
-            return m.id === args.collectionId
-          } catch { return false }
-        })
-        if (extPath) {
-          oldDir = extPath
-          isExternal = true
-        } else {
-          return { success: false, error: 'Collection not found' }
-        }
+      if (!oldDir) {
+        return { success: false, error: 'Collection not found' }
       }
+      
+      const root = getStorageRoot()
+      isExternal = !oldDir.startsWith(root)
 
       const trimmedName = args.newName.trim()
       if (!trimmedName) return { success: false, error: 'Name cannot be empty' }
@@ -709,12 +759,74 @@ export function registerStorageHandlers() {
     }
   })
 
+  // Clone a collection
+  ipcMain.handle('storage:cloneCollection', async (_event, args: { collectionId: string }) => {
+    try {
+      const srcDir = getCollectionDir(args.collectionId)
+      if (!srcDir) return { success: false, error: 'Source collection not found' }
+
+      const parentDir = path.dirname(srcDir)
+      const baseName = path.basename(srcDir)
+      
+      let newName = `${baseName} Copy`
+      let newSlug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      let destDir = path.join(parentDir, newSlug)
+      
+      let counter = 1
+      while (fs.existsSync(destDir)) {
+        newName = `${baseName} Copy ${counter}`
+        newSlug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+        destDir = path.join(parentDir, newSlug)
+        counter++
+      }
+
+      // Copy directory recursively
+      fs.cpSync(srcDir, destDir, { recursive: true })
+
+      // Update ID in the new _meta.json
+      const metaPath = path.join(destDir, '_meta.json')
+      let meta: any = { id: newSlug }
+      if (fs.existsSync(metaPath)) {
+        try {
+          meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+          meta.id = newSlug
+          delete meta.name // Slug is source of truth
+          if (meta.path) meta.path = destDir
+          fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+        } catch { /* ignore */ }
+      }
+
+      // If external, register new path in settings
+      const root = getStorageRoot()
+      if (!destDir.startsWith(root)) {
+        const settingsPath = getSettingsPath()
+        let settings: any = {}
+        if (fs.existsSync(settingsPath)) {
+          try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
+        }
+        const paths: string[] = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
+        if (!paths.includes(destDir)) {
+          paths.push(destDir)
+          settings.collectionPaths = paths
+          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+        }
+      }
+
+      return { success: true, id: newSlug }
+    } catch (err: any) {
+      console.error('[storage] Clone Collection Error:', err)
+      return { success: false, error: err.message }
+    }
+  })
+
   // Save collection variables
   ipcMain.handle('storage:saveCollectionVariables', async (_event, args: { collectionId: string; variables: any[] }) => {
     try {
-      const root = getStorageRoot()
-      const metaPath = path.join(root, args.collectionId, '_meta.json')
-      let meta: any = { id: args.collectionId, name: args.collectionId, variables: [] }
+      const collDir = getCollectionDir(args.collectionId)
+      if (!collDir) return { success: false, error: 'Collection not found' }
+
+      const metaPath = path.join(collDir, '_meta.json')
+      let meta: any = { id: args.collectionId, variables: [] }
       if (fs.existsSync(metaPath)) {
         try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
       }
@@ -727,52 +839,123 @@ export function registerStorageHandlers() {
   })
 
   // Move an item (request or folder) to a new location
-  ipcMain.handle('storage:moveItem', async (_event, args: { collectionId: string; itemId: string; targetParentId: string | null; newIndex: number }) => {
+  ipcMain.handle('storage:moveItem', async (_event, args: { collectionId: string; itemId: string; targetCollectionId?: string; targetParentId: string | null; newIndex: number }) => {
     try {
-      const root = getStorageRoot()
-      const collDir = path.join(root, args.collectionId)
+      const srcCollDir = getCollectionDir(args.collectionId)
+      if (!srcCollDir) return { success: false, error: 'Source collection not found' }
 
-      if (!fs.existsSync(collDir)) return { success: false, error: 'Collection not found' }
+      const targetCollectionId = args.targetCollectionId || args.collectionId
+      const targetCollDir = getCollectionDir(targetCollectionId)
+      if (!targetCollDir) return { success: false, error: 'Target collection not found' }
 
-      // 1. Find the item (request or folder)
-      let sourcePath = findRequestByIdRecursively(collDir, args.itemId)
+      // 1. Find the item (request or folder) in source collection
+      let sourcePath = findRequestByIdRecursively(srcCollDir, args.itemId)
       let isRequest = true
       if (!sourcePath) {
-        sourcePath = findFolderByIdRecursively(collDir, args.itemId)
+        sourcePath = findFolderByIdRecursively(srcCollDir, args.itemId)
         isRequest = false
       }
 
       if (!sourcePath) return { success: false, error: 'Item not found' }
 
-      // 2. Find the target parent
-      let targetParentPath = collDir
+      // 2. Find the target parent in target collection
+      let targetParentPath = targetCollDir
       if (args.targetParentId) {
-        const foundPath = findFolderByIdRecursively(collDir, args.targetParentId)
-        if (!foundPath) return { success: false, error: 'Target parent not found' }
-        targetParentPath = foundPath
+        // targetParentId could be a folder ID or the collection ID itself
+        if (args.targetParentId === targetCollectionId) {
+          targetParentPath = targetCollDir
+        } else {
+          const foundPath = findFolderByIdRecursively(targetCollDir, args.targetParentId)
+          if (!foundPath) return { success: false, error: 'Target parent not found' }
+          targetParentPath = foundPath
+        }
       }
 
       // 3. Determine new path
-      const itemName = path.basename(sourcePath)
-      const newPath = path.join(targetParentPath, itemName)
+      let itemName = path.basename(sourcePath)
+      let newPath = path.join(targetParentPath, itemName)
+
+      // Handle collision in target
+      if (sourcePath !== newPath && fs.existsSync(newPath)) {
+        const ext = isRequest ? '.json' : ''
+        const base = isRequest ? path.basename(itemName, '.json') : itemName
+        let counter = 1
+        while (fs.existsSync(newPath)) {
+          itemName = `${base}-${counter}${ext}`
+          newPath = path.join(targetParentPath, itemName)
+          counter++
+        }
+      }
 
       const sourceParentPath = path.dirname(sourcePath)
 
-      // 4. Move the file/folder if necessary
+      // 4. Move the file/folder
       if (sourcePath !== newPath) {
-        if (fs.existsSync(newPath)) {
-          return { success: false, error: 'An item with that name already exists in target' }
-        }
         fs.renameSync(sourcePath, newPath)
+        
+        // If it's a request, we might need to update its internal ID if it's a slug,
+        // but currently we use the base filename as ID in many places.
+        // Let's check if the ID needs update.
+        if (isRequest) {
+          try {
+            const data = JSON.parse(fs.readFileSync(newPath, 'utf-8'))
+            const newId = path.basename(newPath, '.json')
+            if (data.id !== newId) {
+              data.id = newId
+              fs.writeFileSync(newPath, JSON.stringify(data, null, 2))
+            }
+          } catch { /* skip */ }
+        }
       }
 
       // 5. Update ordering in source parent and target parent
       updateOrderMeta(sourceParentPath, args.itemId, 'remove')
-      updateOrderMeta(targetParentPath, args.itemId, 'add', args.newIndex)
+      const finalItemId = isRequest ? path.basename(newPath, '.json') : path.basename(newPath)
+      updateOrderMeta(targetParentPath, finalItemId, 'add', args.newIndex)
 
       return { success: true }
     } catch (err: any) {
       console.error('Move Item Error:', err)
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Clone a request
+  ipcMain.handle('storage:cloneRequest', async (_event, args: { collectionId: string; requestId: string }) => {
+    console.log('[storage] Clone Request:', args)
+    try {
+      const collDir = getCollectionDir(args.collectionId)
+      if (!collDir) return { success: false, error: 'Collection not found' }
+
+      const sourcePath = findRequestByIdRecursively(collDir, args.requestId)
+      console.log('[storage] Source path found:', sourcePath)
+      if (!sourcePath) return { success: false, error: 'Request not found' }
+
+      const dir = path.dirname(sourcePath)
+      const baseName = path.basename(sourcePath, '.json')
+      
+      let newId = `${baseName}-copy`
+      let newPath = path.join(dir, `${newId}.json`)
+      
+      let counter = 1
+      while (fs.existsSync(newPath)) {
+        newId = `${baseName}-copy-${counter}`
+        newPath = path.join(dir, `${newId}.json`)
+        counter++
+      }
+
+      // Read, update, and write
+      const content = JSON.parse(fs.readFileSync(sourcePath, 'utf-8'))
+      content.id = newId
+      content.name = (content.name || 'Untitled') + ' Copy'
+      fs.writeFileSync(newPath, JSON.stringify(content, null, 2))
+
+      // Update order meta: place it right after the original
+      updateOrderMeta(dir, newId, 'add-after', 0, args.requestId)
+
+      return { success: true, id: newId }
+    } catch (err: any) {
+      console.error('[storage] Clone Request Error:', err)
       return { success: false, error: err.message }
     }
   })
