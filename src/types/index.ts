@@ -43,6 +43,7 @@ export interface Tab {
   id: string
   request: RequestConfig
   isDirty?: boolean
+  owningCollectionId?: string
 }
 
 // ===== Collections =====

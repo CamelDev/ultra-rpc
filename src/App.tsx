@@ -387,7 +387,8 @@ const App: React.FC = () => {
         setActiveTabId(request.id)
       } else {
         // It's not open, so open it, preserving its unique ID so saves overwrite it.
-        const newTab: Tab = { id: request.id, request: { ...request } }
+        const owningCollection = findCollectionByRequestId(request.id)
+        const newTab: Tab = { id: request.id, request: { ...request }, owningCollectionId: owningCollection?.id }
         setTabs(prev => [...prev, newTab])
         setActiveTabId(request.id)
       }
@@ -465,9 +466,9 @@ const App: React.FC = () => {
     if (!activeRequest || !window.ultraRpc) return
     await window.ultraRpc.saveRequest({ collectionId, request: activeRequest })
     
-    // Clear dirty flag on active tab
+    // Clear dirty flag on active tab and remember the collection
     setTabs(prev => prev.map(t => 
-      t.id === activeTabId ? { ...t, isDirty: false } : t
+      t.id === activeTabId ? { ...t, isDirty: false, owningCollectionId: collectionId } : t
     ))
 
     loadCollections()
@@ -477,11 +478,15 @@ const App: React.FC = () => {
   const handleSaveActiveRequest = async () => {
     if (!activeRequest) return
     
-    const owningCollection = findCollectionByRequestId(activeRequest.id)
+    let targetCollectionId = activeTab?.owningCollectionId
+    if (!targetCollectionId) {
+      const owningCollection = findCollectionByRequestId(activeRequest.id)
+      targetCollectionId = owningCollection?.id
+    }
 
-    if (owningCollection) {
+    if (targetCollectionId) {
       // It's a known request linked to a collection, silently auto-save it
-      saveToCollection(owningCollection.id)
+      saveToCollection(targetCollectionId)
     } else if (collections.length === 0) {
       // No collections exist, auto-create "My collection"
       if (window.ultraRpc) {
@@ -1730,12 +1735,16 @@ const App: React.FC = () => {
               >
                 Cancel
               </button>
-              <button 
-                className="btn-primary" 
+              <button
+                className="btn-primary"
                 disabled={!selectedCollectionId}
-                onClick={() => {
-                  if (selectedCollectionId) {
-                    saveToCollection(selectedCollectionId)
+                onClick={async () => {
+                  if (activeRequest && selectedCollectionId) {
+                    await window.ultraRpc?.saveRequest({ collectionId: selectedCollectionId, request: activeRequest })
+                    setTabs(prev => prev.map(t =>
+                      t.id === activeTabId ? { ...t, isDirty: false, owningCollectionId: selectedCollectionId } : t
+                    ))
+                    loadCollections()
                     setShowSaveMenu(false)
                   }
                 }}
