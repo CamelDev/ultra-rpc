@@ -968,46 +968,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <nav className="sidebar-nav">
-          {/* History Panel */}
-          <HistoryPanel
-            history={history}
-            onOpenRequest={(req) => openRequestTab(req, true)}
-            onClear={clearHistory}
-          />
-
-          <div className="sidebar-divider" />
-          {/* Collections Panel */}
-          <CollectionPanel
-            collections={collections}
-            onRefresh={loadCollections}
-            onOpenRequest={(req) => openRequestTab(req, false)}
-            onSaveToCollection={saveToCollection}
-            onRenameRequest={handleRenameRequest}
-            onEditVariables={setEditingCollection}
-            onDeleteRequest={(collId, reqId, name) => setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })}
-            onDeleteFolder={(collId, folderName) => setConfirmDelete({ type: 'folder', id: folderName, name: folderName, collectionId: collId })}
-            onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
-            onMoveCollection={handleMoveCollection}
-          />
-        </nav>
-        
-        {/* Environment Panel (Pinned at bottom) */}
-        {showEnvPanel && (
-          <div className="sidebar-env-container">
-            <div className="sidebar-env-content no-scrollbar">
-              <EnvironmentPanel
-                environments={environments}
-                onChange={handleEnvChange}
-                activeEnvId={activeEnvId}
-                onSetActive={setActiveEnvId}
-                onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
-              />
-            </div>
-          </div>
-        )}
-
-        <div style={{ padding: '12px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
+        <div style={{ padding: '12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
           <button 
             className={`btn-ghost ${showSettingsPopup ? 'env-toggle-active' : ''}`}
             style={{ padding: '6px' }} 
@@ -1036,7 +997,7 @@ const App: React.FC = () => {
           </button>
 
           {showSettingsPopup && (
-            <div className="settings-popup glass fade-in">
+            <div className="settings-popup glass fade-in" style={{ top: '50px', bottom: 'auto' }}>
               <div className="settings-popup-header">Global Settings</div>
               <div className="settings-row">
                 <span className="settings-label">Theme</span>
@@ -1114,6 +1075,46 @@ const App: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Environment Panel (Pinned at top) */}
+        {showEnvPanel && (
+          <div className="sidebar-env-container">
+            <div className="sidebar-env-content no-scrollbar">
+              <EnvironmentPanel
+                environments={environments}
+                onChange={handleEnvChange}
+                activeEnvId={activeEnvId}
+                onSetActive={setActiveEnvId}
+                onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
+              />
+            </div>
+          </div>
+        )}
+
+        <nav className="sidebar-nav">
+          {/* History Panel */}
+          <HistoryPanel
+            history={history}
+            onOpenRequest={(req) => openRequestTab(req, true)}
+            onClear={clearHistory}
+          />
+
+          <div className="sidebar-divider" />
+          {/* Collections Panel */}
+          <CollectionPanel
+            collections={collections}
+            onRefresh={loadCollections}
+            onOpenRequest={(req) => openRequestTab(req, false)}
+            onSaveToCollection={saveToCollection}
+            onRenameRequest={handleRenameRequest}
+            onEditVariables={setEditingCollection}
+            onDeleteRequest={(collId, reqId, name) => setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })}
+            onDeleteFolder={(collId, folderName) => setConfirmDelete({ type: 'folder', id: folderName, name: folderName, collectionId: collId })}
+            onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
+            onMoveCollection={handleMoveCollection}
+          />
+        </nav>
+
       </aside>
 
       <div 

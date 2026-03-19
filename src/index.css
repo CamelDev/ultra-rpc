@@ -128,7 +128,7 @@ body {
 
 /* New Environment Container at the bottom of sidebar */
 .sidebar-env-container {
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   background: rgba(0, 0, 0, 0.1);
