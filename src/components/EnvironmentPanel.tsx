@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, Check, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff } from 'lucide-react'
 import type { Environment, KeyValuePair } from '../types'
 import { emptyKV } from '../lib/helpers'
 import './EnvironmentPanel.css'
@@ -7,12 +7,10 @@ import './EnvironmentPanel.css'
 interface Props {
   environments: Environment[]
   onChange: (environments: Environment[]) => void
-  activeEnvId: string | null
-  onSetActive: (id: string | null) => void
   onDeleteRequest: (id: string, name: string) => void
 }
 
-const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId, onSetActive, onDeleteRequest }) => {
+const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteRequest }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -96,10 +94,10 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
       <div className="env-panel-header">
         <span className="env-panel-title">Environments</span>
         <div className="env-panel-actions">
-          <button className="btn-ghost env-action-btn" onClick={handleImport} title="Import Postman Environment">
+          <button className="btn-ghost env-action-btn" onClick={handleImport} data-tooltip="Import Postman Environment">
             <FileUp size={14} />
           </button>
-          <button className="btn-ghost env-action-btn" onClick={addEnvironment} title="Add Environment">
+          <button className="btn-ghost env-action-btn" onClick={addEnvironment} data-tooltip="Add Environment">
             <Plus size={14} />
           </button>
         </div>
@@ -112,7 +110,7 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
       )}
 
       {environments.map(env => (
-        <div className={`env-item ${activeEnvId === env.id ? 'env-item-active' : ''}`} key={env.id}>
+        <div className="env-item" key={env.id}>
           <div className="env-item-header" onClick={() => setExpandedId(expandedId === env.id ? null : env.id)}>
             <ChevronDown
               size={14}
@@ -132,22 +130,16 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
             )}
             <div className="env-item-actions" onClick={e => e.stopPropagation()}>
               {editingName === env.id ? (
-                <button className="btn-ghost env-action" onClick={() => saveRename(env.id)}>
+                <button className="btn-ghost env-action" data-tooltip="Save name" data-tooltip-pos="top" onClick={() => saveRename(env.id)}>
                   <Save size={13} />
                 </button>
               ) : (
-                <button className="btn-ghost env-action" onClick={() => startRename(env)}>
+                <button className="btn-ghost env-action" data-tooltip="Rename" data-tooltip-pos="top" onClick={() => startRename(env)}>
                   <Edit2 size={13} />
                 </button>
               )}
-              <button
-                className={`btn-ghost env-action ${activeEnvId === env.id ? 'env-active-check' : ''}`}
-                onClick={() => onSetActive(activeEnvId === env.id ? null : env.id)}
-                title="Set as active"
-              >
-                <Check size={13} />
-              </button>
-              <button className="btn-ghost env-action env-delete" onClick={() => onDeleteRequest(env.id, env.name)}>
+
+              <button className="btn-ghost env-action env-delete" data-tooltip="Delete Environment" data-tooltip-pos="top" onClick={() => onDeleteRequest(env.id, env.name)}>
                 <Trash2 size={13} />
               </button>
             </div>
@@ -160,7 +152,8 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
                 <button
                   className={`env-ssl-toggle ${env.sslVerification !== false ? 'env-ssl-on' : 'env-ssl-off'}`}
                   onClick={() => toggleSslVerification(env.id)}
-                  title={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'}
+                  data-tooltip={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'}
+                  data-tooltip-pos="top"
                 >
                   {env.sslVerification !== false
                     ? <><ShieldCheck size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-on">ON</span></>
@@ -182,7 +175,7 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, activeEnvId
                     value={v.value}
                     onChange={e => updateVariable(env.id, v.id, 'value', e.target.value)}
                   />
-                  <button className="env-var-delete" onClick={() => removeVariable(env.id, v.id)}>
+                  <button className="env-var-delete" data-tooltip="Remove Variable" data-tooltip-pos="left" onClick={() => removeVariable(env.id, v.id)}>
                     <Trash2 size={12} />
                   </button>
                 </div>

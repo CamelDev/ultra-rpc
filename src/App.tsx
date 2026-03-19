@@ -10,6 +10,7 @@ import {
   Loader2,
   Info,
   WrapText,
+  Hourglass,
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
@@ -83,6 +84,7 @@ const App: React.FC = () => {
   // ===== UI state =====
   const [activeConfigTab, setActiveConfigTab] = useState<RequestTab>('params')
   const [showEnvPanel, setShowEnvPanel] = useState(false)
+  const [showHistoryPanel, setShowHistoryPanel] = useState(() => localStorage.getItem('ultraRpcShowHistory') === 'true')
   const [showSaveMenu, setShowSaveMenu] = useState(false)
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder' | 'environment', id: string, name: string, collectionId?: string } | null>(null)
@@ -970,28 +972,45 @@ const App: React.FC = () => {
 
         <div style={{ padding: '12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
           <button 
+            className="btn-ghost"
+            style={{ padding: '6px' }} 
+            onClick={() => setShowAboutModal(true)}
+            data-tooltip="About UltraRPC"
+            data-tooltip-pos="right"
+          >
+            <Info size={18} />
+          </button>
+
+          <button 
             className={`btn-ghost ${showSettingsPopup ? 'env-toggle-active' : ''}`}
             style={{ padding: '6px' }} 
             onClick={() => setShowSettingsPopup(!showSettingsPopup)}
-            title="Settings"
+            data-tooltip="Settings"
+            data-tooltip-pos="right"
           >
             <Settings size={18} />
           </button>
 
-          <button 
-            className="btn-ghost"
-            style={{ padding: '6px' }} 
-            onClick={() => setShowAboutModal(true)}
-            title="About UltraRPC"
+          <button
+            className={`btn-ghost ${showHistoryPanel ? 'env-toggle-active' : ''}`}
+            style={{ padding: '6px' }}
+            onClick={() => {
+              const next = !showHistoryPanel;
+              setShowHistoryPanel(next);
+              localStorage.setItem('ultraRpcShowHistory', next.toString());
+            }}
+            data-tooltip="History"
+            data-tooltip-pos="right"
           >
-            <Info size={18} />
+            <Hourglass size={18} />
           </button>
           
           <button
             className={`btn-ghost ${showEnvPanel ? 'env-toggle-active' : ''}`}
             style={{ padding: '6px' }}
             onClick={() => setShowEnvPanel(!showEnvPanel)}
-            title="Environments"
+            data-tooltip="Environments"
+            data-tooltip-pos="right"
           >
             <Globe size={18} />
           </button>
@@ -1083,8 +1102,6 @@ const App: React.FC = () => {
               <EnvironmentPanel
                 environments={environments}
                 onChange={handleEnvChange}
-                activeEnvId={activeEnvId}
-                onSetActive={setActiveEnvId}
                 onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
               />
             </div>
@@ -1093,13 +1110,17 @@ const App: React.FC = () => {
 
         <nav className="sidebar-nav">
           {/* History Panel */}
-          <HistoryPanel
-            history={history}
-            onOpenRequest={(req) => openRequestTab(req, true)}
-            onClear={clearHistory}
-          />
+          {showHistoryPanel && (
+            <>
+              <HistoryPanel
+                history={history}
+                onOpenRequest={(req) => openRequestTab(req, true)}
+                onClear={clearHistory}
+              />
+              <div className="sidebar-divider" />
+            </>
+          )}
 
-          <div className="sidebar-divider" />
           {/* Collections Panel */}
           <CollectionPanel
             collections={collections}

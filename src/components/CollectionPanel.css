@@ -1,6 +1,8 @@
 .coll-panel {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .coll-header {
@@ -180,6 +182,7 @@
 .coll-context-menu button {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   padding: 6px 10px;
   font-size: 12px;

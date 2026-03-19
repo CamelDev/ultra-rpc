@@ -575,12 +575,13 @@ const CollectionPanel: React.FC<Props> = ({
                 <>
                   <button
                     className="coll-req-btn"
-                    title="Rename"
+                    data-tooltip="Rename"
+                    data-tooltip-pos="top"
                     onClick={() => { setEditingId(node.data.id); setNameInput(isRequest && request ? request.name : node.data.name) }}
                   >
                     <Edit2 size={11} />
                   </button>
-                  <button className="coll-req-btn danger" title="Delete" onClick={handleDelete}>
+                  <button className="coll-req-btn danger" data-tooltip="Delete" data-tooltip-pos="top" onClick={handleDelete}>
                     <Trash2 size={11} />
                   </button>
                 </>
@@ -603,16 +604,16 @@ const CollectionPanel: React.FC<Props> = ({
           <Folder size={14} /> Collections
         </span>
         <div className="coll-header-actions">
-          <button className="btn-ghost" onClick={() => setShowCreateModal(true)} title="New Collection">
+          <button className="btn-ghost" onClick={() => setShowCreateModal(true)} data-tooltip="New Collection" data-tooltip-pos="bottom">
             <Plus size={16} />
           </button>
-          <button className="btn-ghost" onClick={handleLinkCollection} title="Link existing folder">
+          <button className="btn-ghost" onClick={handleLinkCollection} data-tooltip="Link existing folder" data-tooltip-pos="bottom">
             <Link size={14} />
           </button>
-          <button className="btn-ghost coll-btn" onClick={importCollection} title="Import collection">
+          <button className="btn-ghost coll-btn" onClick={importCollection} data-tooltip="Import collection" data-tooltip-pos="bottom">
             <Upload size={14} />
           </button>
-          <button className="btn-ghost coll-btn" onClick={openFolder} title="Open folder">
+          <button className="btn-ghost coll-btn" onClick={openFolder} data-tooltip="Open folder" data-tooltip-pos="bottom">
             <FolderOpen size={14} />
           </button>
         </div>

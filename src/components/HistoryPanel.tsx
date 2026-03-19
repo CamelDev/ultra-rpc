@@ -51,7 +51,7 @@ const HistoryPanel: React.FC<Props> = ({ history, onOpenRequest, onClear }) => {
           <Clock size={14} /> History
         </span>
         {history.length > 0 && (
-          <button className="btn-ghost hist-clear" onClick={onClear} title="Clear history">
+          <button className="btn-ghost hist-clear" onClick={onClear} data-tooltip="Clear history" data-tooltip-pos="left">
             <Trash2 size={12} /> Clear
           </button>
         )}
