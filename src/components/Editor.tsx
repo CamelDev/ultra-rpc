@@ -292,7 +292,7 @@ const Editor: React.FC<Props> = ({
       setTooltip({
         visible: true,
         x: e.clientX,
-        y: e.clientY - 20,
+        y: e.clientY - 45,
         text
       })
     }, 200)

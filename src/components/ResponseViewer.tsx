@@ -8,9 +8,10 @@ interface Props {
   error: string | null
   scriptError?: string | null
   loading: boolean
+  theme?: 'dark' | 'light'
 }
 
-const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading }) => {
+const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading, theme = 'dark' }) => {
   const [showHeaders, setShowHeaders] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
 
@@ -136,6 +137,7 @@ const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading
           readOnly={true}
           wrapLines={true}
           className="response-editor"
+          theme={theme}
         />
       </div>
     </div>

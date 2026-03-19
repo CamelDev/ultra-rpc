@@ -1641,6 +1641,7 @@ const App: React.FC = () => {
               error={errors[activeTabId] || null}
               scriptError={scriptErrors[activeTabId] || null}
               loading={loadingTabs[activeTabId] || false}
+              theme={theme}
             />
           </div>
         </section>
@@ -1656,7 +1657,8 @@ const App: React.FC = () => {
       {editingCollection && (
         <div className="modal-overlay" onClick={() => setEditingCollection(null)}>
           <motion.div 
-            className="modal-content glass" 
+            className="modal-content glass"
+            style={{ maxWidth: '1100px' }}
             onClick={e => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
