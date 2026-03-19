@@ -15,6 +15,7 @@ import {
   Save,
   Clipboard,
   FolderSearch,
+  Move,
 } from 'lucide-react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import './CollectionPanel.css'
@@ -30,6 +31,7 @@ interface Props {
   onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
   onDeleteFolder: (collectionId: string, folderName: string) => void
   onDeleteCollection: (id: string, name: string) => void
+  onMoveCollection: (collectionId: string, currentPath?: string) => void
 }
 
 type TreeDataItem = {
@@ -78,13 +80,14 @@ interface CollContextMenuProps {
   onExport: (id: string) => void
   onCopyPath: (node: TreeDataItem) => void
   onShowInFolder: (realId: string) => void
+  onMove: (id: string, path?: string) => void
   onDelete: (id: string, name: string) => void
 }
 
 const CollContextMenu: React.FC<CollContextMenuProps> = ({
   menu, onClose,
   onSaveToCollection, onRename, onEditVariables, onExport,
-  onCopyPath, onShowInFolder, onDelete,
+  onCopyPath, onShowInFolder, onMove, onDelete,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -137,6 +140,9 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
         <button onClick={() => { onShowInFolder(menu.node.realId); onClose() }}>
           <FolderSearch size={12} /> {fileManagerLabel()}
         </button>
+        <button onClick={() => { onMove(menu.node.realId, menu.node.path); onClose() }}>
+          <Move size={12} /> Move collection
+        </button>
         <div className="coll-context-divider" />
         <button
           className="coll-danger-action"
@@ -161,6 +167,7 @@ const CollectionPanel: React.FC<Props> = ({
   onDeleteRequest,
   onDeleteFolder,
   onDeleteCollection,
+  onMoveCollection,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -529,6 +536,7 @@ const CollectionPanel: React.FC<Props> = ({
           onExport={(id) => window.ultraRpc?.exportCollection({ collectionId: id })}
           onCopyPath={handleMenuCopyPath}
           onShowInFolder={handleMenuShowInFolder}
+          onMove={onMoveCollection}
           onDelete={onDeleteCollection}
         />
       )}

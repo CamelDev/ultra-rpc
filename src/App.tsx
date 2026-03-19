@@ -23,6 +23,7 @@ import AboutModal from './components/AboutModal'
 import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem } from './types'
 import { createEmptyRequest } from './lib/helpers'
 import pkg from '../package.json'
+import Toaster, { addToast } from './components/Toaster'
 
 type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'pre-request' | 'post-response'
 
@@ -302,7 +303,24 @@ const App: React.FC = () => {
   const loadCollections = async () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.listCollections()
-    if (res.success && res.collections) setCollections(res.collections)
+    if (res.success && res.collections) {
+      setCollections(res.collections)
+      // Show warnings if any (non-blocking toasts)
+      if (res.warnings && res.warnings.length > 0) {
+        res.warnings.forEach(w => addToast({ type: 'warning', message: w }))
+      }
+    }
+  }
+
+  const handleMoveCollection = async (collectionId: string, currentPath?: string) => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.moveCollection({ collectionId, currentPath })
+    if (res.success) {
+      addToast({ type: 'success', message: 'Collection moved successfully' })
+      loadCollections()
+    } else if (res.error !== 'Cancelled') {
+      addToast({ type: 'error', message: res.error || 'Failed to move collection' })
+    }
   }
 
   const loadHistory = async () => {
@@ -918,6 +936,7 @@ const App: React.FC = () => {
             onDeleteRequest={(collId, reqId, name) => setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })}
             onDeleteFolder={(collId, folderName) => setConfirmDelete({ type: 'folder', id: folderName, name: folderName, collectionId: collId })}
             onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
+            onMoveCollection={handleMoveCollection}
           />
         </nav>
         
@@ -1798,6 +1817,7 @@ const App: React.FC = () => {
           </motion.div>
         </div>
       )}
+      <Toaster />
     </div>
   )
 }

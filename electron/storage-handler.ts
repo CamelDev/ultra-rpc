@@ -304,35 +304,21 @@ const extractRequests = (data: any): CollectionItem[] => {
 export function registerStorageHandlers() {
   // ===== Collections =====
 
-  // List all collections
+  // List all collections (default storage + externally-registered paths)
   ipcMain.handle('storage:listCollections', async () => {
     try {
       const root = getStorageRoot()
-      const dirs = fs.readdirSync(root, { withFileTypes: true })
-        .filter(d => d.isDirectory())
-
-      const collections: SavedCollection[] = []
+      const warnings: string[] = []
 
       const buildTree = (dirPath: string): CollectionItem[] => {
         const childrenList: CollectionItem[] = []
         const files = fs.readdirSync(dirPath, { withFileTypes: true })
-        
-        let order: string[] = []
-        const metaPath = path.join(dirPath, '_meta.json')
-        if (fs.existsSync(metaPath)) {
-          try {
-            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-            order = meta.requestOrder || []
-          } catch { /* */ }
-        }
 
         for (const entry of files) {
           if (entry.name === '_meta.json') continue
-
           const fullPath = path.join(dirPath, entry.name)
 
           if (entry.isDirectory()) {
-            // Ensure folder has an ID in _meta.json
             let folderId = entry.name
             const subMetaPath = path.join(fullPath, '_meta.json')
             if (fs.existsSync(subMetaPath)) {
@@ -341,37 +327,23 @@ export function registerStorageHandlers() {
                 if (subMeta.id) folderId = subMeta.id
               } catch { /* */ }
             } else {
-              // Create default meta for folders to have stable IDs
               folderId = Math.random().toString(36).substring(2, 11)
               fs.writeFileSync(subMetaPath, JSON.stringify({ id: folderId, name: entry.name }, null, 2))
             }
-
             childrenList.push({
-              id: folderId,
-              name: entry.name,
-              type: 'folder',
-              children: buildTree(fullPath)
+              id: folderId, name: entry.name, type: 'folder', children: buildTree(fullPath)
             })
           } else if (entry.name.endsWith('.json')) {
             try {
               const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
               const validated = validateRequest(content)
-              if (validated) {
-                childrenList.push({
-                  id: validated.id,
-                  name: validated.name,
-                  type: 'request',
-                  request: validated
-                })
-              }
+              if (validated) childrenList.push({ id: validated.id, name: validated.name, type: 'request', request: validated })
             } catch { /* skip corrupt */ }
           }
         }
 
-        // Apply ordering and repair if needed
         const discoveredIds = childrenList.map(item => item.id)
         const validatedOrder = verifyAndRepairOrder(dirPath, discoveredIds)
-
         if (validatedOrder.length > 0) {
           childrenList.sort((a, b) => {
             const idxA = validatedOrder.indexOf(a.id)
@@ -382,37 +354,72 @@ export function registerStorageHandlers() {
             return 0
           })
         }
-
         return childrenList
       }
 
-      for (const dir of dirs) {
-        const collPath = path.join(root, dir.name)
-        const metaPath = path.join(collPath, '_meta.json')
-        let meta: any = { id: dir.name, name: dir.name, variables: [] }
+      const loadCollectionFromDir = (collDir: string, displayPath: string): SavedCollection | null => {
+        const metaPath = path.join(collDir, '_meta.json')
+        const dirName = path.basename(collDir)
+        let meta: any = { id: dirName, name: dirName, variables: [] }
         if (fs.existsSync(metaPath)) {
-          try {
-            meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-          } catch { /* use defaults */ }
+          try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* use defaults */ }
         }
-
-        // Backfill the filesystem path into _meta.json if not already stored
-        const resolvedPath = meta.externalPath || collPath
+        // Backfill path into meta
         if (!meta.path) {
-          meta.path = resolvedPath
+          meta.path = displayPath
           try { fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2)) } catch { /* ignore */ }
         }
-
-        collections.push({
-          id: meta.id,
-          name: meta.name,
-          children: buildTree(collPath),
+        return {
+          id: meta.id || dirName,
+          name: meta.name || dirName,
+          children: buildTree(collDir),
           variables: meta.variables || [],
-          path: resolvedPath
-        })
+          path: displayPath
+        }
       }
 
-      return { success: true, collections }
+      const collections: SavedCollection[] = []
+      const seenIds = new Set<string>()
+
+      // 1. Default storage directory
+      const dirs = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory())
+      for (const dir of dirs) {
+        const collPath = path.join(root, dir.name)
+        const coll = loadCollectionFromDir(collPath, collPath)
+        if (coll && !seenIds.has(coll.id)) {
+          seenIds.add(coll.id)
+          collections.push(coll)
+        }
+      }
+
+      // 2. Externally-registered paths (moved collections)
+      let externalPaths: string[] = []
+      try {
+        const settingsPath = getSettingsPath()
+        if (fs.existsSync(settingsPath)) {
+          const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+          externalPaths = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
+        }
+      } catch { /* ignore */ }
+
+      for (const extPath of externalPaths) {
+        if (!fs.existsSync(extPath)) {
+          warnings.push(`Collection folder not found: ${extPath}`)
+          continue
+        }
+        const metaPath = path.join(extPath, '_meta.json')
+        if (!fs.existsSync(metaPath)) {
+          warnings.push(`No collection metadata (_meta.json) found at: ${extPath}`)
+          continue
+        }
+        const coll = loadCollectionFromDir(extPath, extPath)
+        if (coll && !seenIds.has(coll.id)) {
+          seenIds.add(coll.id)
+          collections.push(coll)
+        }
+      }
+
+      return { success: true, collections, warnings }
     } catch (err: any) {
       console.error('List Collections Error:', err)
       return { success: false, error: err.message }
@@ -654,7 +661,89 @@ export function registerStorageHandlers() {
     }
   })
 
-  // ===== Collection Path Utilities =====
+  // Move a collection directory to a user-chosen location
+  ipcMain.handle('storage:moveCollection', async (_event, args: { collectionId: string, currentPath?: string }) => {
+    try {
+      const root = getStorageRoot()
+      let srcDir = args.currentPath || path.join(root, args.collectionId)
+
+      if (!fs.existsSync(srcDir)) {
+        // Try resolving from ID in default storage if no path given
+        srcDir = path.join(root, args.collectionId)
+      }
+
+      if (!fs.existsSync(srcDir)) {
+        return { success: false, error: 'Collection not found at: ' + srcDir }
+      }
+
+      // Read current meta to get human-readable name
+      const srcMetaPath = path.join(srcDir, '_meta.json')
+      let meta: any = { id: args.collectionId, name: args.collectionId }
+      if (fs.existsSync(srcMetaPath)) {
+        try { meta = JSON.parse(fs.readFileSync(srcMetaPath, 'utf-8')) } catch { /* */ }
+      }
+
+      // Show directory picker
+      const result = await dialog.showOpenDialog({
+        title: `Move "${meta.name}" to…`,
+        properties: ['openDirectory', 'createDirectory'],
+        message: 'Choose the destination folder for this collection',
+      })
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Cancelled' }
+      }
+
+      const destParent = result.filePaths[0]
+      const destDir = path.join(destParent, path.basename(srcDir))
+
+      if (fs.existsSync(destDir)) {
+        return { success: false, error: `A folder named "${path.basename(srcDir)}" already exists at the destination` }
+      }
+
+      // Copy recursively then remove source
+      fs.cpSync(srcDir, destDir, { recursive: true })
+
+      // Update _meta.json in destination with new path
+      const destMetaPath = path.join(destDir, '_meta.json')
+      if (fs.existsSync(destMetaPath)) {
+        try {
+          const m = JSON.parse(fs.readFileSync(destMetaPath, 'utf-8'))
+          m.path = destDir
+          delete m.externalPath // clean up old field if present
+          fs.writeFileSync(destMetaPath, JSON.stringify(m, null, 2))
+        } catch { /* */ }
+      }
+
+      // Register new path and cleanup old in settings
+      const settingsPath = getSettingsPath()
+      let settings: any = {}
+      if (fs.existsSync(settingsPath)) {
+        try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
+      }
+      
+      let paths: string[] = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
+      
+      // Remove old path if it was there
+      paths = paths.filter(p => p !== srcDir)
+      
+      // Add new path if it's NOT in the default app data location
+      if (!destDir.startsWith(root)) {
+        if (!paths.includes(destDir)) paths.push(destDir)
+      }
+      
+      settings.collectionPaths = paths
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+
+      // Remove old directory
+      fs.rmSync(srcDir, { recursive: true, force: true })
+
+      return { success: true, newPath: destDir }
+    } catch (err: any) {
+      console.error('Move Collection Error:', err)
+      return { success: false, error: err.message }
+    }
+  })
+
 
   // Return the filesystem path of a collection
   ipcMain.handle('storage:getCollectionPath', async (_event, args: { collectionId: string }) => {
@@ -1068,9 +1157,15 @@ function buildStaticTree(dirPath: string): CollectionItem[] {
     }
   })
 
-  ipcMain.handle('storage:saveSettings', async (_event, settings: any) => {
+  ipcMain.handle('storage:saveSettings', async (_event, newSettings: any) => {
     try {
       const settingsPath = getSettingsPath()
+      let settings: any = {}
+      if (fs.existsSync(settingsPath)) {
+        try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
+      }
+      // Merge new settings with existing ones
+      Object.assign(settings, newSettings)
       fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
       return { success: true }
     } catch (err: any) {
