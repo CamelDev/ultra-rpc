@@ -61,6 +61,10 @@ export interface UltraRpcApi {
   getSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>
 
+  // Tree State
+  getTreeOpenState: () => Promise<Record<string, true>>
+  setTreeOpenState: (openState: Record<string, true>) => Promise<{ success: boolean; error?: string }>
+
   // Utils
   openExternal: (url: string) => Promise<void>
   showInFolder: (folderPath: string) => Promise<void>

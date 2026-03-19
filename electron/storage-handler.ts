@@ -1288,4 +1288,39 @@ function buildStaticTree(dirPath: string): CollectionItem[] {
       return { success: false, error: err.message }
     }
   })
+
+  // ===== Tree Open State Persistence =====
+
+  const getTreeOpenStatePath = () => {
+    return path.join(app.getPath('userData'), 'treeOpenState.json')
+  }
+
+  ipcMain.handle('tree:getOpenState', async () => {
+    try {
+      const statePath = getTreeOpenStatePath()
+      console.log('[Main/TreeState] Reading state from:', statePath)
+      if (!fs.existsSync(statePath)) {
+        console.log('[Main/TreeState] File does not exist, returning empty state')
+        return {} // Return empty state for first run
+      }
+      const data = fs.readFileSync(statePath, 'utf-8')
+      console.log('[Main/TreeState] Returning parsed state')
+      return JSON.parse(data)
+    } catch (err) {
+      console.error('[Main/TreeState] Failed to read tree open state:', err)
+      return {}
+    }
+  })
+
+  ipcMain.handle('tree:setOpenState', async (_event, openState: Record<string, true>) => {
+    try {
+      const statePath = getTreeOpenStatePath()
+      console.log('[Main/TreeState] Saving state to:', statePath, openState)
+      fs.writeFileSync(statePath, JSON.stringify(openState, null, 2))
+      return { success: true }
+    } catch (err: any) {
+      console.error('[Main/TreeState] Failed to save tree open state:', err)
+      return { success: false, error: err.message }
+    }
+  })
 }

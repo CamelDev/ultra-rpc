@@ -45,6 +45,10 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   getSettings: () => ipcRenderer.invoke('storage:getSettings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('storage:saveSettings', settings),
 
+  // ===== Tree Open State =====
+  getTreeOpenState: () => ipcRenderer.invoke('tree:getOpenState'),
+  setTreeOpenState: (openState: Record<string, true>) => ipcRenderer.invoke('tree:setOpenState', openState),
+
   // ===== Utils =====
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   showInFolder: (folderPath: string) => ipcRenderer.invoke('app:showInFolder', folderPath),

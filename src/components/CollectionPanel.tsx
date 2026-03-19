@@ -19,7 +19,8 @@ import {
   Download,
   Link,
 } from 'lucide-react'
-import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
+import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
+import { useTreeOpenState } from '../hooks/useTreeOpenState'
 import './CollectionPanel.css'
 import type { Collection, CollectionItem, RequestConfig, KeyValuePair } from '../types'
 
@@ -291,7 +292,9 @@ const CollectionPanel: React.FC<Props> = ({
   const [renameError, setRenameError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
-  const treeRef = React.useRef<TreeApi<TreeDataItem>>(null)
+  
+  const { treeRef, initialOpenState, onToggle } = useTreeOpenState()
+  
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [treeHeight, setTreeHeight] = useState(400)
 
@@ -511,12 +514,19 @@ const CollectionPanel: React.FC<Props> = ({
           className={`tree-node ${node.isSelected ? 'selected' : ''}`}
           onClick={() => {
             if (isRequest && request) onOpenRequest(request)
-            else node.toggle()
+            else {
+              node.toggle()
+              onToggle()
+            }
           }}
         >
           <div className="tree-node-content" style={{ paddingLeft: node.level * 6 }}>
             {(isCollection || isFolder) && (
-              <div className="tree-node-chevron" onClick={(e) => { e.stopPropagation(); node.toggle(); }}>
+              <div className="tree-node-chevron" onClick={(e) => { 
+                e.stopPropagation()
+                node.toggle()
+                onToggle()
+              }}>
                 {node.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </div>
             )}
@@ -583,7 +593,7 @@ const CollectionPanel: React.FC<Props> = ({
   }, [
     editingId,
     onOpenRequest, onSaveToCollection, onEditVariables,
-    onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename
+    onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename, onToggle
   ])
 
   return (
@@ -622,20 +632,23 @@ const CollectionPanel: React.FC<Props> = ({
       )}
 
       <div className="coll-tree-container" ref={containerRef}>
-        <Tree
-          ref={treeRef}
-          data={treeData}
-          onMove={onMove}
-          indent={6}
-          rowHeight={28}
-          width="100%"
-          height={treeHeight}
-          disableDrop={(args: any) => args.parentNode?.data?.type === 'request'}
-          disableDrag={(node: any) => node.data?.type === 'collection'}
-          openByDefault={false}
-        >
-          {NodeRenderer}
-        </Tree>
+        {initialOpenState === null ? null : (
+          <Tree
+            ref={treeRef}
+            data={treeData}
+            onMove={onMove}
+            indent={6}
+            rowHeight={28}
+            width="100%"
+            height={treeHeight}
+            disableDrop={(args: any) => args.parentNode?.data?.type === 'request'}
+            disableDrag={(node: any) => node.data?.type === 'collection'}
+            initialOpenState={initialOpenState}
+            openByDefault={false}
+          >
+            {NodeRenderer}
+          </Tree>
+        )}
       </div>
 
       {/* Portal-rendered context menu — lives outside tree to avoid overflow clipping */}
