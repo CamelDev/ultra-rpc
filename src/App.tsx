@@ -267,6 +267,11 @@ const App: React.FC = () => {
     tabsRef.current = tabs
   }, [tabs])
 
+  const collectionsRef = useRef(collections)
+  useEffect(() => {
+    collectionsRef.current = collections
+  }, [collections])
+
   useEffect(() => {
     if (!window.ultraRpc) return
 
@@ -278,6 +283,46 @@ const App: React.FC = () => {
           'You have unsaved changes in your tabs.\nAre you sure you want to exit? Unsaved progress will be lost.'
         )
         if (confirm) {
+          const isNewAndUnsaved = (t: Tab) => {
+            if (!t.isDirty) return false
+            if (t.owningCollectionId) return false
+            
+            let found = false
+            for (const coll of collectionsRef.current) {
+              const traverse = (children: any[]) => {
+                if (!children) return
+                for (const item of children) {
+                  if (item.type === 'request' && item.request && item.request.id === t.id) {
+                    found = true
+                  } else if (item.type === 'folder' && item.children) {
+                    traverse(item.children)
+                  }
+                }
+              }
+              traverse(coll.children)
+              if (found) break
+            }
+            return !found
+          }
+
+          const tabsToKeep = tabsRef.current.filter((t: Tab) => !isNewAndUnsaved(t))
+          if (tabsToKeep.length === 0) {
+            const emptyId = Math.random().toString(36).substring(2, 11)
+            tabsToKeep.push({
+              id: emptyId,
+              request: {
+                id: emptyId, name: '', type: 'REST', method: 'GET', url: '',
+                params: [], headers: [], body: '', bodyType: 'none'
+              },
+              isDirty: false
+            })
+          }
+          
+          localStorage.setItem('ultraRpcTabs', JSON.stringify(tabsToKeep))
+          if (!tabsToKeep.some((t: Tab) => t.id === localStorage.getItem('ultraRpcActiveTabId'))) {
+             localStorage.setItem('ultraRpcActiveTabId', tabsToKeep[tabsToKeep.length - 1].id)
+          }
+
           window.ultraRpc.confirmClose()
         }
       } else {
