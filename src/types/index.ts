@@ -62,6 +62,7 @@ export interface Collection {
   name: string
   children: CollectionItem[]
   variables?: KeyValuePair[]
+  path?: string // Filesystem path to the collection directory
 }
 
 // ===== Environments =====

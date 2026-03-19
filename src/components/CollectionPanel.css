@@ -99,6 +99,28 @@
   color: var(--text-primary);
 }
 
+.coll-rename-input--error {
+  border-color: var(--danger);
+}
+
+.coll-rename-error {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  z-index: 100;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .coll-count {
   font-size: 10px;
   padding: 1px 6px;
@@ -143,16 +165,16 @@
   background: rgba(239, 68, 68, 0.1);
 }
 
-/* Context menu */
+/* Context menu — rendered via portal, positioned with fixed coords */
 .coll-context-menu {
   display: flex;
   flex-direction: column;
   padding: 4px;
-  margin: 0 10px 4px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 180px;
 }
 
 .coll-context-menu button {
@@ -200,8 +222,8 @@
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.15s ease;
-  overflow: hidden;
   box-sizing: border-box;
+  position: relative;
 }
 
 .tree-node:hover {

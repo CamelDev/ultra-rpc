@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   exportCollection: (args: any) => ipcRenderer.invoke('storage:exportCollection', args),
   importCollection: () => ipcRenderer.invoke('storage:importCollection'),
   openFolder: () => ipcRenderer.invoke('storage:openFolder'),
+  getCollectionPath: (args: any) => ipcRenderer.invoke('storage:getCollectionPath', args),
+  showCollectionInFolder: (args: any) => ipcRenderer.invoke('storage:showCollectionInFolder', args),
 
   // ===== History =====
   getHistory: () => ipcRenderer.invoke('storage:getHistory'),
@@ -42,6 +44,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
 
   // ===== Utils =====
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
+  showInFolder: (folderPath: string) => ipcRenderer.invoke('app:showInFolder', folderPath),
   confirmClose: () => ipcRenderer.invoke('app:confirm-close'),
   onRequestClose: (callback: () => void) => {
     const listener = () => callback()

@@ -123,6 +123,10 @@ try {
       await shell.openExternal(url)
     })
 
+    ipcMain.handle('app:showInFolder', async (_, folderPath: string) => {
+      shell.showItemInFolder(folderPath)
+    })
+
     ipcMain.handle('app:confirm-close', () => {
       readyToClose = true
       if (win) saveWindowState(win)

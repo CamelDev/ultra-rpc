@@ -28,19 +28,21 @@ export interface UltraRpcApi {
   }>
 
   // Collections
-  listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; children: any[]; variables?: any[] }[]; error?: string }>
+  listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; children: any[]; variables?: any[]; path?: string }[]; error?: string }>
   createCollection: (args: { name: string }) => Promise<{ success: boolean; id?: string; error?: string }>
   saveCollectionVariables: (args: { collectionId: string; variables: any[] }) => Promise<{ success: boolean; error?: string }>
   saveRequest: (args: { collectionId: string; request: any }) => Promise<{ success: boolean; error?: string }>
   deleteRequest: (args: { collectionId: string; requestId: string }) => Promise<{ success: boolean; error?: string }>
   deleteFolder: (args: { collectionId: string; folderPath: string }) => Promise<{ success: boolean; error?: string }>
   deleteCollection: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
-  renameCollection: (args: { collectionId: string; newName: string }) => Promise<{ success: boolean; error?: string }>
+  renameCollection: (args: { collectionId: string; newName: string }) => Promise<{ success: boolean; newId?: string; error?: string }>
   reorderRequests: (args: { collectionId: string; order: string[] }) => Promise<{ success: boolean; error?: string }>
   moveItem: (args: { collectionId: string; itemId: string; targetParentId: string | null; newIndex: number }) => Promise<{ success: boolean; error?: string }>
   exportCollection: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   importCollection: () => Promise<{ success: boolean; id?: string; name?: string; requestCount?: number; error?: string }>
   openFolder: () => Promise<{ success: boolean; id?: string; name?: string; requestCount?: number; path?: string; error?: string }>
+  getCollectionPath: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
+  showCollectionInFolder: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
 
   // History
   getHistory: () => Promise<{ success: boolean; history?: any[]; error?: string }>
@@ -58,6 +60,7 @@ export interface UltraRpcApi {
 
   // Utils
   openExternal: (url: string) => Promise<void>
+  showInFolder: (folderPath: string) => Promise<void>
   confirmClose: () => Promise<void>
   onRequestClose: (callback: () => void) => () => void
 }

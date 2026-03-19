@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Folder,
   Plus,
@@ -12,6 +13,8 @@ import {
   MoreHorizontal,
   Zap,
   Save,
+  Clipboard,
+  FolderSearch,
 } from 'lucide-react'
 import { Tree, type NodeApi, type NodeRendererProps, type TreeApi } from 'react-arborist'
 import './CollectionPanel.css'
@@ -30,14 +33,29 @@ interface Props {
 }
 
 type TreeDataItem = {
-  id: string; // unique for tree
-  realId: string; // actual id on disk
-  name: string;
-  type: 'collection' | 'folder' | 'request';
-  children?: TreeDataItem[];
-  request?: RequestConfig;
-  variables?: KeyValuePair[];
-};
+  id: string
+  realId: string
+  name: string
+  type: 'collection' | 'folder' | 'request'
+  children?: TreeDataItem[]
+  request?: RequestConfig
+  variables?: KeyValuePair[]
+  path?: string
+}
+
+interface ContextMenuState {
+  x: number
+  y: number
+  node: TreeDataItem
+}
+
+// OS-adaptive label for the file manager
+const fileManagerLabel = () => {
+  const ua = navigator.userAgent
+  if (ua.includes('Macintosh') || ua.includes('Mac OS')) return 'Show in Finder'
+  if (ua.includes('Windows')) return 'Show in Explorer'
+  return 'Show in Files'
+}
 
 const methodColor = (m: string) => {
   switch (m) {
@@ -50,6 +68,89 @@ const methodColor = (m: string) => {
   }
 }
 
+// ─── Portal Context Menu ────────────────────────────────────────────────────
+interface CollContextMenuProps {
+  menu: ContextMenuState
+  onClose: () => void
+  onSaveToCollection: (id: string) => void
+  onRename: (id: string, name: string) => void
+  onEditVariables: (node: TreeDataItem) => void
+  onExport: (id: string) => void
+  onCopyPath: (node: TreeDataItem) => void
+  onShowInFolder: (realId: string) => void
+  onDelete: (id: string, name: string) => void
+}
+
+const CollContextMenu: React.FC<CollContextMenuProps> = ({
+  menu, onClose,
+  onSaveToCollection, onRename, onEditVariables, onExport,
+  onCopyPath, onShowInFolder, onDelete,
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Adjust position so the menu doesn't overflow the viewport
+  const [adjustedPos, setAdjustedPos] = useState({ x: menu.x, y: menu.y })
+  useEffect(() => {
+    if (!menuRef.current) return
+    const rect = menuRef.current.getBoundingClientRect()
+    let { x, y } = menu
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8
+    setAdjustedPos({ x, y })
+  }, [menu.x, menu.y])
+
+  return createPortal(
+    <>
+      {/* Invisible backdrop to capture outside clicks */}
+      <div
+        style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+        onMouseDown={onClose}
+      />
+      <div
+        ref={menuRef}
+        className="coll-context-menu"
+        style={{
+          position: 'fixed',
+          left: adjustedPos.x,
+          top: adjustedPos.y,
+          zIndex: 9999,
+          margin: 0,
+        }}
+        onMouseDown={e => e.stopPropagation()}
+      >
+        <button onClick={() => { onSaveToCollection(menu.node.id); onClose() }}>
+          <Save size={12} /> Save current request
+        </button>
+        <button onClick={() => { onRename(menu.node.id, menu.node.name); onClose() }}>
+          <Edit2 size={12} /> Rename
+        </button>
+        <button onClick={() => { onEditVariables(menu.node); onClose() }}>
+          <Zap size={12} /> Variables
+        </button>
+        <button onClick={() => { onExport(menu.node.id); onClose() }}>
+          <Download size={12} /> Export
+        </button>
+        <div className="coll-context-divider" />
+        <button onClick={() => { onCopyPath(menu.node); onClose() }}>
+          <Clipboard size={12} /> Copy path
+        </button>
+        <button onClick={() => { onShowInFolder(menu.node.realId); onClose() }}>
+          <FolderSearch size={12} /> {fileManagerLabel()}
+        </button>
+        <div className="coll-context-divider" />
+        <button
+          className="coll-danger-action"
+          onClick={() => { onDelete(menu.node.id, menu.node.name); onClose() }}
+        >
+          <Trash2 size={12} /> Delete
+        </button>
+      </div>
+    </>,
+    document.body
+  )
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 const CollectionPanel: React.FC<Props> = ({
   collections,
   onRefresh,
@@ -63,9 +164,10 @@ const CollectionPanel: React.FC<Props> = ({
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
   const [showNewInput, setShowNewInput] = useState(false)
   const [newName, setNewName] = useState('')
-  const [contextMenu, setContextMenu] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const treeRef = React.useRef<TreeApi<TreeDataItem>>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [treeHeight, setTreeHeight] = useState(400)
@@ -83,7 +185,6 @@ const CollectionPanel: React.FC<Props> = ({
     return () => resizeObserver.disconnect()
   }, [])
 
-  // Map collections to a single tree data structure with unique IDs
   const treeData = useMemo<TreeDataItem[]>(() => {
     const usedIds = new Set<string>()
     const ensureUnique = (id: string): string => {
@@ -114,6 +215,7 @@ const CollectionPanel: React.FC<Props> = ({
       type: 'collection' as const,
       children: mapItems(coll.children || []),
       variables: coll.variables,
+      path: coll.path,
     }))
   }, [collections])
 
@@ -140,7 +242,6 @@ const CollectionPanel: React.FC<Props> = ({
   const onMove = async ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
     if (!window.ultraRpc || !treeRef.current) return
 
-    // Convert tree IDs back to real IDs and get target real parent ID
     const targetNode = parentId ? treeRef.current.get(parentId) : null
     const targetParentRealId = targetNode ? targetNode.data.realId : null
 
@@ -183,20 +284,28 @@ const CollectionPanel: React.FC<Props> = ({
     }
   }
 
-  const handleRename = async (node: NodeApi<TreeDataItem>) => {
-    if (!nameInput.trim() || !window.ultraRpc) return
-    
+  const handleRename = async (node: NodeApi<TreeDataItem>, dismissOnBlur = true) => {
+    if (!nameInput.trim() || !window.ultraRpc) {
+      if (dismissOnBlur) { setEditingId(null); setRenameError(null) }
+      return
+    }
+
     const collectionId = getCollectionIdOfNode(node)
     if (!collectionId) return
 
     if (node.data.type === 'collection') {
-      await window.ultraRpc.renameCollection({ collectionId: node.data.id, newName: nameInput.trim() })
+      const result = await window.ultraRpc.renameCollection({ collectionId: node.data.realId, newName: nameInput.trim() })
+      if (!result.success) {
+        setRenameError(result.error || 'Rename failed')
+        return // keep editing so the user can fix the name
+      }
+      setRenameError(null)
     } else if (node.data.type === 'request' && node.data.request) {
       const updatedRequest = { ...node.data.request, name: nameInput.trim() }
       await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as RequestConfig })
       onRenameRequest(node.data.id, updatedRequest.name)
     }
-    
+
     setEditingId(null)
     onRefresh()
   }
@@ -215,6 +324,21 @@ const CollectionPanel: React.FC<Props> = ({
     }
   }
 
+  // ─── Context menu action handlers ───────────────────────────────────────
+  const handleMenuCopyPath = async (node: TreeDataItem) => {
+    let collPath = node.path
+    if (!collPath) {
+      const res = await window.ultraRpc?.getCollectionPath({ collectionId: node.realId })
+      collPath = res?.path
+    }
+    if (collPath) navigator.clipboard.writeText(collPath)
+  }
+
+  const handleMenuShowInFolder = (realId: string) => {
+    window.ultraRpc?.showCollectionInFolder({ collectionId: realId })
+  }
+
+  // ─── Node Renderer ───────────────────────────────────────────────────────
   const NodeRenderer = useMemo(() => {
     return ({ node, style, dragHandle }: NodeRendererProps<TreeDataItem>) => {
       const isEditing = editingId === node.data.id
@@ -236,10 +360,16 @@ const CollectionPanel: React.FC<Props> = ({
         }
       }
 
+      const openContextMenu = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        e.preventDefault()
+        setContextMenu({ x: e.clientX, y: e.clientY, node: node.data })
+      }
+
       return (
-        <div 
+        <div
           ref={dragHandle as (el: HTMLDivElement | null) => void}
-          style={style} 
+          style={style}
           className={`tree-node ${node.isSelected ? 'selected' : ''}`}
           onClick={() => {
             if (isRequest && request) onOpenRequest(request)
@@ -247,7 +377,6 @@ const CollectionPanel: React.FC<Props> = ({
           }}
         >
           <div className="tree-node-content" style={{ paddingLeft: node.level * 6 }}>
-            {/* Chevron for nesting */}
             {(isCollection || isFolder) && (
               <div className="tree-node-chevron" onClick={(e) => { e.stopPropagation(); node.toggle(); }}>
                 {node.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -262,7 +391,7 @@ const CollectionPanel: React.FC<Props> = ({
             )}
 
             {isRequest && request && (
-              <span className="coll-req-method-label" style={{ 
+              <span className="coll-req-method-label" style={{
                 color: methodColor(request.type === 'GRPC' ? 'GRPC' : request.method),
                 borderColor: methodColor(request.type === 'GRPC' ? 'GRPC' : request.method) + '44'
               }}>
@@ -271,15 +400,27 @@ const CollectionPanel: React.FC<Props> = ({
             )}
 
             {isEditing ? (
-              <input
-                className="coll-rename-input"
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleRename(node)}
-                onBlur={() => handleRename(node)}
-                onClick={e => e.stopPropagation()}
-                autoFocus
-              />
+              <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                <input
+                  className={`coll-rename-input${renameError ? ' coll-rename-input--error' : ''}`}
+                  value={nameInput}
+                  onChange={e => { setNameInput(e.target.value); setRenameError(null) }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleRename(node)
+                    if (e.key === 'Escape') { setEditingId(null); setRenameError(null) }
+                  }}
+                  onBlur={() => {
+                    if (renameError) { setEditingId(null); setRenameError(null) }
+                    else handleRename(node)
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  autoFocus
+                  style={{ width: '100%' }}
+                />
+                {renameError && (
+                  <div className="coll-rename-error">{renameError}</div>
+                )}
+              </div>
             ) : (
               <span className="tree-node-name">
                 {isRequest && request ? (request.name || request.url || 'Untitled') : node.data.name}
@@ -292,7 +433,7 @@ const CollectionPanel: React.FC<Props> = ({
               {isCollection ? (
                 <button
                   className="btn-ghost coll-action-btn"
-                  onClick={() => setContextMenu(contextMenu === node.data.id ? null : node.data.id)}
+                  onClick={openContextMenu}
                 >
                   <MoreHorizontal size={13} />
                 </button>
@@ -312,33 +453,12 @@ const CollectionPanel: React.FC<Props> = ({
               )}
             </div>
           </div>
-
-          {isCollection && contextMenu === node.data.id && (
-            <div className="coll-context-menu" onClick={(e) => { e.stopPropagation(); setContextMenu(null); }}>
-              <button onClick={() => onSaveToCollection(node.data.id)}>
-                <Save size={12} /> Save current request
-              </button>
-              <button onClick={() => { setEditingId(node.data.id); setNameInput(node.data.name) }}>
-                <Edit2 size={12} /> Rename
-              </button>
-              <button onClick={() => onEditVariables(node.data as unknown as Collection)}>
-                <Zap size={12} /> Variables
-              </button>
-              <button onClick={() => window.ultraRpc?.exportCollection({ collectionId: node.data.id })}>
-                <Download size={12} /> Export
-              </button>
-              <div className="coll-context-divider" />
-              <button className="coll-danger-action" onClick={() => onDeleteCollection(node.data.id, node.data.name)}>
-                <Trash2 size={12} /> Delete
-              </button>
-            </div>
-          )}
         </div>
       )
     }
   }, [
-    editingId, nameInput, contextMenu, 
-    onOpenRequest, onSaveToCollection, onEditVariables, 
+    editingId, nameInput,
+    onOpenRequest, onSaveToCollection, onEditVariables,
     onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename
   ])
 
@@ -390,13 +510,28 @@ const CollectionPanel: React.FC<Props> = ({
           indent={6}
           rowHeight={28}
           width="100%"
-          height={treeHeight} 
+          height={treeHeight}
           disableDrop={(args: any) => args.parentNode?.data?.type === 'request'}
           disableDrag={(node: any) => node.data?.type === 'collection'}
         >
           {NodeRenderer}
         </Tree>
       </div>
+
+      {/* Portal-rendered context menu — lives outside tree to avoid overflow clipping */}
+      {contextMenu && (
+        <CollContextMenu
+          menu={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onSaveToCollection={onSaveToCollection}
+          onRename={(id, name) => { setEditingId(id); setNameInput(name) }}
+          onEditVariables={(node) => onEditVariables(node as unknown as Collection)}
+          onExport={(id) => window.ultraRpc?.exportCollection({ collectionId: id })}
+          onCopyPath={handleMenuCopyPath}
+          onShowInFolder={handleMenuShowInFolder}
+          onDelete={onDeleteCollection}
+        />
+      )}
     </div>
   )
 }
