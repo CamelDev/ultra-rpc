@@ -12,7 +12,6 @@ import {
   FolderOpen,
   X,
   Zap,
-  Save,
   Clipboard,
   Folder,
   MoreHorizontal,
@@ -28,7 +27,6 @@ interface Props {
   collections: Collection[]
   onRefresh: () => void
   onOpenRequest: (request: RequestConfig) => void
-  onSaveToCollection: (collectionId: string) => void
   onRenameRequest: (reqId: string, newName: string) => void
   onEditVariables: (collection: Collection) => void
   onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
@@ -163,7 +161,7 @@ const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
   initialValue, error, onConfirm, onCancel, onChange
 }) => {
   const [val, setVal] = useState(initialValue)
-  
+
   return (
     <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
       <input
@@ -192,7 +190,6 @@ const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
 interface CollContextMenuProps {
   menu: ContextMenuState
   onClose: () => void
-  onSaveToCollection: (id: string) => void
   onRename: (id: string, name: string) => void
   onEditVariables: (node: TreeDataItem) => void
   onExport: (id: string) => void
@@ -204,7 +201,7 @@ interface CollContextMenuProps {
 
 const CollContextMenu: React.FC<CollContextMenuProps> = ({
   menu, onClose,
-  onSaveToCollection, onRename, onEditVariables, onExport,
+  onRename, onEditVariables, onExport,
   onCopyPath, onShowInFolder, onMove, onDelete,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -239,9 +236,6 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
         }}
         onMouseDown={e => e.stopPropagation()}
       >
-        <button onClick={() => { onSaveToCollection(menu.node.id); onClose() }}>
-          <Save size={12} /> Save current request
-        </button>
         <button onClick={() => { onRename(menu.node.id, menu.node.name); onClose() }}>
           <Edit2 size={12} /> Rename
         </button>
@@ -279,7 +273,6 @@ const CollectionPanel: React.FC<Props> = ({
   collections,
   onRefresh,
   onOpenRequest,
-  onSaveToCollection,
   onRenameRequest,
   onEditVariables,
   onDeleteRequest,
@@ -292,9 +285,9 @@ const CollectionPanel: React.FC<Props> = ({
   const [renameError, setRenameError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
-  
+
   const { treeRef, initialOpenState, onToggle } = useTreeOpenState()
-  
+
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [treeHeight, setTreeHeight] = useState(400)
 
@@ -522,7 +515,7 @@ const CollectionPanel: React.FC<Props> = ({
         >
           <div className="tree-node-content" style={{ paddingLeft: node.level * 6 }}>
             {(isCollection || isFolder) && (
-              <div className="tree-node-chevron" onClick={(e) => { 
+              <div className="tree-node-chevron" onClick={(e) => {
                 e.stopPropagation()
                 node.toggle()
                 onToggle()
@@ -593,7 +586,7 @@ const CollectionPanel: React.FC<Props> = ({
     }
   }, [
     editingId,
-    onOpenRequest, onSaveToCollection, onEditVariables,
+    onOpenRequest, onEditVariables,
     onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename, onToggle
   ])
 
@@ -613,7 +606,7 @@ const CollectionPanel: React.FC<Props> = ({
           <button className="btn-ghost coll-btn" onClick={importCollection} data-tooltip="Import collection" data-tooltip-pos="bottom">
             <Upload size={14} />
           </button>
-          <button className="btn-ghost coll-btn" onClick={openFolder} data-tooltip="Open folder" data-tooltip-pos="bottom">
+          <button className="btn-ghost coll-btn" onClick={openFolder} data-tooltip="Import folder" data-tooltip-pos="bottom">
             <FolderOpen size={14} />
           </button>
         </div>
@@ -657,7 +650,6 @@ const CollectionPanel: React.FC<Props> = ({
         <CollContextMenu
           menu={contextMenu}
           onClose={() => setContextMenu(null)}
-          onSaveToCollection={onSaveToCollection}
           onRename={(id, name) => { setEditingId(id); setNameInput(name) }}
           onEditVariables={(node) => onEditVariables(node as unknown as Collection)}
           onExport={(id) => window.ultraRpc?.exportCollection({ collectionId: id })}

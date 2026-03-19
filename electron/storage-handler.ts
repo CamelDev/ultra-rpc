@@ -75,7 +75,7 @@ interface CollectionItem {
 
 const validateRequest = (req: any): SavedRequest | null => {
   if (!req || typeof req !== 'object') return null
-  
+
   // Basic heuristic: a request should have at least a URL or a name + method
   // We skip files that are obviously not requests (like package.json, _meta.json, etc.)
   if (!req.url && !req.name) return null
@@ -114,7 +114,7 @@ const findFolderByIdRecursively = (dir: string, folderId: string): string | null
       if (meta.id === folderId) return dir
     } catch { /* skip */ }
   }
-  
+
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   for (const entry of entries) {
     if (entry.isDirectory()) {
@@ -129,8 +129,8 @@ const updateOrderMeta = (dirPath: string, itemId: string, action: 'add' | 'remov
   const metaPath = path.join(dirPath, '_meta.json')
   let meta: any = { id: path.basename(dirPath), name: path.basename(dirPath), requestOrder: [] }
   if (fs.existsSync(metaPath)) {
-    try { 
-      meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) 
+    try {
+      meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
     } catch { /* skip */ }
   }
   if (!meta.requestOrder) meta.requestOrder = []
@@ -157,7 +157,7 @@ const updateOrderMeta = (dirPath: string, itemId: string, action: 'add' | 'remov
 const verifyAndRepairOrder = (dirPath: string, discoveredIds: string[]): string[] => {
   const metaPath = path.join(dirPath, '_meta.json')
   let meta: any = { id: path.basename(dirPath), name: path.basename(dirPath), requestOrder: [] }
-  
+
   if (fs.existsSync(metaPath)) {
     try {
       meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
@@ -165,13 +165,13 @@ const verifyAndRepairOrder = (dirPath: string, discoveredIds: string[]): string[
   }
 
   const currentOrder: string[] = Array.isArray(meta.requestOrder) ? meta.requestOrder : []
-  
+
   // 1. Filter out IDs that no longer exist on disk
   const existingOrder = currentOrder.filter(id => discoveredIds.includes(id))
-  
+
   // 2. Add IDs from disk that are missing in the order
   const missingInOrder = discoveredIds.filter(id => !existingOrder.includes(id))
-  
+
   // 3. Combine and deduplicate
   const finalOrder = [...new Set([...existingOrder, ...missingInOrder])]
 
@@ -194,7 +194,7 @@ const extractRequests = (data: any): CollectionItem[] => {
       for (let i = 0; i < postmanItems.length; i++) {
         const item = postmanItems[i]
         const stableId = `${pathPrefix}_${i}`
-        
+
         if (item.item && Array.isArray(item.item)) {
           results.push({
             id: stableId,
@@ -232,7 +232,7 @@ const extractRequests = (data: any): CollectionItem[] => {
                 .replace(/pm\.collectionVariables\.set\(/g, 'ultra.collection.set(')
                 .replace(/pm\.collectionVariables\.get\(/g, 'ultra.collection.get(')
                 .replace(/pm\.response\.json\(\)/g, 'ultra.response.body')
-              
+
               if (event.listen === 'prerequest') mapped.preRequestScript = convertedScript
               else if (event.listen === 'test') mapped.postResponseScript = convertedScript
             }
@@ -360,7 +360,7 @@ export function registerStorageHandlers() {
       const loadCollectionFromDir = (collDir: string, displayPath: string): SavedCollection | null => {
         const metaPath = path.join(collDir, '_meta.json')
         const dirName = path.basename(collDir)
-        
+
         // The directory name is the source of truth for the collection name.
         // The ID is the slugified directory name to ensure valid paths and consistency.
         const name = dirName
@@ -441,7 +441,7 @@ export function registerStorageHandlers() {
     try {
       const root = getStorageRoot()
       const id = args.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
-      
+
       let collDir: string
       if (args.path) {
         collDir = path.join(args.path, id)
@@ -454,7 +454,7 @@ export function registerStorageHandlers() {
       }
 
       fs.mkdirSync(collDir, { recursive: true })
-      
+
       const meta = { id, path: collDir }
       fs.writeFileSync(
         path.join(collDir, '_meta.json'),
@@ -621,7 +621,7 @@ export function registerStorageHandlers() {
       const root = getStorageRoot()
       // Note: folderPath is the relative path from the collection root
       const fullPath = path.join(root, args.collectionId, args.folderPath)
-      
+
       if (fs.existsSync(fullPath)) {
         fs.rmSync(fullPath, { recursive: true, force: true })
       }
@@ -708,7 +708,7 @@ export function registerStorageHandlers() {
       return { success: false, error: err.message }
     }
   })
-  
+
   // Save collection variables
   ipcMain.handle('storage:saveCollectionVariables', async (_event, args: { collectionId: string; variables: any[] }) => {
     try {
@@ -731,7 +731,7 @@ export function registerStorageHandlers() {
     try {
       const root = getStorageRoot()
       const collDir = path.join(root, args.collectionId)
-      
+
       if (!fs.existsSync(collDir)) return { success: false, error: 'Collection not found' }
 
       // 1. Find the item (request or folder)
@@ -761,7 +761,7 @@ export function registerStorageHandlers() {
       // 4. Move the file/folder if necessary
       if (sourcePath !== newPath) {
         if (fs.existsSync(newPath)) {
-             return { success: false, error: 'An item with that name already exists in target' }
+          return { success: false, error: 'An item with that name already exists in target' }
         }
         fs.renameSync(sourcePath, newPath)
       }
@@ -836,17 +836,17 @@ export function registerStorageHandlers() {
       if (fs.existsSync(settingsPath)) {
         try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
       }
-      
+
       let paths: string[] = Array.isArray(settings.collectionPaths) ? settings.collectionPaths : []
-      
+
       // Remove old path if it was there
       paths = paths.filter(p => p !== srcDir)
-      
+
       // Add new path if it's NOT in the default app data location
       if (!destDir.startsWith(root)) {
         if (!paths.includes(destDir)) paths.push(destDir)
       }
-      
+
       settings.collectionPaths = paths
       fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
 
@@ -1007,13 +1007,13 @@ export function registerStorageHandlers() {
       // Create collection folder
       const root = getStorageRoot()
       const id = collectionName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
-      
+
       let finalId = id
       let counter = 1
       while (fs.existsSync(path.join(root, finalId))) {
         finalId = `${id}-${counter++}`
       }
-      
+
       const finalCollDir = path.join(root, finalId)
       fs.mkdirSync(finalCollDir, { recursive: true })
 
@@ -1110,32 +1110,32 @@ export function registerStorageHandlers() {
     }
   })
 
-function buildStaticTree(dirPath: string): CollectionItem[] {
-  const childrenList: CollectionItem[] = []
-  const files = fs.readdirSync(dirPath, { withFileTypes: true })
-  
-  for (const entry of files) {
-    const fullPath = path.join(dirPath, entry.name)
-    if (entry.isDirectory()) {
-      const subItems = buildStaticTree(fullPath)
-      if (subItems.length > 0) {
-        childrenList.push({
-          id: entry.name,
-          name: entry.name,
-          type: 'folder',
-          children: subItems
-        })
+  function buildStaticTree(dirPath: string): CollectionItem[] {
+    const childrenList: CollectionItem[] = []
+    const files = fs.readdirSync(dirPath, { withFileTypes: true })
+
+    for (const entry of files) {
+      const fullPath = path.join(dirPath, entry.name)
+      if (entry.isDirectory()) {
+        const subItems = buildStaticTree(fullPath)
+        if (subItems.length > 0) {
+          childrenList.push({
+            id: entry.name,
+            name: entry.name,
+            type: 'folder',
+            children: subItems
+          })
+        }
+      } else if (entry.name.endsWith('.json') || entry.name.endsWith('.postman_collection')) {
+        try {
+          const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
+          const extracted = extractRequests(content)
+          childrenList.push(...extracted)
+        } catch { /* skip */ }
       }
-    } else if (entry.name.endsWith('.json') || entry.name.endsWith('.postman_collection')) {
-      try {
-        const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
-        const extracted = extractRequests(content)
-        childrenList.push(...extracted)
-      } catch { /* skip */ }
     }
+    return childrenList
   }
-  return childrenList
-}
 
   // ===== History =====
 

@@ -411,6 +411,16 @@ const App: React.FC = () => {
     ))
   }, [activeTabId])
 
+  const applyEnvToAllTabs = useCallback((envId: string) => {
+    setTabs(prev => prev.map(t => ({
+      ...t,
+      request: { ...t.request, envId },
+      isDirty: true
+    })))
+    setActiveEnvId(envId)
+    saveAppSetting('activeEnvId', envId)
+  }, [saveAppSetting])
+
   const addEmptyTab = () => {
     const newReq = createEmptyRequest()
     newReq.envId = activeEnvId // Inherit global env for new tabs
@@ -557,13 +567,43 @@ const App: React.FC = () => {
     }
   }
 
+  const handleSaveAll = useCallback(async () => {
+    if (!window.ultraRpc) return
+    
+    const dirtyTabsWithCollection = tabs.filter(t => t.isDirty)
+      .map(t => ({ tab: t, collectionId: t.owningCollectionId || findCollectionByRequestId(t.id)?.id }))
+      .filter(x => !!x.collectionId) as { tab: Tab, collectionId: string }[]
+    
+    if (dirtyTabsWithCollection.length === 0) return
+
+    for (const item of dirtyTabsWithCollection) {
+      await window.ultraRpc.saveRequest({ collectionId: item.collectionId, request: item.tab.request })
+    }
+
+    // Clear dirty flags for saved tabs
+    setTabs(prev => prev.map(t => {
+      const savedItem = dirtyTabsWithCollection.find(st => st.tab.id === t.id)
+      if (savedItem) {
+        return { ...t, isDirty: false, owningCollectionId: savedItem.collectionId }
+      }
+      return t
+    }))
+
+    loadCollections()
+    addToast({ type: 'success', message: `Saved ${dirtyTabsWithCollection.length} request(s)` })
+  }, [tabs, findCollectionByRequestId, loadCollections])
+
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl+S or Cmd+S
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        handleSaveActiveRequest()
+        if (e.shiftKey) {
+          handleSaveAll()
+        } else {
+          handleSaveActiveRequest()
+        }
       }
 
       // ESC key to close modals
@@ -578,7 +618,7 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSaveActiveRequest])
+  }, [handleSaveActiveRequest, handleSaveAll])
 
   const handleRenameRequest = (reqId: string, newName: string) => {
     setTabs(prev => prev.map(t => 
@@ -1103,6 +1143,7 @@ const App: React.FC = () => {
                 environments={environments}
                 onChange={handleEnvChange}
                 onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
+                onApplyToAllTabs={applyEnvToAllTabs}
               />
             </div>
           </div>
@@ -1126,7 +1167,6 @@ const App: React.FC = () => {
             collections={collections}
             onRefresh={loadCollections}
             onOpenRequest={(req) => openRequestTab(req, false)}
-            onSaveToCollection={saveToCollection}
             onRenameRequest={handleRenameRequest}
             onEditVariables={setEditingCollection}
             onDeleteRequest={(collId, reqId, name) => setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })}

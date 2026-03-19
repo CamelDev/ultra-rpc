@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe } from 'lucide-react'
 import type { Environment, KeyValuePair } from '../types'
 import { emptyKV } from '../lib/helpers'
 import './EnvironmentPanel.css'
@@ -8,9 +8,10 @@ interface Props {
   environments: Environment[]
   onChange: (environments: Environment[]) => void
   onDeleteRequest: (id: string, name: string) => void
+  onApplyToAllTabs: (envId: string) => void
 }
 
-const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteRequest }) => {
+const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteRequest, onApplyToAllTabs }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -138,6 +139,14 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteReq
                   <Edit2 size={13} />
                 </button>
               )}
+
+              <button className="btn-ghost env-action" data-tooltip="Apply to all tabs" data-tooltip-pos="top" onClick={() => {
+                if (window.confirm(`Apply environment "${env.name}" to all opened tabs?`)) {
+                  onApplyToAllTabs(env.id)
+                }
+              }}>
+                <Globe size={13} />
+              </button>
 
               <button className="btn-ghost env-action env-delete" data-tooltip="Delete Environment" data-tooltip-pos="top" onClick={() => onDeleteRequest(env.id, env.name)}>
                 <Trash2 size={13} />
