@@ -13,7 +13,10 @@
 
 ## 🎯 Overview
 
-![UltraRPC App Screenshot](public/screenshots/screenshot.png)
+<p align="center">
+  <img src="public/screenshots/screenshot.png" alt="UltraRPC App Screenshot" width="800" />
+</p>
+
 
 UltraRPC is a cross-platform desktop application designed for developers who need a single tool to test and debug both REST APIs and gRPC services. Unlike cloud-based alternatives, UltraRPC stores everything locally in human-readable files — no accounts, no subscriptions, no data leaving your machine.
 
@@ -43,7 +46,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - Click the **Globe** icon in the bottom left to open the Environment Panel.
 - Use the **+** button to create a new environment or the **Import** button to load a Postman environment file.
 - Add keys like `BASE_URL` or `API_KEY`.
-- Add keys like `BASE_URL` or `API_KEY`.
+
 - **Per-Tab Selection**: Select an environment from the dropdown near the address bar. This selection is **specific to the current tab**, allowing you to work across different environments simultaneously.
 - **Inheritance**: New tabs automatically inherit the currently active global environment.
 
@@ -212,7 +215,7 @@ Since UltraRPC is not currently code-signed with an Apple Developer certificate,
       <img src="public/screenshots/privacy-open-anyway.png" alt="Click Open Anyway" width="400" />
     </p>
 
-4.  **Confirm Open**: A final confirmation dialog will appear. Click **Ope anywayn** to launch the application and confirm with password. You will only need to do this once for new version installed.
+4.  **Confirm Open**: A final confirmation dialog will appear. Click **Ope anyway** to launch the application and confirm with password. You will only need to do this once for new version installed.
     <p align="center">
       <img src="public/screenshots/open-ultra-rpc-anyway.png" alt="Confirm Open Anyway" width="300" />
     </p>
@@ -222,23 +225,6 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
 1. Click the **More info** link under the main text.
 2. A new button **Run anyway** will appear. Click it to proceed with the installation.
 
-
----
-
-## 🏛 Architecture
-
-### IPC Communication (window.ultraRpc.*)
-
-| Channel | Direction | Purpose |
-|---------|-----------|---------|
-| `rest:send` | Renderer → Main | Execute HTTP/HTTPS request |
-| `grpc:reflect` | Renderer → Main | List gRPC services via reflection |
-| `grpc:methods` | Renderer → Main | Get methods with sample bodies |
-| `grpc:call` | Renderer → Main | Execute gRPC call (Unary or Streaming) |
-| `storage:listCollections` | Renderer → Main | List saved collection folders |
-| `storage:saveSettings` | Renderer → Main | Persist theme/active environment selection |
-| `storage:getSettings` | Renderer → Main | Load app-wide preferences |
-... (and 15+ other channels for variables, collections, and history)
 
 ---
 
