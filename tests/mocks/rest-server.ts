@@ -37,6 +37,15 @@ export class MockRestServer {
           return;
         }
 
+        if (req.url === '/method-test') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            method: req.method,
+            success: true
+          }));
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
       });

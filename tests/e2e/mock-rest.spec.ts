@@ -69,3 +69,37 @@ test('Should hit local REST mock server and get response', async () => {
 
   console.log('Test passed successfully!');
 });
+
+test('Should correctly switch between HTTP methods', async () => {
+  const methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+  const mockUrl = `${mockServer.url}/method-test`;
+
+  // 1. Set URL
+  const addressInput = window.locator('.address-input .cm-content');
+  await addressInput.click();
+  await window.keyboard.press('Meta+A');
+  await window.keyboard.press('Backspace');
+  await addressInput.fill(mockUrl);
+
+  for (const method of methods) {
+    console.log(`Testing method: ${method}`);
+
+    // 2. Select method
+    await window.selectOption('.method-select', method);
+
+    // 3. Click Send
+    await window.click('button:has-text("Send")');
+
+    // 4. Verify Response
+    const statusBadge = window.locator('.response-status-badge');
+    await expect(statusBadge).toContainText('200 OK', { timeout: 10000 });
+
+    const responseBody = window.locator('.response-viewer .cm-content');
+    await expect(responseBody).toContainText(`"method": "${method}"`, { timeout: 5000 });
+    
+    // Clear response for next iteration
+    // (Wait a bit to ensure it actually changed if needed, but the statusBadge should be enough trigger)
+  }
+
+  console.log('Method switching test passed successfully!');
+});

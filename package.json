@@ -16,7 +16,7 @@
     "package:linux": "npm run build && electron-builder --linux",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "npm run build && playwright test"
   },
   "build": {
     "appId": "com.ultrarpc.app",
@@ -77,6 +77,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@grpc/reflection": "^1.0.4",
     "@playwright/test": "^1.58.2",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",

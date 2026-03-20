@@ -11,6 +11,7 @@ import {
   Info,
   WrapText,
   Hourglass,
+  FolderOpen,
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
@@ -929,7 +930,8 @@ const App: React.FC = () => {
           host: url, insecure: isInsecure, headers,
           service: activeRequest.grpcService, method: activeRequest.grpcMethod,
           payload: interpolate(activeRequest.grpcPayload || '{}', updatedEnv, scriptResult?.collections),
-          timeoutMs: activeRequest.timeoutMs
+          timeoutMs: activeRequest.timeoutMs,
+          protoPath: activeRequest.protoPath
         })
         if (result.success && result.data) {
           statusCode = result.data.status
@@ -1368,6 +1370,74 @@ const App: React.FC = () => {
                 </div>
               )}
 
+              {/* gRPC-specific fields at the top of the request pane (fixed) */}
+              {activeRequest.type === 'GRPC' && (
+                (() => {
+                  const isLocked = !!activeRequestCollection || !!responses[activeTabId];
+                  return (
+                    <div className="grpc-fields" style={{ padding: '4px 16px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div className="grpc-field-row" id="grpc-service-row">
+                        <label className="grpc-label">Service</label>
+                        <InterpolatedInput
+                          className="grpc-input"
+                          placeholder="Use Discover below, or type e.g. mypackage.MyService"
+                          value={activeRequest.grpcService || ''}
+                          onChange={(val) => updateActiveRequest({ grpcService: val })}
+                          activeEnv={activeEnv}
+                          collectionVariables={activeRequestCollection?.variables}
+                          disabled={isLocked}
+                          theme={theme}
+                        />
+                      </div>
+                      <div className="grpc-field-row" id="grpc-method-row">
+                        <label className="grpc-label">Method</label>
+                        <InterpolatedInput
+                          className="grpc-input"
+                          placeholder="e.g. GetUser"
+                          value={activeRequest.grpcMethod || ''}
+                          onChange={(val) => updateActiveRequest({ grpcMethod: val })}
+                          activeEnv={activeEnv}
+                          collectionVariables={activeRequestCollection?.variables}
+                          disabled={isLocked}
+                          theme={theme}
+                        />
+                      </div>
+                      <div className="grpc-field-row" id="grpc-proto-row">
+                        <label className="grpc-label">Proto Path</label>
+                        <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                          <InterpolatedInput
+                            className="grpc-input"
+                            style={{ flex: 1 }}
+                            placeholder="Optional: /path/to/service.proto"
+                            value={activeRequest.protoPath || ''}
+                            onChange={(val) => updateActiveRequest({ protoPath: val })}
+                            activeEnv={activeEnv}
+                            collectionVariables={activeRequestCollection?.variables}
+                            disabled={isLocked}
+                            theme={theme}
+                          />
+                          <button 
+                            className="btn-ghost"
+                            disabled={isLocked}
+                            onClick={async () => {
+                              if (!window.ultraRpc) return
+                              const res = await window.ultraRpc.pickFile()
+                              if (res.success && res.path) {
+                                updateActiveRequest({ protoPath: res.path })
+                              }
+                            }}
+                            style={{ padding: '0 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}
+                            title="Pick Proto File"
+                          >
+                            <FolderOpen size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+
               {/* ==== Config Tabs ==== */}
               <div className="config-tabs">
                 {configTabs.map(ct => (
@@ -1394,8 +1464,43 @@ const App: React.FC = () => {
               </div>
 
               {/* ==== Scrollable Config Content ==== */}
-              <div className="request-pane-content no-scrollbar">
-                <div className="config-content">
+                <div className="request-pane-content no-scrollbar" style={{ display: 'flex', flexDirection: 'column' }}>
+                  {/* gRPC discovery in the scrollable content */}
+                  {activeRequest.type === 'GRPC' && (
+                    (() => {
+                      const isLocked = !!activeRequestCollection || !!responses[activeTabId];
+                      return !isLocked && (
+                        <div style={{ marginBottom: '20px' }}>
+                          <GrpcReflectionPanel
+                            host={interpolate(activeRequest.url)}
+                            insecure={(() => {
+                              const effectiveEnvId = activeRequest.envId || activeEnvId
+                              const currentEnv = environments.find(e => e.id === effectiveEnvId)
+                              return currentEnv?.sslVerification === false
+                            })()}
+                            headers={(() => {
+                              const h: Record<string, string> = {}
+                              activeRequest.headers.filter(hdr => hdr.enabled && hdr.key).forEach(hdr => {
+                                h[interpolate(hdr.key)] = interpolate(hdr.value)
+                              })
+                              return h
+                            })()}
+                            onSelectService={(svc) => updateActiveRequest({ grpcService: svc })}
+                            onSelectMethod={(svc, method, sampleBody) => {
+                              updateActiveRequest({
+                                grpcService: svc,
+                                grpcMethod: method,
+                                grpcPayload: sampleBody || '{}',
+                                bodyType: 'json',
+                              })
+                              setActiveConfigTab('body')
+                            }}
+                          />
+                        </div>
+                      );
+                    })()
+                  )}
+                  <div className="config-content">
                   {activeConfigTab === 'params' && (
                       <KeyValueEditor
                         pairs={activeRequest.params}
@@ -1624,72 +1729,6 @@ const App: React.FC = () => {
                   )}
                 </div>
 
-                {/*   // ===== gRPC specific fields (below content now) ==== */}
-                {activeRequest.type === 'GRPC' && (
-                  (() => {
-                    const isLocked = !!activeRequestCollection || !!responses[activeTabId];
-                    return (
-                      <>
-                        <div className="grpc-fields">
-                          <div className="grpc-field-row">
-                            <label className="grpc-label">Service</label>
-                            <InterpolatedInput
-                              className="grpc-input"
-                              placeholder="Use Discover below, or type e.g. mypackage.MyService"
-                              value={activeRequest.grpcService || ''}
-                              onChange={(val) => updateActiveRequest({ grpcService: val })}
-                              activeEnv={activeEnv}
-                              collectionVariables={activeRequestCollection?.variables}
-                              disabled={isLocked}
-                              theme={theme}
-                            />
-                          </div>
-                          <div className="grpc-field-row">
-                            <label className="grpc-label">Method</label>
-                            <InterpolatedInput
-                              className="grpc-input"
-                              placeholder="e.g. GetUser"
-                              value={activeRequest.grpcMethod || ''}
-                              onChange={(val) => updateActiveRequest({ grpcMethod: val })}
-                              activeEnv={activeEnv}
-                              collectionVariables={activeRequestCollection?.variables}
-                              disabled={isLocked}
-                              theme={theme}
-                            />
-                          </div>
-                        </div>
-
-                        {!isLocked && (
-                          <GrpcReflectionPanel
-                            host={interpolate(activeRequest.url)}
-                            insecure={(() => {
-                              const effectiveEnvId = activeRequest.envId || activeEnvId
-                              const currentEnv = environments.find(e => e.id === effectiveEnvId)
-                              return currentEnv?.sslVerification === false
-                            })()}
-                            headers={(() => {
-                              const h: Record<string, string> = {}
-                              activeRequest.headers.filter(hdr => hdr.enabled && hdr.key).forEach(hdr => {
-                                h[interpolate(hdr.key)] = interpolate(hdr.value)
-                              })
-                              return h
-                            })()}
-                            onSelectService={(svc) => updateActiveRequest({ grpcService: svc })}
-                            onSelectMethod={(svc, method, sampleBody) => {
-                              updateActiveRequest({
-                                grpcService: svc,
-                                grpcMethod: method,
-                                grpcPayload: sampleBody || '{}',
-                                bodyType: 'json',
-                              })
-                              setActiveConfigTab('body')
-                            }}
-                          />
-                        )}
-                      </>
-                    );
-                  })()
-                )}
               </div>
             </motion.div>
           </div>

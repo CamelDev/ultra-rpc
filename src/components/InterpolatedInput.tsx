@@ -17,6 +17,7 @@ interface Props {
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
   theme?: 'dark' | 'light'
+  style?: React.CSSProperties
 }
 
 const InterpolatedInput: React.FC<Props> = ({
@@ -33,11 +34,12 @@ const InterpolatedInput: React.FC<Props> = ({
   onKeyDown,
   disabled = false,
   theme = 'dark',
+  style,
 }) => {
   const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
   
   return (
-    <div className={`interpolated-input-container ${className}`}>
+    <div className={`interpolated-input-container ${className}`} style={style}>
       <Editor
         value={value}
         onChange={onChange}

@@ -598,6 +598,7 @@ input:focus, select:focus, textarea:focus {
 /* ===== gRPC Fields ===== */
 .grpc-fields {
   display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 

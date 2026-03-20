@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   showCollectionInFolder: (args: any) => ipcRenderer.invoke('storage:showCollectionInFolder', args),
   moveCollection: (args: any) => ipcRenderer.invoke('storage:moveCollection', args),
   pickFolder: () => ipcRenderer.invoke('storage:pickFolder'),
+  pickFile: () => ipcRenderer.invoke('storage:pickFile'),
   linkCollection: () => ipcRenderer.invoke('storage:linkCollection'),
 
   // ===== History =====

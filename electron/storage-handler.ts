@@ -552,6 +552,23 @@ export function registerStorageHandlers() {
     }
   })
 
+  // Pick a file for gRPC proto
+  ipcMain.handle('storage:pickFile', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Select Proto File',
+        filters: [{ name: 'Protocol Buffers', extensions: ['proto'] }],
+        properties: ['openFile'],
+      })
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Cancelled' }
+      }
+      return { success: true, path: result.filePaths[0] }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
   // Link an existing folder as a collection
   ipcMain.handle('storage:linkCollection', async () => {
     try {

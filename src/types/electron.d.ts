@@ -49,6 +49,7 @@ export interface UltraRpcApi {
   showCollectionInFolder: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
   moveCollection: (args: { collectionId: string; currentPath?: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
   pickFolder: () => Promise<{ success: boolean; path?: string; error?: string }>
+  pickFile: () => Promise<{ success: boolean; path?: string; error?: string }>
   linkCollection: () => Promise<{ success: boolean; path?: string; error?: string }>
 
   // History
