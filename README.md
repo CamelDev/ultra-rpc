@@ -5,7 +5,7 @@
 <h1 align="center">⚡ UltraRPC</h1>
 
 <p align="center">
-  <em>A robust desktop API client for <strong>gRPC</strong> and <strong>REST</strong> — built with Electron, React, and TypeScript.</em>
+  <em>A lightweight desktop API client for <strong>gRPC</strong> and <strong>REST</strong> — built with Electron, React, and TypeScript.</em>
 </p>
 
 
@@ -194,37 +194,34 @@ npm run package:linux
 Since UltraRPC is not yet code-signed with Apple or Microsoft developer certificates, your OS may block it by default. Here is how to run it anyway:
 
 ### 🍎 macOS ("Open Anyway")
-When you first open the `.dmg` and drag the app to your folder, you might see a warning that Apple cannot check it for malicious software.
-1. Right-click (or Control-click) the **UltraRPC.app** in your Applications folder and select **Open**.
-2. A dialog will appear. Click **Open** again.
-3. If that doesn't work, go to **System Settings > Privacy & Security**. 
-4. Scroll down to the "Security" section and click **Open Anyway** next to the UltraRPC warning.
+
+Since UltraRPC is not currently code-signed with an Apple Developer certificate, macOS will block it by default with a "Malicious Software" warning. Follow these steps to grant an exception:
+
+1.  **Initial Warning**: When you first try to open **UltraRPC.app** from your Applications folder, you will see a dialog stating it cannot be opened because the developer cannot be verified. Click **Done**.
+    <p align="center">
+      <img src="public/screenshots/ultra-not-opened-mac.png" alt="Apple cannot check it for malicious software" width="300">
+    </p>
+
+2.  **Open Privacy Settings**: Go to **System Settings > Privacy & Security**. 
+    <p align="center">
+      <img src="public/screenshots/privacy-security-mac.png" alt="System Settings Privacy & Security" width="600" />
+    </p>
+
+3.  **Click Open Anyway**: Scroll down to the "Security" section. You will see a message about UltraRPC being blocked. Click the **Open Anyway** button.
+    <p align="center">
+      <img src="public/screenshots/privacy-open-anyway.png" alt="Click Open Anyway" width="400" />
+    </p>
+
+4.  **Confirm Open**: A final confirmation dialog will appear. Click **Ope anywayn** to launch the application and confirm with password. You will only need to do this once for new version installed.
+    <p align="center">
+      <img src="public/screenshots/open-ultra-rpc-anyway.png" alt="Confirm Open Anyway" width="300" />
+    </p>
 
 ### 🪟 Windows ("Run Anyway")
 When you run the installer, Windows SmartScreen may show a "Windows protected your PC" blue window.
 1. Click the **More info** link under the main text.
 2. A new button **Run anyway** will appear. Click it to proceed with the installation.
 
-
----
-
-## 📂 Project Structure
-
-```
-UltraRPC/
-├── electron/                        # Electron main process (Node.js)
-│   ├── main.ts                      # App entry: window creation, IPC registration
-│   ├── preload.ts                   # Context bridge: exposes safe IPC API to renderer
-│   ├── rest-handler.ts              # HTTP/HTTPS request handler (Node native)
-│   ├── grpc-handler.ts              # gRPC reflection, streaming, and unary calls
-│   └── storage-handler.ts           # Filesystem: collections, history, environments, settings
-│
-├── src/                             # React renderer process
-│   ├── App.tsx                      # Root component: tabs, request lifecycle, script execution
-│   ├── main.tsx                     # React DOM entry point
-│   ├── index.css                    # Global CSS: design system, dark theme, split-pane layout
-│   ...
-```
 
 ---
 
@@ -256,18 +253,18 @@ UltraRPC/
 - [x] Postman Environment Import
 - [x] Per-Tab Environment Selection
 - [x] Three-Column Layout
+- [x] Collection linked to file system (sync with GIT)
+- [ ] Cookies support
+- [ ] Secrets and vault support
 - [ ] Collection runner with reports
 - [ ] Run complex post response scripts
-- [ ] Automated test runner in CI
-- [ ] Collection sync with GIT
 - [ ] TLS/SSL configuration panel for gRPC (Client Certificates)
 - [ ] WebSocket support
 - [ ] GraphQL support
 - [ ] Response diffing
-- [ ] Plugin system
 
 ---
 
 ## 📄 License
 
-MIT
+MIT https://mit-license.org/

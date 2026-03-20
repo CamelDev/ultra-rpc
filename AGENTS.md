@@ -8,8 +8,8 @@
 
 - **Name**: UltraRPC
 - **Type**: Desktop application (Electron)
-- **Purpose**: Robust API client for REST and gRPC testing — like Postman with native gRPC reflection support and file-based collections
-- **Version**: 1.0.0
+- **Purpose**: Lightweight API client for REST and gRPC testing — like Postman with native gRPC reflection support and file-based collections
+- **Version**: 1.0.10
 - **License**: MIT
 
 ---
@@ -22,18 +22,19 @@
 | Frontend Framework | React | 19.x | Functional components, hooks only |
 | Language | TypeScript | 5.9.x | Strict mode enabled, separate tsconfigs for app and node |
 | Build Tool | Vite | 7.x | Dev server with HMR for both React and Electron |
-| Electron ↔ Vite | vite-plugin-electron + vite-plugin-electron-renderer | 0.29.x / 0.14.x | Handles main/preload compilation |
-| Styling | Vanilla CSS | — | No utility frameworks. Custom dark theme with glassmorphism. Component-scoped CSS files. |
-| Animations | Framer Motion | 12.x | Micro-animations, layout transitions |
+| Electron ↔ Vite | vite-plugin-electron + vite-plugin-electron-renderer | 0.29.x / 0.14.6 | Handles main/preload compilation |
+| Styling | Vanilla CSS | — | No utility frameworks. Custom dark theme with glassmorphism. |
+| Animations | Framer Motion | 12.x | Micro-animations, layout transitions, reordering |
 | Icons | Lucide React | 0.577.x | Tree-shakable SVG icon library |
-| HTTP Client | Node.js native `http`/`https` | — | Used in main process to bypass CORS |
+| Editor | CodeMirror | 6.x | Used for request/response JSON and script editing |
+| HTTP Client | Node.js native `http`/`https` | — | Used in main process to bypass CORS and handle SSL bypass |
 | REST Client Fallback | Fetch API | — | Used in renderer when Electron IPC unavailable (dev mode in browser) |
-| gRPC | @grpc/grpc-js | 1.14.x | Pure JavaScript gRPC implementation, no native addons |
+| gRPC | @grpc/grpc-js | 1.14.x | Pure JavaScript gRPC implementation |
 | Proto Loading | @grpc/proto-loader | 0.8.x | Loads `.proto` files to gRPC package definitions |
-| Proto Parsing | protobufjs | transitive | Used for decoding FileDescriptorProto from reflection responses |
+| Proto Parsing | protobufjs | 7.x | Used for reflection decoding and gRPC status details parsing |
 | Packaging | electron-builder | 26.x | NSIS (Win), DMG (Mac), AppImage (Linux) |
 | Linting | ESLint + typescript-eslint | 9.x | React hooks and refresh plugins |
-| Module System | ESM | — | `"type": "module"` in package.json. `createRequire` for CJS interop in main process. |
+| Module System | ESM | — | `"type": "module"` in package.json. `createRequire` for CJS interop in main. |
 
 ---
 
@@ -45,18 +46,18 @@ UltraRPC uses the standard Electron two-process architecture:
 
 1. **Main Process** (`electron/`) — Runs in Node.js. Handles:
    - Window lifecycle management
-   - HTTP/HTTPS requests (bypasses CORS)
-   - gRPC connections, reflection, and calls
-   - Filesystem read/write for collections, history, environments
+   - HTTP/HTTPS requests (bypasses CORS, handles SSL validation toggles)
+   - gRPC connections, reflection, unary/streaming calls, and rich error decoding
+   - Filesystem persistence for collections, history, and environments
    
 2. **Renderer Process** (`src/`) — Runs in Chromium. Handles:
    - React UI rendering
-   - User interaction and state management
+   - User interaction and state management (Tabs, Environments, Collections)
    - Request composition and response display
 
 3. **Preload Script** (`electron/preload.ts`) — Bridge between main and renderer:
    - Uses `contextBridge.exposeInMainWorld` to expose `window.ultraRpc` API
-   - All IPC is request-response via `ipcRenderer.invoke` / `ipcMain.handle`
+   - All IPC is request-response via `ipcRenderer.invoke`
    - Context isolation is ON, node integration is OFF
 
 ### Directory Structure
@@ -66,119 +67,101 @@ electron/                  # Main process code (Node.js runtime)
   main.ts                  # Entry: creates BrowserWindow, registers IPC handlers
   preload.ts               # Context bridge: exposes window.ultraRpc to renderer
   rest-handler.ts           # IPC handler for REST HTTP/HTTPS requests
-  grpc-handler.ts           # IPC handler for gRPC reflection, method discovery, unary calls
-  storage-handler.ts        # IPC handler for collections, history, environments (filesystem)
+  grpc-handler.ts           # IPC: gRPC reflection, method discovery, unary/server-stream calls
+  storage-handler.ts        # IPC: collections, history, environments, settings (filesystem)
 
 src/                       # Renderer process code (React/Chromium)
   main.tsx                 # React DOM mount point
-  App.tsx                  # Root component: tab management, request lifecycle, env interpolation
-  index.css                # Global design system: CSS variables, dark theme, glassmorphism, typography
+  App.tsx                  # Root: tab management, request lifecycle, variable interpolation
+  index.css                # Global design system: CSS variables, dark theme, glassmorphism
   App.css                  # Minimal app-level CSS overrides
   
-  components/              # UI components (each with .tsx + .css pair)
-    CollectionPanel.tsx     # Sidebar: create/import/export/open collections, browse requests
-    EnvironmentPanel.tsx    # Sidebar: environment CRUD, variable editing
-    GrpcReflectionPanel.tsx # gRPC: service discovery, method listing, auto-fill
-    HistoryPanel.tsx        # Sidebar: request history timeline
-    KeyValueEditor.tsx      # Reusable: key-value pair editor for params & headers
-    ResponseViewer.tsx      # Response display: formatted JSON, status, headers, metrics
+  components/              # UI components (.tsx + .css pair)
+    AboutModal.tsx          # Application info and versioning
+    CollectionPanel.tsx     # Sidebar: collections, folders, drag-and-drop reordering
+    EnvironmentPanel.tsx    # Sidebar: environments, variables, SSL verification toggle
+    GrpcReflectionPanel.tsx # gRPC: service/method discovery via reflection
+    HistoryPanel.tsx        # Sidebar: request history timeline (persists 100 entries)
+    KeyValueEditor.tsx      # Reusable: key-value pair editor
+    InterpolatedInput.tsx   # Specialized input with variable interpolation & autocomplete
+    Editor.tsx              # CodeMirror wrapper for JSON/Code editing
+    ResponseViewer.tsx      # Response display: formatted JSON, trailers, metrics
+    Toaster.tsx             # Notification system (toasts)
   
+  hooks/
+    useTreeOpenState.ts     # Persists collection tree expansion state to settings
+
   types/
-    index.ts               # Domain types: RequestConfig, ResponseData, Collection, Environment, etc.
-    electron.d.ts           # TypeScript declarations for the window.ultraRpc IPC bridge API
+    index.ts               # Domain types: RequestConfig, ResponseData, Collection, etc.
+    electron.d.ts           # TypeScript declarations for the window.ultraRpc API
   
   lib/
-    helpers.ts              # Utilities: createEmptyRequest, emptyKV, uid generator
-
-public/
-  icon.png                 # Application icon
-
-index.html                 # HTML entry point (Vite serves this)
-vite.config.ts             # Vite config with electron plugin and path aliases
-package.json               # Dependencies, scripts, electron-builder config
+    helpers.ts              # Utilities: empty object generators, uid generators
 ```
 
 ---
 
 ## Key Patterns & Conventions
 
+### Variable Interpolation
+UltraRPC supports dynamic variables using `{{variable_name}}` syntax:
+- **Environment Variables**: Defined in the active environment.
+- **Collection Variables**: Defined in the collection metadata.
+- **Resolution Order**: Collection variables take precedence over Environment variables.
+
 ### Component Pattern
-- Each component is a **functional React component** with hooks
-- Each component has a **colocated CSS file** (e.g., `CollectionPanel.tsx` + `CollectionPanel.css`)
-- Components import their CSS directly: `import './Component.css'`
-- **No CSS-in-JS**, no utility frameworks (no Tailwind)
+- Functional React components with hooks.
+- Colocated CSS files (e.g., `Component.tsx` + `Component.css`).
+- **No CSS-in-JS**, no utility frameworks (no Tailwind).
 
 ### State Management
-- **React `useState` + `useCallback`** — no external state libraries (no Redux, Zustand, etc.)
-- All state lives in `App.tsx` and is passed down via props
-- Per-tab state for responses, errors, and loading is managed via `Record<tabId, value>` objects
+- **React `useState` + `useCallback`** — no external state libraries.
+- All primary app state lives in `App.tsx`.
+- Tab state (responses, errors) managed via `Record<tabId, value>`.
 
-### IPC Pattern
-When adding a new IPC channel, modify these three files in order:
-1. `electron/{handler}.ts` — Add `ipcMain.handle('channel:name', ...)` handler
-2. `electron/preload.ts` — Add `channelName: (args) => ipcRenderer.invoke('channel:name', args)` to the context bridge
-3. `src/types/electron.d.ts` — Add the method signature to the `UltraRpcApi` interface
-
-### Naming Conventions
-- IPC channels use **colon-separated namespaces**: `rest:send`, `grpc:reflect`, `storage:listCollections`
-- Component files use **PascalCase**: `CollectionPanel.tsx`
-- CSS files match component names: `CollectionPanel.css`
-- TypeScript types use **PascalCase interfaces**: `RequestConfig`, `ResponseData`
-- Utility functions use **camelCase**: `createEmptyRequest`, `emptyKV`
-
-### CSS Design System
-The global design system is defined in `src/index.css` using CSS custom properties:
-- `--bg-primary`, `--bg-secondary`, `--bg-tertiary` — background layers
-- `--text-primary`, `--text-secondary`, `--text-muted` — text hierarchy
-- `--accent`, `--accent-hover` — brand accent color (purple-ish)
-- `--border`, `--border-light` — border colors
-- `--glass` — glassmorphism with `backdrop-filter: blur()`
-- Dark theme only (no light mode toggle currently)
-
-### Type System
-- All domain types are in `src/types/index.ts`
-- The IPC bridge API is typed in `src/types/electron.d.ts` which extends the global `Window` interface
-- The requests use a **discriminated union** pattern: `type: 'REST' | 'GRPC'` on `RequestConfig`
-- gRPC-specific fields (`grpcService`, `grpcMethod`, `grpcPayload`, `grpcReflection`) are optional on `RequestConfig`
+### Persistence
+- Data is stored in `userData` as JSON files: `history.json`, `environments.json`, `settings.json`.
+- Collections are stored as directory trees with `_meta.json` for metadata (ID, variables, request order).
+- Tree expansion state is persisted via `tree:setOpenState` / `tree:getOpenState`.
 
 ---
 
 ## IPC API Reference
 
 ### REST
-| Channel | Arguments | Returns |
-|---------|-----------|---------|
-| `rest:send` | `{ method, url, headers, body? }` | `{ success, data?: { status, statusText, headers, body, time, size }, error? }` |
+| Method | Arguments | Returns |
+|--------|-----------|---------|
+| `sendRestRequest` | `{ method, url, headers, body?, insecure? }` | `{ success, data?: ResponseData, error? }` |
 
 ### gRPC
-| Channel | Arguments | Returns |
-|---------|-----------|---------|
-| `grpc:reflect` | `{ host, insecure, headers }` | `{ success, services?: string[], error? }` |
-| `grpc:methods` | `{ host, insecure, headers, serviceName }` | `{ success, methods?: MethodInfo[], error? }` |
-| `grpc:call` | `{ host, insecure, headers, service, method, payload, protoPath? }` | `{ success, data?: ResponseData, error?, code? }` |
+| Method | Arguments | Returns |
+|--------|-----------|---------|
+| `grpcReflect` | `{ host, insecure, headers }` | `{ success, services?: string[], error? }` |
+| `grpcMethods` | `{ host, insecure, headers, serviceName }` | `{ success, methods?: MethodInfo[], error? }` |
+| `grpcCall` | `{ host, insecure, headers, service, method, payload, protoPath?, timeoutMs? }` | `{ success, data?: ResponseData, error? }` |
 
 ### Storage — Collections
-| Channel | Arguments | Returns |
-|---------|-----------|---------|
-| `storage:listCollections` | _(none)_ | `{ success, collections?: Collection[] }` |
-| `storage:createCollection` | `{ name }` | `{ success, id? }` |
-| `storage:saveRequest` | `{ collectionId, request }` | `{ success }` |
-| `storage:deleteRequest` | `{ collectionId, requestId }` | `{ success }` |
-| `storage:deleteCollection` | `{ collectionId }` | `{ success }` |
-| `storage:renameCollection` | `{ collectionId, newName }` | `{ success }` |
-| `storage:exportCollection` | `{ collectionId }` | `{ success, path? }` |
-| `storage:importCollection` | _(dialog)_ | `{ success, id?, name?, requestCount? }` |
-| `storage:openFolder` | _(dialog)_ | `{ success, id?, name?, requestCount?, path? }` |
+| Method | Arguments | Returns |
+|--------|-----------|---------|
+| `listCollections` | _(none)_ | `{ success, collections?: Collection[] }` |
+| `createCollection` | `{ name, path? }` | `{ success, id? }` |
+| `saveRequest` | `{ collectionId, request }` | `{ success }` |
+| `deleteRequest` | `{ collectionId, requestId }` | `{ success }` |
+| `deleteFolder` | `{ collectionId, folderPath }` | `{ success }` |
+| `renameCollection` | `{ collectionId, newName }` | `{ success, newId? }` |
+| `cloneCollection` | `{ collectionId }` | `{ success, id? }` |
+| `cloneRequest` | `{ collectionId, requestId }` | `{ success, id? }` |
+| `moveItem` | `{ collectionId, itemId, targetCollectionId?, targetParentId, newIndex }` | `{ success }` |
+| `openFolder` | _(dialog)_ | `{ success, id?, path? }` |
+| `linkCollection` | _(dialog)_ | `{ success, path? }` |
 
-### Storage — History & Environments
-| Channel | Arguments | Returns |
-|---------|-----------|---------|
-| `storage:getHistory` | _(none)_ | `{ success, history?: HistoryEntry[] }` |
-| `storage:addHistory` | `HistoryEntry` | `{ success }` |
-| `storage:clearHistory` | _(none)_ | `{ success }` |
-| `storage:getEnvironments` | _(none)_ | `{ success, environments?: Environment[] }` |
-| `storage:saveEnvironments` | `Environment[]` | `{ success }` |
+---
 
+## gRPC Implementation Details
+
+### Server Reflection & Discovery
+1. Discovers services via `grpc.reflection.v1alpha.ServerReflection`.
+2. Decodes `FileDescriptorProto` to extract method signatures and message types.
 ---
 
 ## Data Storage
@@ -187,18 +170,6 @@ All data is persisted to the Electron `userData` directory:
 - **Windows**: `%APPDATA%/ultrarpc/`
 - **macOS**: `~/Library/Application Support/ultrarpc/`
 - **Linux**: `~/.config/ultrarpc/`
-
-### Layout
-```
-<userData>/
-  collections/
-    <collection-id>/
-      _meta.json           # { id, name, externalPath? }
-      <request-id>.json    # Individual request definition
-  history.json             # Array of HistoryEntry (max 100)
-  environments.json        # Array of Environment
-```
-
 ---
 
 ## Build & Bundling Details
@@ -208,11 +179,6 @@ All data is persisted to the Electron `userData` directory:
 - **External packages**: `@grpc/grpc-js`, `@grpc/proto-loader`, `protobufjs` are kept external in the main process bundle (Rollup). They must run in Node.js where `require()` works — bundling into ESM breaks dynamic `require()` calls.
 - **Main process CJS interop**: `globalThis.require = createRequire(import.meta.url)` in `main.ts` enables `require()` for externalized CJS packages.
 
-### Electron Window Configuration
-- Min size: 900×600, default: 1280×860
-- Custom title bar (Windows): `titleBarStyle: 'hidden'` with `titleBarOverlay`
-- Background color: `#09090b` (near-black)
-- Context isolation: ON, node integration: OFF, sandbox: OFF
 
 ### Packaging
 - **electron-builder** handles cross-platform packaging
@@ -237,27 +203,13 @@ npm run preview      # Preview production build
 
 ---
 
-## gRPC Reflection Implementation
-
-The gRPC reflection client uses the **gRPC Server Reflection v1alpha** protocol:
-
-1. An inline `.proto` definition for `grpc.reflection.v1alpha.ServerReflection` is written to a temp file and loaded via `@grpc/proto-loader`
-2. `list_services` discovers available service names
-3. `file_containing_symbol` retrieves `FileDescriptorProto` binary blobs for a given service
-4. `protobufjs` decodes the descriptors to extract:
-   - Service names and method signatures
-   - Input/output message types
-   - Field-level schema for **auto-generating sample request JSON bodies**
-5. For making calls, a `protobufjs.Root` is built from `FileDescriptorSet` to serialize/deserialize messages with a generic `grpc.Client.makeUnaryRequest()`
-
 ---
 
 ## Known Constraints & Gotchas
 
-- **gRPC streaming is not yet supported** — only unary calls work. Streaming methods are listed in the UI but will fail if called.
-- **TLS for gRPC** currently defaults to `insecure: true`. There is no UI toggle for TLS/SSL configuration.
-- **Proto file path** is supported in the call handler but there is no UI for uploading/selecting proto files yet.
+- **Bidi-streaming is not yet fully supported** — only unary and server-streaming are implemented.
+- **SSL Verification toggle** is available at the Environment level but affects all requests using that environment.
+- **Proto file path** is supported in the call handler but there is no UI for selecting/uploading proto files yet (uses Reflection by default).
 - **The reflection proto** is written to `os.tmpdir()` on each call — this is intentional to avoid shipping a proto file.
-- **Module format**: The project is ESM (`"type": "module"`), but grpc-js is CJS. The `createRequire` workaround in `main.ts` and Rollup `external` config handle this interop.
-- **No tests** — the project currently has no unit or integration test infrastructure.
-- **No router** — the app is a single-page application with no client-side routing. Navigation is tab-based.
+- **Module format**: ESM (`"type": "module"`), but `grpc-js` and `protobufjs` interop is handled via `createRequire`.
+- **No tests**: The project currently lacks automated unit or integration tests.

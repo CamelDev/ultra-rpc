@@ -1,14 +1,15 @@
 {
   "name": "ultrarpc",
   "private": true,
-  "version": "1.0.9",
-  "description": "A robust API client for REST and gRPC — like Postman, but with native gRPC support, server reflection, and file-based collections.",
+  "version": "1.0.10",
+  "description": "A lightweight API client for REST and gRPC — like Postman, but with native gRPC support, server reflection, and file-based collections.",
   "author": "UltraRPC",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "clean": "rm -rf dist dist-electron release",
+    "build": "npm run clean && tsc -b && vite build",
     "package:win": "npm run build && electron-builder --win",
     "package:mac": "npm run build && electron-builder --mac",
     "package:linux": "npm run build && electron-builder --linux",

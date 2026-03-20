@@ -43,7 +43,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version }) => 
 
               <div className="about-description">
                 <p>
-                  A robust API client for <strong>gRPC</strong> and <strong>REST</strong> testing.
+                  A lightweight API client for <strong>gRPC</strong> and <strong>REST</strong> testing.
                   Built for developers who demand speed, elegance, and native gRPC reflection support
                   without the bloat.
                 </p>
@@ -52,15 +52,23 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version }) => 
               <div className="about-info-grid">
                 <div className="info-card">
                   <h4>License</h4>
-                  <p>MIT License</p>
+                  <p>
+                    <span
+                      className="link-accent"
+                      onClick={() => window.ultraRpc.openExternal('https://mit-license.org')}
+                      style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      MIT License
+                    </span>
+                  </p>
                 </div>
                 <div className="info-card">
                   <h4>Platform</h4>
-                  <p>Electron + React</p>
+                  <p>Mac/Win/Linux</p>
                 </div>
                 <div className="info-card">
-                  <h4>Developer</h4>
-                  <p>CamelDev</p>
+                  <h4>Author</h4>
+                  <p>Kamil Dabrowski</p>
                 </div>
               </div>
 
