@@ -223,7 +223,7 @@ function createWindow() {
     win.on('moved', saveState)
     
     win.on('close', (e) => {
-      if (readyToClose) return
+      if (readyToClose || process.env.NODE_ENV === 'test') return
       e.preventDefault()
       win?.webContents.send('app:request-close')
     })

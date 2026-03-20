@@ -33,5 +33,5 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
-test-user-data/
+test-user-data*/
 

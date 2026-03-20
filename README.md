@@ -192,7 +192,50 @@ npm run package:linux
 
 ---
 
+![Tests Status](https://github.com/<your-username>/UltraRPC/actions/workflows/tests.yml/badge.svg)
+
+---
+
+## 🧪 Testing
+
+We use [Playwright](https://playwright.dev/) for End-to-End (E2E) testing. The tests launch a real Electron instance and verify critical user flows like creating, saving, and executing requests.
+
+> [!IMPORTANT]
+> **Build Prerequisite**: Because E2E tests target the built application, you **must** run `npm run build` at least once before running tests.
+
+### 1. Run Tests (Headless)
+Run the entire suite in your terminal:
+```bash
+# Ensure the app is built first
+npm run build
+
+# Run Playwright tests
+npm run test:e2e
+```
+
+### 2. UI Mode (Debug)
+Launch the interactive test runner to see the app in action and debug step-by-step:
+```bash
+npx playwright test --ui
+```
+
+### 3. Trace Viewer
+If a test fails, you can view the recorded trace for deep debugging:
+```bash
+npx playwright show-trace test-results/<test-directory>/trace.zip
+```
+
+> [!NOTE]
+> Tests are isolated and use a temporary `test-user-data` directory which is automatically cleared to ensure consistency across runs.
+
+---
+
+
+
+
 ## 🛡️ Running Unsigned Applications
+
+
 
 Since UltraRPC is not yet code-signed with Apple or Microsoft developer certificates, your OS may block it by default. Here is how to run it anyway:
 
