@@ -16,7 +16,7 @@ test.describe('Workspace & UI State', () => {
     if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
     let electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     let window = await electronApp.firstWindow();
@@ -60,7 +60,7 @@ test.describe('Workspace & UI State', () => {
     // Re-launch App
     console.log('Re-launching app...');
     electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     window = await electronApp.firstWindow();
@@ -93,7 +93,7 @@ test.describe('Workspace & UI State', () => {
     if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
     let electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     let window = await electronApp.firstWindow();
@@ -114,7 +114,7 @@ test.describe('Workspace & UI State', () => {
 
     // Re-launch App
     electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     window = await electronApp.firstWindow();
@@ -131,7 +131,7 @@ test.describe('Workspace & UI State', () => {
     if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
     let electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     let window = await electronApp.firstWindow();
@@ -153,7 +153,7 @@ test.describe('Workspace & UI State', () => {
 
     // Re-launch App
     electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     window = await electronApp.firstWindow();
@@ -170,7 +170,7 @@ test.describe('Workspace & UI State', () => {
     if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
     const electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     const window = await electronApp.firstWindow();

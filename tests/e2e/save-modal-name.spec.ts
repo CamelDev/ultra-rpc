@@ -18,7 +18,7 @@ test.describe('Save Modal Name Extension', () => {
       }
       
       electronApp = await electron.launch({
-        args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+        args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
         env: { ...process.env, NODE_ENV: 'test' },
       });
       page = await electronApp.firstWindow();

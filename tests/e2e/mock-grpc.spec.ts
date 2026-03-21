@@ -26,7 +26,7 @@ test('Should discover services via reflection and generate payload', async () =>
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
   const electronApp = await electron.launch({
-    args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+    args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
     env: { ...process.env, NODE_ENV: 'test' },
   });
 
@@ -98,7 +98,7 @@ test('Should handle server streaming and accumulate responses', async () => {
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
   const electronApp = await electron.launch({
-    args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+    args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
     env: { ...process.env, NODE_ENV: 'test' },
   });
 
@@ -139,7 +139,7 @@ test('Should decode rich gRPC error details (grpc-status-details-bin)', async ()
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
   const electronApp = await electron.launch({
-    args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+    args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
     env: { ...process.env, NODE_ENV: 'test' },
   });
 

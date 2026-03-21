@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "clean": "rm -rf dist dist-electron release",
+    "clean": "npx -y rimraf dist dist-electron release",
     "build": "npm run clean && tsc -b && vite build",
     "package:win": "npm run build && electron-builder --win",
     "package:mac": "npm run build && electron-builder --mac",

@@ -43,7 +43,7 @@ test.describe('Environment Propagation & Global Overrides', () => {
     );
 
     electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
 
