@@ -291,9 +291,7 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
 
 ### 📁 Collections & Management
 - [ ] Bruno Import
-- [ ] **Collection Search** (Filter tree nodes by name)
 - [ ] **Collection Runner** (Sequence execution with summary reports)
-- [ ] **Move Items** (Ability to drag/move requests between different collections)
 
 ### 🤖 Scripting & Variables
 - [ ] **Global Variables** (Variables available across all environments)
@@ -302,9 +300,7 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
 - [ ] **Visual Test Results** (Dedicated UI for assertion summaries)
 
 ### 🎨 UX & Reliability
-- [ ] **Keyboard Shortcuts** (Cmd+Enter to send, Cmd+S to save, etc.)
 - [ ] **Global Search** (Searching across history, and tabs)
-- [ ] **Response Search** (Find text within JSON response body)
 - [ ] **Response Diffing** (Compare two different responses visually)
 - [ ] **Large Response Handling** (Optimized rendering for 10MB+ JSON payloads)
 - [ ] **Code Generation** (Copy request as cURL, Fetch, or Python code)

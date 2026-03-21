@@ -9,7 +9,6 @@
 - **Name**: UltraRPC
 - **Type**: Desktop application (Electron)
 - **Purpose**: Lightweight API client for REST and gRPC testing — like Postman with native gRPC reflection support and file-based collections
-- **Version**: 1.0.10
 - **License**: MIT
 
 ---
