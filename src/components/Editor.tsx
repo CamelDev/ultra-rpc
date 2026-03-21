@@ -152,6 +152,45 @@ const Editor: React.FC<Props> = ({
     onChangeRef.current = onChange
   }, [onChange])
 
+
+  const resolveVariable = useCallback((varName: string) => {
+    let titleText = `Variable: ${varName} (Not found)`
+
+    const collVar = collectionVariables?.find(v => v.enabled && v.key === varName)
+    if (collVar) {
+      const val = collVar.value
+      titleText = `${varName} = ${val} (Collection)`
+    } else if (activeEnv) {
+      const envVar = activeEnv.variables.find((v) => v.enabled && v.key === varName)
+      if (envVar) {
+        const val = envVar.value
+        titleText = `${varName} = ${val} (${activeEnv.name})`
+      } else {
+        titleText = `${varName} (Not found in ${activeEnv.name})`
+      }
+    } else {
+      titleText = `${varName} (No environment/collection variable found)`
+    }
+    return titleText
+  }, [activeEnv, collectionVariables])
+
+  const handleMouseEnterVar = useCallback((e: React.MouseEvent, text: string) => {
+    if (tooltipTimeoutId.current) clearTimeout(tooltipTimeoutId.current)
+    tooltipTimeoutId.current = setTimeout(() => {
+      setTooltip({
+        visible: true,
+        x: e.clientX,
+        y: e.clientY - 45,
+        text
+      })
+    }, 200)
+  }, [])
+
+  const handleMouseLeaveVar = useCallback(() => {
+    if (tooltipTimeoutId.current) clearTimeout(tooltipTimeoutId.current)
+    setTooltip(prev => ({ ...prev, visible: false }))
+  }, [])
+
   // Memoize extensions to avoid re-creating the editor too often
   const getExtensions = useCallback(() => {
     const extensions: Extension[] = [
@@ -263,52 +302,22 @@ const Editor: React.FC<Props> = ({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, activeEnv, collectionVariables, theme, jsonPlugin])
+  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, theme, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable])
 
-  const resolveVariable = useCallback((varName: string) => {
-    let titleText = `Variable: ${varName} (Not found)`
-
-    const collVar = collectionVariables?.find(v => v.enabled && v.key === varName)
-    if (collVar) {
-      const val = collVar.value
-      titleText = `${varName} = ${val} (Collection)`
-    } else if (activeEnv) {
-      const envVar = activeEnv.variables.find((v) => v.enabled && v.key === varName)
-      if (envVar) {
-        const val = envVar.value
-        titleText = `${varName} = ${val} (${activeEnv.name})`
-      } else {
-        titleText = `${varName} (Not found in ${activeEnv.name})`
-      }
-    } else {
-      titleText = `${varName} (No environment/collection variable found)`
-    }
-    return titleText
-  }, [activeEnv, collectionVariables])
-
-  const handleMouseEnterVar = useCallback((e: React.MouseEvent, text: string) => {
-    if (tooltipTimeoutId.current) clearTimeout(tooltipTimeoutId.current)
-    tooltipTimeoutId.current = setTimeout(() => {
-      setTooltip({
-        visible: true,
-        x: e.clientX,
-        y: e.clientY - 45,
-        text
-      })
-    }, 200)
-  }, [])
-
-  const handleMouseLeaveVar = useCallback(() => {
-    if (tooltipTimeoutId.current) clearTimeout(tooltipTimeoutId.current)
-    setTooltip(prev => ({ ...prev, visible: false }))
-  }, [])
+  // Initialize view once on mount
+  const initialValue = useRef(value)
+  const getExtensionsRef = useRef(getExtensions)
+  
+  useEffect(() => {
+    getExtensionsRef.current = getExtensions
+  }, [getExtensions])
 
   useEffect(() => {
     if (!editorRef.current) return
 
     const state = EditorState.create({
-      doc: value,
-      extensions: getExtensions()
+      doc: initialValue.current,
+      extensions: getExtensionsRef.current()
     })
 
     const view = new EditorView({
@@ -332,7 +341,7 @@ const Editor: React.FC<Props> = ({
     return () => {
       view.destroy()
     }
-  }, []) // Initialize once
+  }, []) // Initialize ONLY ONCE
 
   // Sync value from props if it changes externally
   useEffect(() => {

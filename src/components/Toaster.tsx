@@ -1,36 +1,19 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X, AlertTriangle, CheckCircle, Info, AlertCircle } from 'lucide-react'
+import { type Toast, subscribeToToasts, type ToastType } from '../lib/toaster-store'
 import './Toaster.css'
 
-export type ToastType = 'info' | 'success' | 'warning' | 'error'
+export { addToast } from '../lib/toaster-store'
+export type { Toast, ToastType } from '../lib/toaster-store'
 
-export interface Toast {
-  id: string
-  type: ToastType
-  message: string
-  duration?: number // ms, default 5000; 0 = never auto-dismiss
-}
-
-// ─── Global toast emitter (no Context needed) ─────────────────────────────
-type ToastListener = (toast: Toast) => void
-const listeners: ToastListener[] = []
-
-export const addToast = (toast: Omit<Toast, 'id'>) => {
-  const full: Toast = { id: Math.random().toString(36).slice(2), ...toast }
-  listeners.forEach(l => l(full))
-}
-
-export const useToastEmitter = () => {
+const useToastEmitter = () => {
   const [toasts, setToasts] = useState<Toast[]>([])
 
   useEffect(() => {
-    const handler: ToastListener = (t) => setToasts(prev => [...prev, t])
-    listeners.push(handler)
-    return () => {
-      const idx = listeners.indexOf(handler)
-      if (idx !== -1) listeners.splice(idx, 1)
-    }
+    const handler = (t: Toast) => setToasts(prev => [...prev, t])
+    const unsubscribe = subscribeToToasts(handler)
+    return () => unsubscribe()
   }, [])
 
   const dismiss = useCallback((id: string) => {
@@ -40,7 +23,6 @@ export const useToastEmitter = () => {
   return { toasts, dismiss }
 }
 
-// ─── Single Toast Item ────────────────────────────────────────────────────
 const ICONS: Record<ToastType, React.ReactNode> = {
   info: <Info size={15} />,
   success: <CheckCircle size={15} />,
@@ -66,7 +48,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
       timerRef.current = setTimeout(() => onDismiss(toast.id), duration)
     }
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [])
+  }, [duration, onDismiss, toast.id])
 
   return (
     <div className={`toast toast--${toast.type} ${visible ? 'toast--visible' : ''}`}>
@@ -79,7 +61,6 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
   )
 }
 
-// ─── Toaster (mount once at app root) ────────────────────────────────────
 export const Toaster: React.FC = () => {
   const { toasts, dismiss } = useToastEmitter()
 

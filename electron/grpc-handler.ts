@@ -1,6 +1,21 @@
 import { ipcMain } from 'electron'
 import * as grpc from '@grpc/grpc-js'
 import * as protoLoader from '@grpc/proto-loader'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+
+// protobufjs is kept external to avoid bundling issues in ESM.
+// We use a lazy initializer to ensure globalThis.require is available (initialized in main.ts).
+let protobufInstance: any = null
+function getProtobuf() {
+  if (protobufInstance) return protobufInstance
+  // @ts-ignore
+  protobufInstance = globalThis.require('protobufjs')
+  // @ts-ignore
+  globalThis.require('protobufjs/ext/descriptor')
+  return protobufInstance
+}
 
 interface GrpcRequest {
   host: string
@@ -11,18 +26,6 @@ interface GrpcRequest {
   payload: string
   protoPath?: string // Optional: use proto file instead of reflection
   timeoutMs?: number // Optional: deadline timeout in milliseconds
-}
-
-interface ServiceInfo {
-  name: string
-  methods: {
-    name: string
-    fullName: string
-    requestType: string
-    responseType: string
-    isClientStreaming: boolean
-    isServerStreaming: boolean
-  }[]
 }
 
 // ===== gRPC Server Reflection v1 =====
@@ -36,8 +39,8 @@ function metadataToObject(metadata: grpc.Metadata): Record<string, string> {
   for (const [key, values] of Object.entries(json)) {
     if (Array.isArray(values)) {
       obj[key] = values.map(v => {
-        if (typeof v === 'object' && v !== null && (v as any).type === 'Buffer') {
-          return Buffer.from((v as any).data).toString('base64')
+        if (typeof v === 'object' && v !== null && 'type' in v && (v as { type: string }).type === 'Buffer' && 'data' in v) {
+          return Buffer.from((v as { data: any }).data).toString('base64')
         }
         return String(v)
       }).join(', ')
@@ -48,7 +51,13 @@ function metadataToObject(metadata: grpc.Metadata): Record<string, string> {
   return obj
 }
 
-function formatGrpcError(err: any): string {
+interface GrpcError extends Error {
+  code?: number
+  details?: string
+  metadata?: grpc.Metadata
+}
+
+function formatGrpcError(err: GrpcError): string {
   let msg = `gRPC error (${err.code}): ${err.message || err.details || 'Call failed'}`
 
   if (err.metadata && typeof err.metadata.get === 'function') {
@@ -57,7 +66,6 @@ function formatGrpcError(err: any): string {
 
     if (bin) {
       try {
-        const protobuf = require('protobufjs')
         const statusProtoDef = `
           syntax = "proto3";
           package google.rpc;
@@ -71,6 +79,7 @@ function formatGrpcError(err: any): string {
             bytes value = 2;
           }
         `
+        const protobuf = getProtobuf()
         const root = protobuf.parse(statusProtoDef).root
         const StatusMessage = root.lookupType("google.rpc.Status")
         const decoded = StatusMessage.decode(Buffer.isBuffer(bin) ? bin : Buffer.from(bin))
@@ -82,17 +91,18 @@ function formatGrpcError(err: any): string {
 
         if (obj.details && Array.isArray(obj.details)) {
           msg += `\n\n--- Error Details ---`
-          obj.details.forEach((d: any) => {
+          obj.details.forEach((d: { typeUrl?: string, type_url?: string, value: Buffer | Uint8Array }) => {
             const buf = Buffer.from(d.value)
             // Extract printable characters >= 4 chars to filter out binary noise
             const printables = buf.toString('utf8').match(/[\x20-\x7E]{4,}/g)
             const text = printables ? printables.join(' | ') : '<binary data>'
 
-            const typeName = d.typeUrl || d.type_url ? (d.typeUrl || d.type_url).split('/').pop() : 'Unknown'
+            const rawType = d.typeUrl || d.type_url
+            const typeName = rawType ? rawType.split('/').pop() : 'Unknown'
             msg += `\n[${typeName}]: ${text}`
           })
         }
-      } catch (parseError) {
+      } catch {
         msg += `\n(Failed to parse status details)`
       }
     }
@@ -101,7 +111,7 @@ function formatGrpcError(err: any): string {
   return msg
 }
 
-function createReflectionClient(host: string, insecure: boolean, metadata: grpc.Metadata) {
+function createReflectionClient(host: string, insecure: boolean) {
   // Load the reflection proto inline
   const reflectionProto = `
 syntax = "proto3";
@@ -152,9 +162,6 @@ message ErrorResponse {
 `;
 
   // Write proto to temp file for loader
-  const fs = require('fs')
-  const path = require('path')
-  const os = require('os')
   const tmpDir = os.tmpdir()
   const protoPath = path.join(tmpDir, 'ultrarpc_reflection.proto')
   fs.writeFileSync(protoPath, reflectionProto)
@@ -366,7 +373,7 @@ export function registerGrpcHandlers() {
         if (key && value) metadata.add(key, value)
       }
 
-      const client = createReflectionClient(args.host, args.insecure, metadata)
+      const client = createReflectionClient(args.host, args.insecure)
 
       return await new Promise((resolve) => {
         const call = client.ServerReflectionInfo(metadata)
@@ -380,7 +387,7 @@ export function registerGrpcHandlers() {
           }
         })
 
-        call.on('error', (err: any) => {
+        call.on('error', (err: GrpcError) => {
           resolve({ success: false, error: err.message || 'Reflection failed' })
         })
 
@@ -405,7 +412,7 @@ export function registerGrpcHandlers() {
         if (key && value) metadata.add(key, value)
       }
 
-      const client = createReflectionClient(args.host, args.insecure, metadata)
+      const client = createReflectionClient(args.host, args.insecure)
 
       return new Promise((resolve) => {
         const call = client.ServerReflectionInfo(metadata)
@@ -422,15 +429,14 @@ export function registerGrpcHandlers() {
           }
         })
 
-        call.on('error', (err: any) => {
+          call.on('error', (err: GrpcError) => {
           resolve({ success: false, error: err.message || 'Describe failed' })
         })
 
         call.on('end', () => {
           try {
             // Parse file descriptors using protobufjs
-            const protobuf = require('protobufjs')
-            require('protobufjs/ext/descriptor')
+            const protobuf = getProtobuf()
             const methods: { name: string; fullName: string; requestType: string; responseType: string; clientStreaming: boolean; serverStreaming: boolean; sampleBody: string }[] = []
 
             const targetShortName = args.serviceName.split('.').pop()
@@ -495,8 +501,9 @@ export function registerGrpcHandlers() {
   })
 
   // ===== Execute a gRPC unary call =====
-  ipcMain.handle('grpc:call', async (_event, req: GrpcRequest) => {
+    ipcMain.handle('grpc:call', async (_event, req: GrpcRequest) => {
     const start = Date.now()
+    const protobuf = getProtobuf()
     try {
       const metadata = new grpc.Metadata()
       for (const [key, value] of Object.entries(req.headers || {})) {
@@ -521,7 +528,7 @@ export function registerGrpcHandlers() {
             { 
               checkServerIdentity: () => undefined,
               rejectUnauthorized: false, // Bypass trust verification for self-signed certs
-              // @ts-ignore - passing to underlying tls socket
+              // @ts-expect-error - passing to underlying tls socket
               'grpc.ssl_target_name_override': cleanHost,
               'grpc.default_authority': cleanHost
             }
@@ -577,7 +584,7 @@ export function registerGrpcHandlers() {
             })
             const responses: any[] = []
             call.on('data', (response: any) => responses.push(response))
-            call.on('error', (err: any) => {
+            call.on('error', (err: GrpcError) => {
               const time = Date.now() - start
               const errorMsg = formatGrpcError(err)
               resolve({ 
@@ -587,7 +594,7 @@ export function registerGrpcHandlers() {
                   status: err.code, 
                   statusText: err.details || 'Stream Error', 
                   headers: responseHeaders, 
-                  trailers: responseTrailers || metadataToObject(err.metadata),
+                  trailers: responseTrailers || metadataToObject(err.metadata || new grpc.Metadata()),
                   body: errorMsg,
                   time, 
                   size: Buffer.byteLength(errorMsg, 'utf-8') 
@@ -615,7 +622,7 @@ export function registerGrpcHandlers() {
               })
             })
           } else {
-            const call = methodFn.call(client, payload, metadata, callOptions, (err: any, responseBody: any) => {
+            const call = methodFn.call(client, payload, metadata, callOptions, (err: GrpcError | null, responseBody: unknown) => {
               const time = Date.now() - start
               if (err) {
                 console.log(`[gRPC Backend] Unary call error: ${err.message}. Capturing metadata/trailers.`)
@@ -671,7 +678,7 @@ export function registerGrpcHandlers() {
 
       // ===== Reflection-based call =====
       // Step 1: Get file descriptor for the service
-      const reflClient = createReflectionClient(req.host, req.insecure, metadata)
+      const reflClient = createReflectionClient(req.host, req.insecure)
 
       const descriptorBuffers: Buffer[] = await new Promise((resolve, reject) => {
         const call = reflClient.ServerReflectionInfo(metadata)
@@ -687,7 +694,7 @@ export function registerGrpcHandlers() {
             reject(new Error(response.error_response.error_message))
           }
         })
-        call.on('error', (err: any) => reject(err))
+        call.on('error', (err: GrpcError) => reject(err))
         call.on('end', () => resolve(bufs))
         call.write({ file_containing_symbol: req.service })
         call.end()
@@ -698,8 +705,6 @@ export function registerGrpcHandlers() {
       }
 
       // Step 2: Parse raw descriptors to find input/output types for the method
-      const protobuf = require('protobufjs')
-      require('protobufjs/ext/descriptor')
 
       let inputTypeName: string | null = null
       let outputTypeName: string | null = null

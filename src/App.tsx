@@ -231,29 +231,6 @@ const App: React.FC = () => {
   // ===== History =====
   const [history, setHistory] = useState<HistoryEntry[]>([])
 
-  // ===== Load persisted data on mount =====
-  useEffect(() => {
-    if (!window.ultraRpc) return
-
-    window.ultraRpc.getEnvironments().then(res => {
-      if (res.success && res.environments) setEnvironments(res.environments)
-    })
-    window.ultraRpc.getSettings().then(res => {
-      if (res.success && res.settings) {
-        if (res.settings.theme) {
-          setTheme(res.settings.theme)
-        }
-        if (res.settings.activeEnvId) {
-          setActiveEnvId(res.settings.activeEnvId)
-        }
-        if (res.settings.threeColumnLayout !== undefined) {
-          setThreeColumnLayout(res.settings.threeColumnLayout)
-        }
-      }
-    })
-    loadCollections()
-    loadHistory()
-  }, [])
 
   // Persist tabs whenever they change
   useEffect(() => {
@@ -348,7 +325,7 @@ const App: React.FC = () => {
     }
   }, [theme])
 
-  const loadCollections = async () => {
+  const loadCollections = useCallback(async () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.listCollections()
     if (res.success && res.collections) {
@@ -360,7 +337,7 @@ const App: React.FC = () => {
     } else {
       addToast({ type: 'error', message: res.error || 'Failed to load collections' })
     }
-  }
+  }, [])
 
   const handleMoveCollection = async (collectionId: string, currentPath?: string) => {
     if (!window.ultraRpc) return
@@ -395,32 +372,56 @@ const App: React.FC = () => {
     }
   }
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.getHistory()
     if (res.success && res.history) setHistory(res.history)
-  }
+  }, [])
 
-  const saveAppSetting = async (key: string, value: any) => {
+  const saveAppSetting = useCallback(async (key: string, value: any) => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.getSettings()
     const current = res.success ? (res.settings || {}) : {}
     await window.ultraRpc.saveSettings({ ...current, [key]: value })
-  }
+  }, [])
 
-   const handleSaveCollectionVariables = async (id: string, variables: any[]) => {
+   const handleSaveCollectionVariables = useCallback(async (id: string, variables: any[]) => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.saveCollectionVariables({ collectionId: id, variables })
     if (res.success) {
       setCollections(prev => prev.map(c => c.id === id ? { ...c, variables } : c))
     }
-  }
+  }, [])
 
   // Persist environments when they change
-  const handleEnvChange = (envs: Environment[]) => {
+  const handleEnvChange = useCallback((envs: Environment[]) => {
     setEnvironments(envs)
     if (window.ultraRpc) window.ultraRpc.saveEnvironments(envs)
-  }
+  }, [])
+
+  // ===== Load persisted data on mount =====
+  useEffect(() => {
+    if (!window.ultraRpc) return
+
+    window.ultraRpc.getEnvironments().then(res => {
+      if (res.success && res.environments) setEnvironments(res.environments)
+    })
+    window.ultraRpc.getSettings().then(res => {
+      if (res.success && res.settings) {
+        if (res.settings.theme) {
+          setTheme(res.settings.theme)
+        }
+        if (res.settings.activeEnvId) {
+          setActiveEnvId(res.settings.activeEnvId)
+        }
+        if (res.settings.threeColumnLayout !== undefined) {
+          setThreeColumnLayout(res.settings.threeColumnLayout)
+        }
+      }
+    })
+    loadCollections()
+    loadHistory()
+  }, [loadCollections, loadHistory])
 
   // ===== Helpers =====
   const activeTab = tabs.find(t => t.id === activeTabId)
@@ -545,7 +546,7 @@ const App: React.FC = () => {
   }
 
   // ===== Save current request to collection =====
-  const saveToCollection = async (collectionId: string) => {
+  const saveToCollection = useCallback(async (collectionId: string) => {
     if (!activeRequest || !window.ultraRpc) return
     const res = await window.ultraRpc.saveRequest({ collectionId, request: activeRequest })
     
@@ -559,9 +560,9 @@ const App: React.FC = () => {
     } else {
       addToast({ type: 'error', message: res.error || 'Failed to save request' })
     }
-  }
+  }, [activeRequest, activeTabId, loadCollections])
 
-  const handleSaveActiveRequest = async () => {
+  const handleSaveActiveRequest = useCallback(async () => {
     if (!activeRequest) return
     
     let targetCollectionId = activeTab?.owningCollectionId
@@ -594,7 +595,7 @@ const App: React.FC = () => {
       setSelectedCollectionId(null)
       setShowSaveMenu(true)
     }
-  }
+  }, [activeRequest, activeTab, findCollectionByRequestId, saveToCollection, collections, loadCollections, activeTabId])
 
   const handleSaveAll = useCallback(async () => {
     if (!window.ultraRpc) return
@@ -745,7 +746,7 @@ const App: React.FC = () => {
           get: (key: string) => {
             const requestEnvId = request.envId
             const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
-            const targetEnv = environments.find(e => e.id === effectiveEnvId)
+            const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return undefined
             return targetEnv.variables.find(v => v.key === key && v.enabled)?.value
           },
@@ -776,7 +777,7 @@ const App: React.FC = () => {
           all: () => {
             const requestEnvId = request.envId
             const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
-            const targetEnv = environments.find(e => e.id === effectiveEnvId)
+            const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return {}
             const vars: Record<string, string> = {}
             targetEnv.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
@@ -785,8 +786,9 @@ const App: React.FC = () => {
         },
         collection: {
           get: (key: string) => {
-            if (!parentCollection?.variables) return undefined
-            return parentCollection.variables.find(v => v.key === key && v.enabled)?.value
+            const target = currentCollections.find(c => c.id === parentCollection?.id)
+            if (!target?.variables) return undefined
+            return target.variables.find(v => v.key === key && v.enabled)?.value
           },
           set: (key: string, value: string) => {
             if (!parentCollection) {
@@ -811,9 +813,10 @@ const App: React.FC = () => {
             mockConsole.log(`Set collection variable: ${key}`)
           },
           all: () => {
-            if (!parentCollection?.variables) return {}
+            const target = currentCollections.find(c => c.id === parentCollection?.id)
+            if (!target?.variables) return {}
             const vars: Record<string, string> = {}
-            parentCollection.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            target.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
             return vars
           }
         },
@@ -845,7 +848,7 @@ const App: React.FC = () => {
     }
   }
 
-  const runPostResponseScript = async (request: RequestConfig, response: ResponseData) => {
+  const runPostResponseScript = async (request: RequestConfig, response: ResponseData, tabId: string) => {
     if (!request.postResponseScript || !request.postResponseScript.trim()) return
 
     const parentCollection = findCollectionByRequestId(request.id)
@@ -855,12 +858,12 @@ const App: React.FC = () => {
       log: (...args: any[]) => {
         const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
-        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[${timestamp}] LOG: ${msg}`] }))
+        setScriptLogs(prev => ({ ...prev, [tabId]: [...(prev[tabId] || []), `[${timestamp}] LOG: ${msg}`] }))
       },
       error: (...args: any[]) => {
         const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
-        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[${timestamp}] ERROR: ${msg}`] }))
+        setScriptLogs(prev => ({ ...prev, [tabId]: [...(prev[tabId] || []), `[${timestamp}] ERROR: ${msg}`] }))
       }
     }
 
@@ -874,14 +877,14 @@ const App: React.FC = () => {
       const ultra = {
         response: { ...response, body: bodyObj },
         env: {
-          get: (key: string) => {
+          get: (varName: string) => {
             const requestEnvId = request.envId
             const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
             const targetEnv = environments.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return undefined
-            return targetEnv.variables.find(v => v.key === key && v.enabled)?.value
+            return targetEnv.variables.find(v => v.key === varName && v.enabled)?.value
           },
-          set: (key: string, value: string) => {
+          set: (varName: string, value: string) => {
             const requestEnvId = request.envId
             const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
             if (!effectiveEnvId) {
@@ -892,11 +895,11 @@ const App: React.FC = () => {
               const newEnvs = prev.map(e => {
                 if (e.id === effectiveEnvId) {
                   const vars = [...e.variables]
-                  const idx = vars.findIndex(v => v.key === key)
+                  const idx = vars.findIndex(v => v.key === varName)
                   if (idx >= 0) {
                     vars[idx] = { ...vars[idx], value: String(value) }
                   } else {
-                    vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
+                    vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
                   }
                   return { ...e, variables: vars }
                 }
@@ -905,7 +908,7 @@ const App: React.FC = () => {
               if (window.ultraRpc) window.ultraRpc.saveEnvironments(newEnvs)
               return newEnvs
             })
-            mockConsole.log(`Set env variable: ${key}`)
+            mockConsole.log(`Set env variable: ${varName}`)
           },
           all: () => {
             const requestEnvId = request.envId
@@ -918,27 +921,27 @@ const App: React.FC = () => {
           }
         },
         collection: {
-          get: (key: string) => {
+          get: (varName: string) => {
             if (!parentCollection?.variables) return undefined
-            return parentCollection.variables.find(v => v.key === key && v.enabled)?.value
+            return parentCollection.variables.find(v => v.key === varName && v.enabled)?.value
           },
-          set: (key: string, value: string) => {
+          set: (varName: string, value: string) => {
             setCollections(prev => {
               const target = prev.find(c => c.id === parentCollection.id)
               if (!target) return prev
               
               const vars = [...(target.variables || [])]
-              const existingIdx = vars.findIndex(v => v.key === key)
+              const existingIdx = vars.findIndex(v => v.key === varName)
               if (existingIdx >= 0) {
                 vars[existingIdx] = { ...vars[existingIdx], value: String(value) }
               } else {
-                vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
+                vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
               }
               
               handleSaveCollectionVariables(target.id, vars).then(() => {
-                 mockConsole.log(`Set collection variable: ${key}`)
+                 mockConsole.log(`Set collection variable: ${varName}`)
               }).catch(err => {
-                 mockConsole.error(`Failed to save variable ${key}: ${err.message}`)
+                 mockConsole.error(`Failed to save variable ${varName}: ${err.message}`)
               })
               
               return prev.map(c => c.id === target.id ? { ...c, variables: vars } : c)
@@ -971,7 +974,7 @@ const App: React.FC = () => {
       script(ultra, mockConsole)
     } catch (err: any) {
       mockConsole.error(`Post-response Runtime Error: ${err.message}`)
-      setScriptErrors(prev => ({ ...prev, [activeTabId]: `Script Error: ${err.message}` }))
+      setScriptErrors(prev => ({ ...prev, [tabId]: `Script Error: ${err.message}` }))
     }
   }
 
@@ -979,7 +982,8 @@ const App: React.FC = () => {
   const sendRequest = async () => {
     if (!activeRequest) return
 
-    setLoadingTabs(prev => ({ ...prev, [activeTabId]: true }))
+    const tabId = activeTabId // Capture current active tab ID
+    setLoadingTabs(prev => ({ ...prev, [tabId]: true }))
     setErrors(prev => ({ ...prev, [activeTabId]: null }))
     setResponses(prev => ({ ...prev, [activeTabId]: null }))
     setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))
@@ -1026,13 +1030,13 @@ const App: React.FC = () => {
         })
         if (result.success && result.data) {
           statusCode = result.data.status
-          setResponses(prev => ({ ...prev, [activeTabId]: result.data! }))
-          runPostResponseScript(activeRequest, result.data)
+          setResponses(prev => ({ ...prev, [tabId]: result.data! }))
+          runPostResponseScript(activeRequest, result.data, tabId)
         } else {
           throw new Error(result.error || 'gRPC call failed')
         }
       } catch (err: any) {
-        setErrors(prev => ({ ...prev, [activeTabId]: err.message }))
+        setErrors(prev => ({ ...prev, [tabId]: err.message }))
       }
     } else {
       try {
@@ -1062,8 +1066,8 @@ const App: React.FC = () => {
           })
           if (result.success && result.data) {
             statusCode = result.data.status
-            setResponses(prev => ({ ...prev, [activeTabId]: result.data! }))
-            runPostResponseScript(activeRequest, result.data)
+            setResponses(prev => ({ ...prev, [tabId]: result.data! }))
+            runPostResponseScript(activeRequest, result.data, tabId)
           } else {
             throw new Error(result.error || 'Request failed')
           }
@@ -1081,18 +1085,18 @@ const App: React.FC = () => {
           const respData = { type: 'REST' as const, status: resp.status, statusText: resp.statusText, headers: respHeaders, body, time, size: new Blob([body]).size }
           setResponses(prev => ({
             ...prev,
-            [activeTabId]: respData,
+            [tabId]: respData,
           }))
-          runPostResponseScript(activeRequest, respData)
+          runPostResponseScript(activeRequest, respData, tabId)
         }
       } catch (err: any) {
-        setErrors(prev => ({ ...prev, [activeTabId]: err.message }))
+        setErrors(prev => ({ ...prev, [tabId]: err.message }))
       }
     }
 
     // Record in history
     addToHistory(activeRequest, statusCode)
-    setLoadingTabs(prev => ({ ...prev, [activeTabId]: false }))
+    setLoadingTabs(prev => ({ ...prev, [tabId]: false }))
   }
 
   // ===== Method Color =====
