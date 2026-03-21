@@ -276,7 +276,7 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
     if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8
     if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8
     setAdjustedPos({ x, y })
-  }, [menu.x, menu.y])
+  }, [menu])
 
   return createPortal(
     <>
@@ -739,8 +739,8 @@ const CollectionPanel: React.FC<Props> = ({
     }
   }, [
     editingId, nameInput, renameError,
-    onOpenRequest, onEditVariables,
-    onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename, onToggle, onCloneRequest
+    onOpenRequest,
+    onDeleteRequest, onDeleteFolder, getCollectionIdOfNode, handleRename, onToggle, onCloneRequest
   ])
 
   return (

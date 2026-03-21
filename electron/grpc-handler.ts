@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ipcMain } from 'electron'
 import * as grpc from '@grpc/grpc-js'
 import * as protoLoader from '@grpc/proto-loader'
@@ -10,9 +11,9 @@ import os from 'os'
 let protobufInstance: any = null
 function getProtobuf() {
   if (protobufInstance) return protobufInstance
-  // @ts-ignore
+  // @ts-expect-error
   protobufInstance = globalThis.require('protobufjs')
-  // @ts-ignore
+  // @ts-expect-error
   globalThis.require('protobufjs/ext/descriptor')
   return protobufInstance
 }
@@ -190,7 +191,7 @@ message ErrorResponse {
       { 
         checkServerIdentity: () => undefined,
         rejectUnauthorized: false, // Bypass trust verification for self-signed certs
-        // @ts-ignore - passing to underlying tls socket
+        // @ts-expect-error - passing to underlying tls socket
         'grpc.ssl_target_name_override': cleanHost,
         'grpc.default_authority': cleanHost
       }

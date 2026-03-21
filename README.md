@@ -229,6 +229,16 @@ If a test fails, you can view the recorded trace for deep debugging:
 npx playwright show-trace test-results/<test-directory>/trace.zip
 ```
 
+### 4. Linting & Type Checking
+To view code quality warnings and TypeScript errors locally (like the ones caught by GitHub Actions), use:
+```bash
+# Run ESLint to check for React Hooks and code style issues
+npm run lint
+
+# Run the TypeScript compiler to catch type errors without building
+npx tsc --noEmit
+```
+
 > [!NOTE]
 > Tests are isolated and use a temporary `test-user-data` directory which is automatically cleared to ensure consistency across runs.
 
