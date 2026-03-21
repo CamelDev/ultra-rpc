@@ -678,14 +678,18 @@ const App: React.FC = () => {
     
     const mockConsole = {
       log: (...args: any[]) => {
+        const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
-        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[PRE-SCRIPT LOG] ${msg}`] }))
+        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[${timestamp}] LOG: ${msg}`] }))
       },
       error: (...args: any[]) => {
+        const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
-        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[PRE-SCRIPT ERROR] ${msg}`] }))
+        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[${timestamp}] ERROR: ${msg}`] }))
       }
     }
+
+    const testResults: { name: string; status: 'pass' | 'fail'; message?: string }[] = []
 
     try {
       const ultra = {
@@ -701,7 +705,7 @@ const App: React.FC = () => {
             const requestEnvId = request.envId
             const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
             if (!effectiveEnvId) {
-              mockConsole.error('No active environment associated with this tab/globally to set variable.')
+              mockConsole.error('No active environment associated with this tab/globally.')
               return
             }
             currentEnvs = currentEnvs.map(e => {
@@ -719,7 +723,16 @@ const App: React.FC = () => {
             })
             setEnvironments(currentEnvs)
             if (window.ultraRpc) window.ultraRpc.saveEnvironments(currentEnvs)
-            mockConsole.log(`[Script] Set env variable: ${key}`)
+            mockConsole.log(`Set env variable: ${key}`)
+          },
+          all: () => {
+            const requestEnvId = request.envId
+            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const targetEnv = environments.find(e => e.id === effectiveEnvId)
+            if (!targetEnv) return {}
+            const vars: Record<string, string> = {}
+            targetEnv.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            return vars
           }
         },
         collection: {
@@ -729,7 +742,7 @@ const App: React.FC = () => {
           },
           set: (key: string, value: string) => {
             if (!parentCollection) {
-              mockConsole.error('Request must be in a collection to set collection variables.')
+              mockConsole.error('Request must be in a collection to set variables.')
               return
             }
             currentCollections = currentCollections.map(c => {
@@ -741,19 +754,36 @@ const App: React.FC = () => {
                 } else {
                   vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
                 }
-                const updated = { ...c, variables: vars }
                 handleSaveCollectionVariables(c.id, vars)
-                return updated
+                return { ...c, variables: vars }
               }
               return c
             })
             setCollections(currentCollections)
-            mockConsole.log(`[Script] Set collection variable: ${key}`)
+            mockConsole.log(`Set collection variable: ${key}`)
+          },
+          all: () => {
+            if (!parentCollection?.variables) return {}
+            const vars: Record<string, string> = {}
+            parentCollection.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            return vars
           }
         },
-        setCollectionVariable: (key: string, value: string) => {
-          ultra.collection.set(key, value)
-        }
+        test: (name: string, fn: () => void) => {
+          try {
+            fn()
+            testResults.push({ name, status: 'pass' })
+            mockConsole.log(`TEST PASS: ${name}`)
+          } catch (err: any) {
+            testResults.push({ name, status: 'fail', message: err.message })
+            mockConsole.error(`TEST FAIL: ${name} -> ${err.message}`)
+          }
+        },
+        expect: (val: any) => ({
+          toBe: (expected: any) => { if (val !== expected) throw new Error(`Expected ${expected} but got ${val}`) },
+          toInclude: (str: string) => { if (!String(val).includes(str)) throw new Error(`Expected "${val}" to include "${str}"`) },
+          toBeTruthy: () => { if (!val) throw new Error(`Expected value to be truthy but got ${val}`) },
+        })
       }
 
       const script = new Function('ultra', 'console', request.preRequestScript)
@@ -763,8 +793,7 @@ const App: React.FC = () => {
     } catch (err: any) {
       mockConsole.error(`Pre-request Runtime Error: ${err.message}`)
       setScriptErrors(prev => ({ ...prev, [activeTabId]: `Pre-request Script Error: ${err.message}` }))
-      throw err // Stop request execution if script fails? Postman usually continues, but maybe we should let user decide. 
-      // For now, let's just log and continue.
+      return null // Continue request even if pre-script fails
     }
   }
 
@@ -774,17 +803,16 @@ const App: React.FC = () => {
     const parentCollection = findCollectionByRequestId(request.id)
     if (!parentCollection) return
 
-    const logs: string[] = []
     const mockConsole = {
       log: (...args: any[]) => {
+        const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
-        logs.push(`[LOG] ${msg}`)
-        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[LOG] ${msg}`] }))
+        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[${timestamp}] LOG: ${msg}`] }))
       },
       error: (...args: any[]) => {
+        const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
-        logs.push(`[ERROR] ${msg}`)
-        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[ERROR] ${msg}`] }))
+        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[${timestamp}] ERROR: ${msg}`] }))
       }
     }
 
@@ -795,19 +823,6 @@ const App: React.FC = () => {
         bodyObj = JSON.parse(response.body)
       } catch { /* stay as string */ }
       
-      try {
-        const bodyType = Array.isArray(bodyObj) ? 'Array' : typeof bodyObj
-        mockConsole.log(`[Script Debug] Response Body Type: ${bodyType}`)
-        mockConsole.log(`[Script Debug] Response Status: ${response.status}`)
-        if (bodyType === 'object' && bodyObj !== null) {
-          mockConsole.log(`[Script Debug] Available Keys: ${Object.keys(bodyObj).join(', ')}`)
-        } else if (bodyType === 'Array' && bodyObj.length > 0) {
-          mockConsole.log(`[Script Debug] First Array Item Keys: ${Object.keys(bodyObj[0]).join(', ')}`)
-        }
-      } catch (e) {
-        mockConsole.log(`[Script Debug] Error analyzing body: ${e}`)
-      }
-
       const ultra = {
         response: { ...response, body: bodyObj },
         env: {
@@ -822,7 +837,7 @@ const App: React.FC = () => {
             const requestEnvId = request.envId
             const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
             if (!effectiveEnvId) {
-              mockConsole.error('No active environment associated with this tab/globally to set variable.')
+              mockConsole.error('No active environment associated with this tab/globally.')
               return
             }
             setEnvironments(prev => {
@@ -842,7 +857,16 @@ const App: React.FC = () => {
               if (window.ultraRpc) window.ultraRpc.saveEnvironments(newEnvs)
               return newEnvs
             })
-            mockConsole.log(`[Script] Set env variable: ${key}`)
+            mockConsole.log(`Set env variable: ${key}`)
+          },
+          all: () => {
+            const requestEnvId = request.envId
+            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const targetEnv = environments.find(e => e.id === effectiveEnvId)
+            if (!targetEnv) return {}
+            const vars: Record<string, string> = {}
+            targetEnv.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            return vars
           }
         },
         collection: {
@@ -864,26 +888,41 @@ const App: React.FC = () => {
               }
               
               handleSaveCollectionVariables(target.id, vars).then(() => {
-                 mockConsole.log(`[Script] Saved variable: ${key}`)
+                 mockConsole.log(`Set collection variable: ${key}`)
               }).catch(err => {
-                 mockConsole.error(`[Script] Failed to save variable ${key}: ${err.message}`)
+                 mockConsole.error(`Failed to save variable ${key}: ${err.message}`)
               })
               
               return prev.map(c => c.id === target.id ? { ...c, variables: vars } : c)
             })
+          },
+          all: () => {
+            if (!parentCollection?.variables) return {}
+            const vars: Record<string, string> = {}
+            parentCollection.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            return vars
           }
         },
-        setCollectionVariable: (key: string, value: string) => {
-          ultra.collection.set(key, value)
-        }
+        test: (name: string, fn: () => void) => {
+          try {
+            fn()
+            mockConsole.log(`TEST PASS: ${name}`)
+          } catch (err: any) {
+            mockConsole.error(`TEST FAIL: ${name} -> ${err.message}`)
+          }
+        },
+        expect: (val: any) => ({
+          toBe: (expected: any) => { if (val !== expected) throw new Error(`Expected ${expected} but got ${val}`) },
+          toInclude: (str: string) => { if (!String(val).includes(str)) throw new Error(`Expected "${val}" to include "${str}"`) },
+          toBeTruthy: () => { if (!val) throw new Error(`Expected value to be truthy but got ${val}`) },
+        })
       }
 
       // Sandbox execution
       const script = new Function('ultra', 'console', request.postResponseScript)
       script(ultra, mockConsole)
     } catch (err: any) {
-      console.error('Post-response script error:', err)
-      mockConsole.error(`Runtime Error: ${err.message}`)
+      mockConsole.error(`Post-response Runtime Error: ${err.message}`)
       setScriptErrors(prev => ({ ...prev, [activeTabId]: `Script Error: ${err.message}` }))
     }
   }
