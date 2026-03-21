@@ -281,7 +281,9 @@ Since UltraRPC is not currently code-signed with an Apple Developer certificate,
 When you run the installer, Windows SmartScreen may show a "Windows protected your PC" blue window.
 1. Click the **More info** link under the main text.
 2. A new button **Run anyway** will appear. Click it to proceed with the installation.
-
+    <p align="center">
+          <img src="public/screenshots/windows-protection.png" alt="More info - Run Anyway" width="300" />
+    </p>
 
 ---
 
