@@ -13,10 +13,12 @@ import {
   Hourglass,
   FolderOpen,
   AlignLeft,
+  Search,
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
 import InterpolatedInput from './components/InterpolatedInput'
+import type { EditorHandle } from './components/Editor'
 import ResponseViewer from './components/ResponseViewer'
 import EnvironmentPanel from './components/EnvironmentPanel'
 import CollectionPanel from './components/CollectionPanel'
@@ -100,6 +102,7 @@ const App: React.FC = () => {
   const [showSettingsPopup, setShowSettingsPopup] = useState(false)
   const [showAboutModal, setShowAboutModal] = useState(false)
   const [wrapLines, setWrapLines] = useState(true)
+  const bodyEditorRef = useRef<EditorHandle>(null)
   const [collections, setCollections] = useState<Collection[]>([])
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
 
@@ -1634,6 +1637,14 @@ const App: React.FC = () => {
                           </button>
                         ))}
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                          <button
+                            className="btn-ghost"
+                            style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            onClick={() => bodyEditorRef.current?.openSearch()}
+                            title="Search in editor (⌘F)"
+                          >
+                            <Search size={14} /> Search
+                          </button>
                           {(activeRequest.bodyType === 'json' || activeRequest.type === 'GRPC') && (
                             <button 
                               className="btn-ghost"
@@ -1656,11 +1667,13 @@ const App: React.FC = () => {
                       </div>
                       {activeRequest.bodyType !== 'none' && (
                         <InterpolatedInput
+                          ref={bodyEditorRef}
                           className="body-textarea"
                           multiline
                           activeEnv={activeEnv}
                           wrapLines={wrapLines}
                           collectionVariables={activeRequestCollection?.variables}
+                          enableSearch
                           placeholder={activeRequest.type === 'GRPC'
                             ? '{\n  "field": "value"\n}'
                             : activeRequest.bodyType === 'json'

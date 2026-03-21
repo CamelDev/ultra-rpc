@@ -172,6 +172,7 @@ const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading
           wrapLines={true}
           className="response-editor"
           theme={theme}
+          enableSearch={true}
         />
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { EditorState, StateEffect, type Extension, RangeSetBuilder } from '@codemirror/state'
 import { 
   EditorView, 
@@ -13,6 +13,7 @@ import {
   Decoration
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { search, searchKeymap, openSearchPanel } from '@codemirror/search'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -122,9 +123,14 @@ interface Props {
   collectionVariables?: any[]
   onKeyDown?: (e: React.KeyboardEvent) => void
   theme?: 'dark' | 'light'
+  enableSearch?: boolean
 }
 
-const Editor: React.FC<Props> = ({
+export interface EditorHandle {
+  openSearch: () => void
+}
+
+const Editor = forwardRef<EditorHandle, Props>(function Editor({
   value,
   onChange,
   language = 'plain',
@@ -137,10 +143,17 @@ const Editor: React.FC<Props> = ({
   collectionVariables,
   onKeyDown,
   theme = 'dark',
-}) => {
+  enableSearch = false,
+}, ref) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const [isFocused, setIsFocused] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    openSearch: () => {
+      if (viewRef.current) openSearchPanel(viewRef.current)
+    }
+  }))
   const [tooltip, setTooltip] = useState<{ visible: boolean, x: number, y: number, text: string }>({
     visible: false, x: 0, y: 0, text: ''
   })
@@ -196,7 +209,8 @@ const Editor: React.FC<Props> = ({
     const extensions: Extension[] = [
       theme === 'dark' ? oneDark : (language !== 'plain' ? syntaxHighlighting(lightHighlightStyle) : []),
       history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...(enableSearch && !singleLine ? searchKeymap : [])]),
+      ...(enableSearch && !singleLine ? [search({ top: true })] : []),
       variablePlugin,
       (wrapLines && !singleLine) ? EditorView.lineWrapping : [],
       EditorView.theme({
@@ -302,7 +316,7 @@ const Editor: React.FC<Props> = ({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, theme, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable])
+  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable])
 
   // Initialize view once on mount
   const initialValue = useRef(value)
@@ -381,6 +395,6 @@ const Editor: React.FC<Props> = ({
       )}
     </div>
   )
-}
+})
 
 export default Editor

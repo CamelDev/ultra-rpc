@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { forwardRef } from 'react'
 import type { Environment } from '../types'
-import Editor from './Editor'
+import Editor, { type EditorHandle } from './Editor'
 import './InterpolatedInput.css'
 
 interface Props {
@@ -18,9 +18,10 @@ interface Props {
   disabled?: boolean
   theme?: 'dark' | 'light'
   style?: React.CSSProperties
+  enableSearch?: boolean
 }
 
-const InterpolatedInput: React.FC<Props> = ({
+const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedInput({
   value,
   onChange,
   activeEnv,
@@ -35,12 +36,14 @@ const InterpolatedInput: React.FC<Props> = ({
   disabled = false,
   theme = 'dark',
   style,
-}) => {
+  enableSearch = false,
+}, ref) {
   const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
   
   return (
     <div className={`interpolated-input-container ${className}`} style={style}>
       <Editor
+        ref={ref}
         value={value}
         onChange={onChange}
         language={language}
@@ -52,9 +55,10 @@ const InterpolatedInput: React.FC<Props> = ({
         collectionVariables={collectionVariables}
         onKeyDown={onKeyDown}
         theme={theme}
+        enableSearch={enableSearch}
       />
     </div>
   )
-}
+})
 
 export default InterpolatedInput

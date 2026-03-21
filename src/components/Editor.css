@@ -182,3 +182,105 @@
 .fade-in-tooltip {
   animation: fadeInTooltip 0.2s ease-out forwards;
 }
+
+/* ===== CodeMirror Search Panel ===== */
+.cm-search {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-family: var(--font-sans, system-ui), sans-serif;
+  font-size: 13px;
+}
+
+.cm-search label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+
+.cm-search input[type="text"],
+.cm-search input[type="checkbox"] {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.cm-search input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+}
+
+.cm-search input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.cm-search button {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.cm-search button:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.08));
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+/* The close (×) button */
+.cm-search button[name="close"] {
+  margin-left: auto;
+  padding: 4px 8px;
+  font-size: 16px;
+  line-height: 1;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.cm-search button[name="close"]:hover {
+  color: var(--danger, #f87171);
+  background: transparent;
+  border-color: transparent;
+}
+
+/* Match count / message area */
+.cm-search .cm-search-notice {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+/* Match highlights in the editor */
+.cm-searchMatch {
+  background: rgba(251, 191, 36, 0.25) !important;
+  outline: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 2px;
+}
+
+/* Currently selected/active match */
+.cm-searchMatch.cm-searchMatch-selected {
+  background: rgba(139, 92, 246, 0.35) !important;
+  outline: 1px solid var(--accent);
+}
