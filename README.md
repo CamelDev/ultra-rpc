@@ -2,7 +2,7 @@
   <img src="public/icon.png" alt="UltraRPC Logo" width="100" />
 </p>
 
-<h1 align="center">⚡ UltraRPC</h1>
+<h1 align="center">UltraRPC</h1>
 
 <p align="center">
   <em>A lightweight desktop API client for <strong>gRPC</strong> and <strong>REST</strong> — built with Electron, React, and TypeScript.</em>

@@ -5,7 +5,7 @@ import {
   Save,
   Settings,
   Globe,
-  Zap,
+
   X,
   Loader2,
   Info,
@@ -1143,7 +1143,7 @@ const App: React.FC = () => {
       <aside className="sidebar" style={{ width: sidebarWidth }}>
         <div className="title-bar" style={{ paddingLeft: navigator.userAgent.includes('Mac') ? '80px' : '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Zap size={18} color="var(--accent)" fill="var(--accent)" />
+            <img src="./icon.png" alt="UltraRPC" width={18} height={18} style={{ borderRadius: '4px' }} />
             <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '0.5px' }}>UltraRPC</span>
           </div>
         </div>

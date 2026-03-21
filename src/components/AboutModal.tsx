@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Zap, Github, Heart, Info, ExternalLink } from 'lucide-react'
+import { X, Github, Heart, Info, ExternalLink } from 'lucide-react'
 import './AboutModal.css'
 
 interface AboutModalProps {
@@ -34,7 +34,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version }) => 
             <div className="modal-body about-body">
               <div className="about-brand">
                 <div className="about-logo-wrapper">
-                  <Zap size={48} color="var(--accent)" fill="var(--accent)" />
+                  <img src="./icon.png" alt="UltraRPC Logo" style={{ width: 48, height: 48, borderRadius: '12px' }} />
                 </div>
                 <h2 className="about-app-name">UltraRPC</h2>
                 <p className="about-version">Version {version}</p>
