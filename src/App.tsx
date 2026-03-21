@@ -12,6 +12,7 @@ import {
   WrapText,
   Hourglass,
   FolderOpen,
+  AlignLeft,
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
@@ -666,6 +667,53 @@ const App: React.FC = () => {
         : t
     ))
   }
+
+  const handleFormatJson = useCallback(() => {
+    if (!activeRequest) return
+    const currentBody = activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')
+    if (!currentBody.trim()) return
+
+    try {
+      // 1. Identify unquoted {{var}} and temporarily quote them to make JSON valid
+      let inString = false
+      let intermediate = ''
+      for (let i = 0; i < currentBody.length; i++) {
+        const char = currentBody[i]
+        // Handle escaped quotes
+        if (char === '"' && (i === 0 || currentBody[i - 1] !== '\\')) {
+          inString = !inString
+        }
+
+        // If we find {{ while not in a string, it's an unquoted variable
+        if (!inString && currentBody.slice(i, i + 2) === '{{') {
+          const end = currentBody.indexOf('}}', i)
+          if (end !== -1) {
+            const varContent = currentBody.slice(i, end + 2)
+            intermediate += `"___ULTRA_UNQUOTED___${varContent}"`
+            i = end + 1
+            continue
+          }
+        }
+        intermediate += char
+      }
+
+      // 2. Parse and format
+      const parsed = JSON.parse(intermediate)
+      const formatted = JSON.stringify(parsed, null, 2)
+
+      // 3. Restore unquoted variables by removing the placeholder prefix and its surrounding quotes
+      const final = formatted.replace(/"___ULTRA_UNQUOTED___(\{\{.*?\}\})"/g, '$1')
+
+      if (activeRequest.type === 'GRPC') {
+        updateActiveRequest({ grpcPayload: final })
+      } else {
+        updateActiveRequest({ body: final })
+      }
+      addToast({ type: 'success', message: 'JSON Formatted' })
+    } catch (e: any) {
+      addToast({ type: 'error', message: `Invalid JSON: ${e.message}` })
+    }
+  }, [activeRequest, updateActiveRequest])
 
   const runPreRequestScript = async (request: RequestConfig): Promise<{ environments: Environment[], collections: Collection[] } | null> => {
     if (!request.preRequestScript || !request.preRequestScript.trim()) return null
@@ -1579,7 +1627,17 @@ const App: React.FC = () => {
                             {bt.toUpperCase()}
                           </button>
                         ))}
-                        <div style={{ marginLeft: 'auto' }}>
+                        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                          {(activeRequest.bodyType === 'json' || activeRequest.type === 'GRPC') && (
+                            <button 
+                              className="btn-ghost"
+                              style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              onClick={handleFormatJson}
+                              title="Standardize JSON indentation"
+                            >
+                              <AlignLeft size={14} /> Format
+                            </button>
+                          )}
                           <button 
                             className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
                             style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
