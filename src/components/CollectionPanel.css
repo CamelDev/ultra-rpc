@@ -28,6 +28,76 @@
   gap: 2px;
 }
 
+.coll-search-wrapper {
+  margin-left: 12px;
+  margin-right: 8px;
+  flex: 1;
+  min-width: 60px;
+}
+
+.coll-search-input-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0 8px;
+  height: 24px;
+  transition: all 0.2s ease;
+}
+
+.coll-search-input-container:focus-within {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+}
+
+.coll-search-icon {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.coll-search-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 11px;
+  width: 100%;
+  padding: 0;
+  height: 100%;
+}
+
+.coll-search-input:focus {
+  outline: none;
+}
+
+.coll-search-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.coll-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.15s ease;
+}
+
+.coll-search-clear:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
 .coll-btn {
   padding: 3px !important;
   border-radius: 4px !important;
@@ -219,6 +289,12 @@
   padding: 4px 0;
 }
 
+/* The virtual list (react-window) renders a classless div[role="tree"] wrapper
+   with only inline styles — target it via its role attribute to suppress horizontal scroll */
+.coll-tree-container [role="tree"] div {
+  overflow-x: hidden !important;
+}
+
 .tree-node {
   display: flex !important;
   align-items: center;
@@ -306,13 +382,16 @@
 }
 
 .collection-icon {
-  color: #a78bfa; /* Soft purple */
+  color: #a78bfa;
+  /* Soft purple */
 }
 
 .folder-icon {
-  color: #94a3b8; /* Slate */
+  color: #94a3b8;
+  /* Slate */
 }
 
 .coll-req-icon {
-  color: #cbd5e1; /* Light slate */
+  color: #cbd5e1;
+  /* Light slate */
 }

@@ -699,14 +699,15 @@ export function registerStorageHandlers() {
   })
 
   // Delete a folder within a collection
-  ipcMain.handle('storage:deleteFolder', async (_event, args: { collectionId: string; folderPath: string }) => {
+  ipcMain.handle('storage:deleteFolder', async (_event, args: { collectionId: string; folderId: string }) => {
     try {
       const collDir = getCollectionDir(args.collectionId)
       if (!collDir) return { success: false, error: 'Collection not found' }
       
-      const fullPath = path.join(collDir, args.folderPath)
-      if (fs.existsSync(fullPath)) {
-        fs.rmSync(fullPath, { recursive: true, force: true })
+      const folderPath = findFolderByIdRecursively(collDir, args.folderId)
+      
+      if (folderPath && fs.existsSync(folderPath)) {
+        fs.rmSync(folderPath, { recursive: true, force: true })
       }
       return { success: true }
     } catch (err: any) {
@@ -997,7 +998,7 @@ export function registerStorageHandlers() {
 
       // 5. Update ordering in source parent and target parent
       updateOrderMeta(sourceParentPath, args.itemId, 'remove')
-      const finalItemId = isRequest ? path.basename(newPath, '.json') : path.basename(newPath)
+      const finalItemId = isRequest ? path.basename(newPath, '.json') : args.itemId
       updateOrderMeta(targetParentPath, finalItemId, 'add', args.newIndex)
 
       return { success: true }

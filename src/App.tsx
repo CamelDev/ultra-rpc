@@ -87,6 +87,7 @@ const App: React.FC = () => {
   const [showEnvPanel, setShowEnvPanel] = useState(false)
   const [showHistoryPanel, setShowHistoryPanel] = useState(() => localStorage.getItem('ultraRpcShowHistory') === 'true')
   const [showSaveMenu, setShowSaveMenu] = useState(false)
+  const [saveModalRequestName, setSaveModalRequestName] = useState('')
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder' | 'environment', id: string, name: string, collectionId?: string } | null>(null)
 
@@ -129,7 +130,7 @@ const App: React.FC = () => {
   // ===== Sidebar Resizing =====
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('ultraRpcSidebarWidth')
-    return saved ? parseInt(saved, 10) : 260
+    return saved ? parseInt(saved, 10) : 300
   })
   const [isResizing, setIsResizing] = useState(false)
 
@@ -220,7 +221,7 @@ const App: React.FC = () => {
     localStorage.removeItem('ultraRpcSidebarWidth')
     localStorage.removeItem('ultraRpcRequestHeight')
     localStorage.removeItem('ultraRpcRequestWidth')
-    setSidebarWidth(260)
+    setSidebarWidth(300)
     setRequestPanelHeight(380)
     setRequestPanelWidth(600)
     setShowSettingsPopup(false)
@@ -592,6 +593,7 @@ const App: React.FC = () => {
       }
     } else {
       // It's a new or decoupled request, open the standard picker
+      setSaveModalRequestName(activeRequest.name || 'New Request')
       setSelectedCollectionId(null)
       setShowSaveMenu(true)
     }
@@ -1303,7 +1305,7 @@ const App: React.FC = () => {
             onRenameRequest={handleRenameRequest}
             onEditVariables={setEditingCollection}
             onDeleteRequest={(collId, reqId, name) => setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })}
-            onDeleteFolder={(collId, folderName) => setConfirmDelete({ type: 'folder', id: folderName, name: folderName, collectionId: collId })}
+            onDeleteFolder={(collId, folderId, folderName) => setConfirmDelete({ type: 'folder', id: folderId, name: folderName, collectionId: collId })}
             onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
             onMoveCollection={handleMoveCollection}
             onCloneCollection={handleCloneCollection}
@@ -1938,7 +1940,32 @@ const App: React.FC = () => {
             </div>
             
             <div className="modal-body">
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  Request Name
+                </label>
+                <input 
+                  type="text"
+                  className="modal-input"
+                  value={saveModalRequestName}
+                  onChange={(e) => setSaveModalRequestName(e.target.value)}
+                  placeholder="e.g. Get User Profile"
+                  style={{
+                    width: '100%',
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                 Select a collection to save this request to:
               </p>
               
@@ -2001,12 +2028,13 @@ const App: React.FC = () => {
               </button>
               <button
                 className="btn-primary"
-                disabled={!selectedCollectionId}
+                disabled={!selectedCollectionId || !saveModalRequestName.trim()}
                 onClick={async () => {
                   if (activeRequest && selectedCollectionId) {
-                    await window.ultraRpc?.saveRequest({ collectionId: selectedCollectionId, request: activeRequest })
+                    const updatedRequest = { ...activeRequest, name: saveModalRequestName.trim() }
+                    await window.ultraRpc?.saveRequest({ collectionId: selectedCollectionId, request: updatedRequest })
                     setTabs(prev => prev.map(t =>
-                      t.id === activeTabId ? { ...t, isDirty: false, owningCollectionId: selectedCollectionId } : t
+                      t.id === activeTabId ? { ...t, request: updatedRequest, isDirty: false, owningCollectionId: selectedCollectionId } : t
                     ))
                     loadCollections()
                     setShowSaveMenu(false)
@@ -2079,7 +2107,7 @@ const App: React.FC = () => {
                     await rpc.deleteRequest({ collectionId: confirmDelete.collectionId, requestId: confirmDelete.id })
                     tabsToClose = [confirmDelete.id]
                   } else if (confirmDelete.type === 'folder' && confirmDelete.collectionId && rpc) {
-                    await rpc.deleteFolder({ collectionId: confirmDelete.collectionId, folderPath: confirmDelete.name })
+                    await rpc.deleteFolder({ collectionId: confirmDelete.collectionId, folderId: confirmDelete.id })
                     // Recursively finding all requests in a folder is hard here, 
                     // but we can at least close the ones that have this folder in their path if we had it.
                     // For now, let's just refresh and see.

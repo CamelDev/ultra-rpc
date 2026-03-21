@@ -19,11 +19,12 @@ import {
   MoreHorizontal,
   Download,
   Link,
+  Search,
 } from 'lucide-react'
 import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
 import { useTreeOpenState } from '../hooks/useTreeOpenState'
 import './CollectionPanel.css'
-import type { Collection, CollectionItem, RequestConfig, KeyValuePair } from '../types'
+import type { Collection, RequestConfig, KeyValuePair } from '../types'
 
 interface Props {
   collections: Collection[]
@@ -33,7 +34,7 @@ interface Props {
   onCloneRequest: (collectionId: string, requestId: string) => void
   onEditVariables: (collection: Collection) => void
   onDeleteRequest: (collectionId: string, requestId: string, requestName: string) => void
-  onDeleteFolder: (collectionId: string, folderName: string) => void
+  onDeleteFolder: (collectionId: string, folderId: string, folderName: string) => void
   onDeleteCollection: (id: string, name: string) => void
   onMoveCollection: (collectionId: string, currentPath?: string) => void
   onCloneCollection: (id: string) => void
@@ -119,6 +120,7 @@ const CreateCollectionModal: React.FC<CreateCollectionModalProps> = ({ onClose, 
 type TreeDataItem = {
   id: string
   realId: string
+  collectionId: string
   name: string
   type: 'collection' | 'folder' | 'request'
   children?: TreeDataItem[]
@@ -356,6 +358,7 @@ const CollectionPanel: React.FC<Props> = ({
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [folderParentId, setFolderParentId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const { treeRef, initialOpenState, onToggle } = useTreeOpenState()
 
@@ -387,38 +390,30 @@ const CollectionPanel: React.FC<Props> = ({
       return finalId
     }
 
-    const mapItems = (items: CollectionItem[]): TreeDataItem[] => {
-      return items.map(item => ({
-        id: ensureUnique(item.id),
-        realId: item.id,
+    const transformItem = (item: any, collId: string): TreeDataItem => {
+      const realId = item.id;
+      return {
+        id: ensureUnique(realId),
+        realId,
+        collectionId: collId,
         name: item.name,
-        type: item.type as 'folder' | 'request',
-        children: item.children ? mapItems(item.children) : undefined,
+        type: item.type,
         request: item.request,
-      }))
-    }
+        children: item.children ? item.children.map((c: any) => transformItem(c, collId)) : [],
+      };
+    };
 
     return collections.map(coll => ({
       id: ensureUnique(coll.id),
       realId: coll.id,
+      collectionId: coll.id,
       name: coll.name,
       type: 'collection' as const,
-      children: mapItems(coll.children || []),
+      children: coll.children ? coll.children.map(c => transformItem(c, coll.id)) : [],
       variables: coll.variables,
       path: coll.path,
     }))
   }, [collections])
-
-  const findCollectionIdForId = useCallback((realId: string, items: TreeDataItem[], parentCollId: string): string | null => {
-    for (const item of items) {
-      if (item.realId === realId) return parentCollId
-      if (item.children) {
-        const found = findCollectionIdForId(realId, item.children, parentCollId)
-        if (found) return found
-      }
-    }
-    return null
-  }, [])
 
   const getCollectionIdOfNode = useCallback((node: NodeApi<TreeDataItem> | TreeDataItem | string | null): string | null => {
     let current: TreeDataItem | null = null;
@@ -430,19 +425,8 @@ const CollectionPanel: React.FC<Props> = ({
       current = node as TreeDataItem | null;
     }
 
-    if (!current) return null;
-
-    if (current.type === 'collection') return current.realId
-    
-    // Look up parent collection for this item
-    for (const coll of treeData) {
-      if (coll.realId === current.realId) return coll.realId;
-      if (findCollectionIdForId(current.realId, coll.children || [], coll.realId)) {
-        return coll.realId;
-      }
-    }
-    return null
-  }, [treeRef, treeData, findCollectionIdForId])
+    return current?.collectionId || null;
+  }, [treeRef])
 
   const onMove = async ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
     if (!window.ultraRpc || !treeRef.current) return
@@ -456,33 +440,14 @@ const CollectionPanel: React.FC<Props> = ({
       const realItemId = draggedNode.data.realId
 
       // 1. Find source collection ID
-      let sourceCollectionId: string | null = null
-      for (const coll of treeData) {
-        if (coll.realId === realItemId && coll.type === 'collection') {
-          sourceCollectionId = coll.realId;
-          break;
-        }
-        if (findCollectionIdForId(realItemId, coll.children || [], coll.realId)) {
-          sourceCollectionId = coll.realId
-          break
-        }
-      }
+      const sourceCollectionId = draggedNode.data.collectionId
 
       // 2. Find target collection ID
       let targetCollectionId: string | null = null
-      if (targetParentRealId) {
-        if (collections.some(c => c.id === targetParentRealId)) {
-          targetCollectionId = targetParentRealId
-        } else {
-          for (const coll of treeData) {
-            if (findCollectionIdForId(targetParentRealId, coll.children || [], coll.realId)) {
-              targetCollectionId = coll.realId
-              break
-            }
-          }
-        }
+      if (targetNode) {
+        targetCollectionId = targetNode.data.collectionId
       } else if (draggedNode.data.type === 'collection') {
-        targetCollectionId = draggedNode.data.realId;
+        targetCollectionId = draggedNode.data.realId
       }
 
       if (sourceCollectionId && targetCollectionId) {
@@ -661,7 +626,7 @@ const CollectionPanel: React.FC<Props> = ({
         if (!collectionId) return
 
         if (isFolder) {
-          onDeleteFolder(collectionId, node.data.realId)
+          onDeleteFolder(collectionId, node.data.realId, node.data.name)
         } else if (isRequest && request) {
           onDeleteRequest(collectionId, node.data.realId, request.name || 'Untitled')
         }
@@ -678,6 +643,8 @@ const CollectionPanel: React.FC<Props> = ({
           ref={dragHandle as (el: HTMLDivElement | null) => void}
           style={style}
           className={`tree-node ${node.isSelected ? 'selected' : ''}`}
+          data-id={node.data.realId}
+          data-type={node.data.type}
           onClick={() => {
             if (isRequest && request) onOpenRequest(request)
             else {
@@ -782,9 +749,43 @@ const CollectionPanel: React.FC<Props> = ({
         <span className="coll-title">
           <Folder size={14} /> Collections
         </span>
+        <div className="coll-search-wrapper">
+          <div className="coll-search-input-container">
+            <Search size={12} className="coll-search-icon" />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="coll-search-input"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button className="coll-search-clear" onClick={() => setSearchTerm('')}>
+                <X size={10} />
+              </button>
+            )}
+          </div>
+        </div>
         <div className="coll-header-actions">
           <button className="btn-ghost" onClick={() => setShowCreateModal(true)} data-tooltip="New Collection" data-tooltip-pos="bottom">
             <Plus size={16} />
+          </button>
+          <button 
+            className="btn-ghost" 
+            onClick={() => {
+              const selected = treeRef.current?.selectedNodes[0];
+              if (selected) {
+                handleNewFolder(selected.data.realId);
+              } else if (collections.length > 0) {
+                handleNewFolder(collections[0].id);
+              } else {
+                alert('Create a collection first');
+              }
+            }} 
+            data-tooltip="New Folder" 
+            data-tooltip-pos="bottom"
+          >
+            <FolderPlus size={15} />
           </button>
           <button className="btn-ghost" onClick={handleLinkCollection} data-tooltip="Link existing folder" data-tooltip-pos="bottom">
             <Link size={14} />
@@ -793,7 +794,7 @@ const CollectionPanel: React.FC<Props> = ({
             <Upload size={14} />
           </button>
           <button className="btn-ghost coll-btn" onClick={openFolder} data-tooltip="Import folder" data-tooltip-pos="bottom">
-            <FolderOpen size={14} />
+            <FolderPlus size={14} />
           </button>
         </div>
       </div>
@@ -816,6 +817,16 @@ const CollectionPanel: React.FC<Props> = ({
           <Tree
             ref={treeRef}
             data={treeData}
+            searchTerm={searchTerm.length >= 3 ? searchTerm : ''}
+            searchMatch={(node, term) => {
+              const name = node.data.name.toLowerCase()
+              const req = node.data.request
+              const searchStr = term.toLowerCase()
+              
+              if (name.includes(searchStr)) return true
+              if (req && req.url && req.url.toLowerCase().includes(searchStr)) return true
+              return false
+            }}
             onMove={onMove}
             indent={6}
             rowHeight={28}
@@ -843,7 +854,17 @@ const CollectionPanel: React.FC<Props> = ({
           onShowInFolder={handleMenuShowInFolder}
           onMove={onMoveCollection}
           onClone={onCloneCollection}
-          onDelete={onDeleteCollection}
+          onDelete={(_, name) => {
+            if (contextMenu.node.type === 'folder') {
+              const collId = getCollectionIdOfNode(contextMenu.node)
+              if (collId) onDeleteFolder(collId, contextMenu.node.realId, name)
+            } else if (contextMenu.node.type === 'request') {
+              const collId = getCollectionIdOfNode(contextMenu.node)
+              if (collId) onDeleteRequest(collId, contextMenu.node.realId, name)
+            } else {
+              onDeleteCollection(contextMenu.node.realId, name)
+            }
+          }}
         />
       )}
       {showFolderModal && (

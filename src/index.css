@@ -65,7 +65,7 @@ body {
 }
 
 .sidebar {
-  width: 260px;
+  width: 300px;
   background-color: var(--bg-secondary);
   border-right: 1px solid var(--border);
   display: flex;
@@ -115,6 +115,7 @@ body {
 .sidebar-nav {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -342,6 +343,7 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  overflow-x: hidden;
   padding: 24px 24px 0 24px;
   min-height: 200px;
   position: relative;
@@ -356,6 +358,7 @@ input:focus, select:focus, textarea:focus {
 .request-pane-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 4px;
   margin-top: 16px;
   /* Custom scrollbar for inner pane */
@@ -762,7 +765,7 @@ input:focus, select:focus, textarea:focus {
   position: absolute;
   bottom: 50px;
   left: 12px;
-  width: 260px;
+  width: 300px;
   padding: 12px;
   z-index: 1000;
   border-radius: 12px;

@@ -199,7 +199,8 @@
 /* Body */
 .response-body-container {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 200px;
 }
 
