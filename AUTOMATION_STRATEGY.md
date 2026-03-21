@@ -40,10 +40,10 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] Create new collection
 - [x] Save request to collection via modal
 - [x] Delete request from collection tree
-- [ ] Collection renaming and cloning
-- [ ] Folder creation and drag-and-drop reordering
-- [ ] Collection-level variable editing and persistence
-- [ ] Postman Collection v2.1 Import
+- [x] Collection renaming and cloning
+- [x] Folder creation and drag-and-drop reordering
+- [x] Collection-level variable editing and persistence
+- [x] Postman Collection v2.1 Import
 
 #### Environment & Variable Resolution
 - [x] Global active environment switching
@@ -80,7 +80,8 @@ We intend to use Vitest for fast, isolated testing of individual React component
 | Workspace & UI Suite | ✅ Automated (`workspace-ui.spec.ts`) |
 - [x] gRPC Unary Suite | ✅ Automated (`mock-grpc.spec.ts`)
 - [x] gRPC Advanced Suite (Reflection/Streaming/Error) | ✅ Automated (`mock-grpc.spec.ts`)
-- [ ] Scripting Sandbox Tests | 🏗️ Planned
+- [x] Scripting Sandbox Tests | 🏗️ In Progress
+- [x] Collection Management Suite | ✅ Automated (`collection-management.spec.ts`)
 
 ---
 
@@ -99,6 +100,15 @@ We intend to use Vitest for fast, isolated testing of individual React component
 - **Scenarios**:
     - **Method Selection**: Verified that picking GET, POST, PUT, DELETE, or PATCH correctly updates the request.
     - **Round-trip Verification**: Confirmed via the local mock server that the exact selected method was received and echoed back.
+
+#### 3. Collection Management Lifecycle
+- **Location**: [`tests/e2e/collection-management.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/collection-management.spec.ts)
+- **Scenarios**:
+    - **Renaming/Cloning**: Verified that collections can be renamed and cloned successfully, with unique IDs generated for duplicates.
+    - **Folder Creation**: Verified that the new `CreateFolderModal` (replacing `window.prompt`) correctly triggers and saves new folders with sanitized names (allowing hyphens).
+    - **Nesting & Cleanup**: Verified that folders appear correctly in the tree after expansion and that both folders and collections can be deleted.
+    - **Variable Editing**: Verified that collection-level variables can be added, edited, and persisted successfully via the custom modal and CodeMirror editors.
+    - **Postman Import**: Verified that Postman v2.1 collections (with folders, requests, and variables) can be imported and correctly reflected in the application tree.
 
 ## Final Verification Result
 

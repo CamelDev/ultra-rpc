@@ -13,10 +13,14 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   // ===== Collections =====
   listCollections: () => ipcRenderer.invoke('storage:listCollections'),
   createCollection: (args: any) => ipcRenderer.invoke('storage:createCollection', args),
+  createFolder: (args: { collectionId: string; folderName: string; parentId?: string }) => 
+    ipcRenderer.invoke('storage:createFolder', args),
   saveCollectionVariables: (args: any) => ipcRenderer.invoke('storage:saveCollectionVariables', args),
   saveRequest: (args: any) => ipcRenderer.invoke('storage:saveRequest', args),
   deleteRequest: (args: any) => ipcRenderer.invoke('storage:deleteRequest', args),
   deleteFolder: (args: any) => ipcRenderer.invoke('storage:deleteFolder', args),
+  renameFolder: (args: { collectionId: string; folderId: string; newName: string }) => 
+    ipcRenderer.invoke('storage:renameFolder', args),
   deleteCollection: (args: any) => ipcRenderer.invoke('storage:deleteCollection', args),
   renameCollection: (args: any) => ipcRenderer.invoke('storage:renameCollection', args),
   cloneCollection: (args: { collectionId: string }) => ipcRenderer.invoke('storage:cloneCollection', args),

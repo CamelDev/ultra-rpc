@@ -714,6 +714,76 @@ export function registerStorageHandlers() {
     }
   })
 
+  // Create a new folder within a collection
+  ipcMain.handle('storage:createFolder', async (_event, args: { collectionId: string; folderName: string; parentId?: string }) => {
+    try {
+      const collDir = getCollectionDir(args.collectionId)
+      if (!collDir) return { success: false, error: 'Collection not found' }
+
+      let parentPath = collDir
+      if (args.parentId && args.parentId !== args.collectionId) {
+        const found = findFolderByIdRecursively(collDir, args.parentId)
+        if (!found) return { success: false, error: 'Parent folder not found' }
+        parentPath = found
+      }
+
+      const folderSlug = args.folderName.replace(/[^a-z0-9 -]+/gi, '_')
+      const folderPath = path.join(parentPath, folderSlug)
+
+      if (fs.existsSync(folderPath)) {
+        return { success: false, error: 'A folder with that name already exists in this location' }
+      }
+
+      fs.mkdirSync(folderPath, { recursive: true })
+      
+      const folderId = Math.random().toString(36).substring(2, 11)
+      const subMetaPath = path.join(folderPath, '_meta.json')
+      fs.writeFileSync(
+        subMetaPath,
+        JSON.stringify({ id: folderId, name: args.folderName }, null, 2)
+      )
+
+      return { success: true, id: folderId }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Rename a folder within a collection
+  ipcMain.handle('storage:renameFolder', async (_event, args: { collectionId: string; folderId: string; newName: string }) => {
+    try {
+      const collDir = getCollectionDir(args.collectionId)
+      if (!collDir) return { success: false, error: 'Collection not found' }
+
+      const oldPath = findFolderByIdRecursively(collDir, args.folderId)
+      if (!oldPath) return { success: false, error: 'Folder not found' }
+
+      const parentDir = path.dirname(oldPath)
+      const folderSlug = args.newName.replace(/[^a-z0-9 -]+/gi, '_')
+      const newPath = path.join(parentDir, folderSlug)
+
+      if (oldPath !== newPath && fs.existsSync(newPath)) {
+        return { success: false, error: 'A folder with that name already exists in this location' }
+      }
+
+      fs.renameSync(oldPath, newPath)
+
+      // Update _meta.json
+      const metaPath = path.join(newPath, '_meta.json')
+      if (fs.existsSync(metaPath)) {
+        try {
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+          meta.name = args.newName
+          fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+        } catch { /* */ }
+      }
+
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
   // Rename a collection — renames dir to match new name slug, checks for duplicates
   ipcMain.handle('storage:renameCollection', async (_event, args: { collectionId: string; newName: string }) => {
     try {

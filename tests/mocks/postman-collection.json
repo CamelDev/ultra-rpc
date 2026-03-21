@@ -1,0 +1,32 @@
+{
+	"info": {
+		"name": "Postman E2E Test",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "My Folder",
+			"item": [
+				{
+					"name": "Postman Request",
+					"request": {
+						"method": "GET",
+						"url": "http://127.0.0.1:8080/postman",
+						"header": [
+							{
+								"key": "X-Postman-Test",
+								"value": "Passed"
+							}
+						]
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "pm_var",
+			"value": "pm_val"
+		}
+	]
+}

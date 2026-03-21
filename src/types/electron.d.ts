@@ -32,10 +32,12 @@ export interface UltraRpcApi {
   // Collections
   listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; children: any[]; variables?: any[]; path?: string }[]; warnings?: string[]; error?: string }>
   createCollection: (args: { name: string; path?: string }) => Promise<{ success: boolean; id?: string; error?: string }>
+  createFolder: (args: { collectionId: string; folderName: string; parentId?: string }) => Promise<{ success: boolean; id?: string; error?: string }>
   saveCollectionVariables: (args: { collectionId: string; variables: any[] }) => Promise<{ success: boolean; error?: string }>
   saveRequest: (args: { collectionId: string; request: any }) => Promise<{ success: boolean; error?: string }>
   deleteRequest: (args: { collectionId: string; requestId: string }) => Promise<{ success: boolean; error?: string }>
   deleteFolder: (args: { collectionId: string; folderPath: string }) => Promise<{ success: boolean; error?: string }>
+  renameFolder: (args: { collectionId: string; folderId: string; newName: string }) => Promise<{ success: boolean; error?: string }>
   deleteCollection: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
   renameCollection: (args: { collectionId: string; newName: string }) => Promise<{ success: boolean; newId?: string; error?: string }>
   cloneCollection: (args: { collectionId: string }) => Promise<{ success: boolean; id?: string; error?: string }>

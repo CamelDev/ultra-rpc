@@ -407,7 +407,7 @@ const App: React.FC = () => {
     await window.ultraRpc.saveSettings({ ...current, [key]: value })
   }
 
-  const handleSaveCollectionVariables = async (id: string, variables: any[]) => {
+   const handleSaveCollectionVariables = async (id: string, variables: any[]) => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.saveCollectionVariables({ collectionId: id, variables })
     if (res.success) {

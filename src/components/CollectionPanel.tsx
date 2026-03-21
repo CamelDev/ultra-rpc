@@ -15,6 +15,7 @@ import {
   Copy,
   Clipboard,
   Folder,
+  FolderPlus,
   MoreHorizontal,
   Download,
   Link,
@@ -151,6 +152,59 @@ const methodColor = (m: string) => {
   }
 }
 
+// ─── Create Folder Modal ──────────────────────────────────────────────────
+interface CreateFolderModalProps {
+  onClose: () => void
+  onConfirm: (name: string) => void
+}
+
+const CreateFolderModal: React.FC<CreateFolderModalProps> = ({ onClose, onConfirm }) => {
+  const [name, setName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const handleCreate = () => {
+    if (!name.trim()) {
+      setError('Folder name is required')
+      return
+    }
+    onConfirm(name.trim())
+  }
+
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content glass" onClick={e => e.stopPropagation()} style={{ width: '350px' }}>
+        <div className="modal-header">
+          <h3>New Folder</h3>
+          <button className="btn-ghost" onClick={onClose} style={{ padding: '4px' }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>FOLDER NAME</label>
+            <input
+              autoFocus
+              className={error ? 'coll-rename-input--error' : ''}
+              placeholder="e.g. Auth"
+              value={name}
+              onChange={e => { setName(e.target.value); setError(null) }}
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            />
+            {error && <div style={{ fontSize: '11px', color: 'var(--danger)', marginTop: '2px' }}>{error}</div>}
+          </div>
+        </div>
+        <div className="modal-footer" style={{ borderTop: '1px solid var(--border-subtle)', padding: '12px 16px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handleCreate} style={{ padding: '8px 16px' }}>
+            Create Folder
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // ─── Inline Rename Input ───────────────────────────────────────────────────
 interface InlineRenameInputProps {
   initialValue: string
@@ -193,7 +247,8 @@ const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
 interface CollContextMenuProps {
   menu: ContextMenuState
   onClose: () => void
-  onRename: (id: string, name: string) => void
+  onRename: (id: string, currentName: string) => void
+  onNewFolder: (parentId: string) => void // Added onNewFolder
   onEditVariables: (node: TreeDataItem) => void
   onExport: (id: string) => void
   onCopyPath: (node: TreeDataItem) => void
@@ -205,7 +260,7 @@ interface CollContextMenuProps {
 
 const CollContextMenu: React.FC<CollContextMenuProps> = ({
   menu, onClose,
-  onRename, onEditVariables, onExport,
+  onRename, onNewFolder, onEditVariables, onExport, // Added onNewFolder
   onCopyPath, onShowInFolder, onMove, onClone, onDelete,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -240,16 +295,21 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
         }}
         onMouseDown={e => e.stopPropagation()}
       >
+        {(menu.node.type === 'collection' || menu.node.type === 'folder') && (
+          <button onClick={() => { onNewFolder(menu.node.realId); onClose() }}>
+            <FolderPlus size={12} /> New Folder
+          </button>
+        )}
         <button onClick={() => { onRename(menu.node.id, menu.node.name); onClose() }}>
           <Edit2 size={12} /> Rename
         </button>
         <button onClick={() => { onEditVariables(menu.node); onClose() }}>
           <Zap size={12} /> Variables
         </button>
-        <button onClick={() => { onExport(menu.node.id); onClose() }}>
+        <button onClick={() => { onExport(menu.node.realId); onClose() }}>
           <Download size={12} /> Export
         </button>
-        <button onClick={() => { onClone(menu.node.id); onClose() }}>
+        <button onClick={() => { onClone(menu.node.realId); onClose() }}>
           <Copy size={12} /> Clone
         </button>
         <div className="coll-context-divider" />
@@ -293,6 +353,8 @@ const CollectionPanel: React.FC<Props> = ({
   const [nameInput, setNameInput] = useState('')
   const [renameError, setRenameError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showFolderModal, setShowFolderModal] = useState(false)
+  const [folderParentId, setFolderParentId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
   const { treeRef, initialOpenState, onToggle } = useTreeOpenState()
@@ -358,14 +420,29 @@ const CollectionPanel: React.FC<Props> = ({
     return null
   }, [])
 
-  const getCollectionIdOfNode = (node: NodeApi<TreeDataItem> | null): string | null => {
-    let current: NodeApi<TreeDataItem> | null = node
-    while (current) {
-      if (current.data.type === 'collection') return current.data.realId
-      current = current.parent
+  const getCollectionIdOfNode = useCallback((node: NodeApi<TreeDataItem> | TreeDataItem | string | null): string | null => {
+    let current: TreeDataItem | null = null;
+    if (typeof node === 'string') {
+      current = treeRef.current?.get(node)?.data || null;
+    } else if (node && 'data' in (node as any)) { // NodeApi
+      current = (node as any).data;
+    } else { // TreeDataItem or null
+      current = node as TreeDataItem | null;
+    }
+
+    if (!current) return null;
+
+    if (current.type === 'collection') return current.realId
+    
+    // Look up parent collection for this item
+    for (const coll of treeData) {
+      if (coll.realId === current.realId) return coll.realId;
+      if (findCollectionIdForId(current.realId, coll.children || [], coll.realId)) {
+        return coll.realId;
+      }
     }
     return null
-  }
+  }, [treeRef, treeData, findCollectionIdForId])
 
   const onMove = async ({ dragIds, parentId, index }: { dragIds: string[], parentId: string | null, index: number }) => {
     if (!window.ultraRpc || !treeRef.current) return
@@ -381,7 +458,10 @@ const CollectionPanel: React.FC<Props> = ({
       // 1. Find source collection ID
       let sourceCollectionId: string | null = null
       for (const coll of treeData) {
-        if (coll.realId === realItemId) continue
+        if (coll.realId === realItemId && coll.type === 'collection') {
+          sourceCollectionId = coll.realId;
+          break;
+        }
         if (findCollectionIdForId(realItemId, coll.children || [], coll.realId)) {
           sourceCollectionId = coll.realId
           break
@@ -391,11 +471,9 @@ const CollectionPanel: React.FC<Props> = ({
       // 2. Find target collection ID
       let targetCollectionId: string | null = null
       if (targetParentRealId) {
-        // If parent is a collection root
         if (collections.some(c => c.id === targetParentRealId)) {
           targetCollectionId = targetParentRealId
         } else {
-          // If parent is a subfolder, find its collection
           for (const coll of treeData) {
             if (findCollectionIdForId(targetParentRealId, coll.children || [], coll.realId)) {
               targetCollectionId = coll.realId
@@ -403,6 +481,8 @@ const CollectionPanel: React.FC<Props> = ({
             }
           }
         }
+      } else if (draggedNode.data.type === 'collection') {
+        targetCollectionId = draggedNode.data.realId;
       }
 
       if (sourceCollectionId && targetCollectionId) {
@@ -428,7 +508,6 @@ const CollectionPanel: React.FC<Props> = ({
         setShowCreateModal(false)
         onRefresh()
       } else {
-        // We could show an alert or just let the user try again
         alert(res.error || 'Failed to create collection')
       }
     }
@@ -445,27 +524,95 @@ const CollectionPanel: React.FC<Props> = ({
     }
   }
 
-  const handleRename = async (node: NodeApi<TreeDataItem>, newValue?: string, dismissOnBlur = true) => {
-    const freshName = (newValue ?? nameInput).trim()
+  const handleNewFolder = (parentId: string) => {
+    setFolderParentId(parentId)
+    setShowFolderModal(true)
+  }
+
+  const confirmNewFolder = async (folderName: string) => {
+    if (!folderParentId || !window.ultraRpc) return;
+
+    // We need the collection ID for the target node
+    const targetNode = treeRef.current?.get(folderParentId);
+    if (!targetNode) {
+        const coll = collections.find(c => c.id === folderParentId);
+        if (!coll) {
+            alert('Parent node not found');
+            setShowFolderModal(false);
+            return;
+        }
+    }
+
+    const collectionId = getCollectionIdOfNode(folderParentId);
+    if (!collectionId) {
+      alert('Could not determine parent collection.');
+      setShowFolderModal(false);
+      return;
+    }
+
+    const res = await window.ultraRpc.createFolder({
+      collectionId: collectionId,
+      folderName: folderName.trim(),
+      parentId: folderParentId === collectionId ? '' : folderParentId
+    });
+
+    if (res.success) {
+      onRefresh();
+    } else {
+      alert(res.error || 'Failed to create folder');
+    }
+    setShowFolderModal(false);
+    setFolderParentId(null);
+  };
+
+  const handleRename = async (node: NodeApi<TreeDataItem> | { id: string, name: string }, newValue?: string, dismissOnBlur = true) => {
+    let freshName: string;
+    let targetNode: any;
+
+    if ('id' in node && 'name' in node && !newValue) {
+      targetNode = treeRef.current?.get(node.id);
+      if (!targetNode) return;
+      freshName = node.name.trim();
+      setEditingId(node.id);
+      setNameInput(node.name);
+      return; 
+    } else if ('data' in node) {
+      targetNode = node;
+      freshName = (newValue ?? nameInput).trim();
+    } else {
+      return;
+    }
+
     if (!freshName || !window.ultraRpc) {
       if (dismissOnBlur) { setEditingId(null); setRenameError(null) }
       return
     }
 
-    const collectionId = getCollectionIdOfNode(node)
+    const collectionId = getCollectionIdOfNode(targetNode as any)
     if (!collectionId) return
 
-    if (node.data.type === 'collection') {
-      const result = await window.ultraRpc.renameCollection({ collectionId: node.data.realId, newName: freshName })
+    if (targetNode.data.type === 'collection') {
+      const result = await window.ultraRpc.renameCollection({ collectionId: targetNode.data.realId, newName: freshName })
       if (!result.success) {
         setRenameError(result.error || 'Rename failed')
         return
       }
       setRenameError(null)
-    } else if (node.data.type === 'request' && node.data.request) {
-      const updatedRequest = { ...node.data.request, name: freshName }
+    } else if (targetNode.data.type === 'folder') {
+      const result = await window.ultraRpc.renameFolder({
+        collectionId: collectionId,
+        folderId: targetNode.data.realId,
+        newName: freshName
+      });
+      if (!result.success) {
+        setRenameError(result.error || 'Rename failed');
+        return;
+      }
+      setRenameError(null);
+    } else if (targetNode.data.type === 'request' && targetNode.data.request) {
+      const updatedRequest = { ...targetNode.data.request, name: freshName }
       await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as RequestConfig })
-      onRenameRequest(node.data.realId, updatedRequest.name)
+      onRenameRequest(targetNode.data.realId, updatedRequest.name)
     }
 
     setEditingId(null)
@@ -486,7 +633,6 @@ const CollectionPanel: React.FC<Props> = ({
     }
   }
 
-  // ─── Context menu action handlers ───────────────────────────────────────
   const handleMenuCopyPath = async (node: TreeDataItem) => {
     let collPath = node.path
     if (!collPath) {
@@ -500,7 +646,6 @@ const CollectionPanel: React.FC<Props> = ({
     window.ultraRpc?.showCollectionInFolder({ collectionId: realId })
   }
 
-  // ─── Node Renderer ───────────────────────────────────────────────────────
   const NodeRenderer = useMemo(() => {
     return ({ node, style, dragHandle }: NodeRendererProps<TreeDataItem>) => {
       const isEditing = editingId === node.data.id
@@ -540,6 +685,7 @@ const CollectionPanel: React.FC<Props> = ({
               onToggle()
             }
           }}
+          onContextMenu={openContextMenu}
         >
           <div className="tree-node-content" style={{ paddingLeft: node.level * 6 }}>
             {(isCollection || isFolder) && (
@@ -585,7 +731,7 @@ const CollectionPanel: React.FC<Props> = ({
             {(isCollection || isFolder) && <span className="coll-count">{node.data.children?.length || 0}</span>}
 
             <div className="tree-node-actions" onClick={e => e.stopPropagation()}>
-              {isCollection ? (
+              {isCollection || isFolder ? (
                 <button
                   className="btn-ghost coll-action-btn"
                   onClick={openContextMenu}
@@ -625,9 +771,9 @@ const CollectionPanel: React.FC<Props> = ({
       )
     }
   }, [
-    editingId,
+    editingId, nameInput, renameError,
     onOpenRequest, onEditVariables,
-    onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename, onToggle
+    onDeleteRequest, onDeleteFolder, onDeleteCollection, getCollectionIdOfNode, handleRename, onToggle, onCloneRequest
   ])
 
   return (
@@ -685,12 +831,12 @@ const CollectionPanel: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Portal-rendered context menu — lives outside tree to avoid overflow clipping */}
       {contextMenu && (
         <CollContextMenu
           menu={contextMenu}
           onClose={() => setContextMenu(null)}
-          onRename={(id, name) => { setEditingId(id); setNameInput(name) }}
+          onRename={(id, name) => handleRename({ id, name })}
+          onNewFolder={handleNewFolder}
           onEditVariables={(node) => onEditVariables(node as unknown as Collection)}
           onExport={(id) => window.ultraRpc?.exportCollection({ collectionId: id })}
           onCopyPath={handleMenuCopyPath}
@@ -698,6 +844,12 @@ const CollectionPanel: React.FC<Props> = ({
           onMove={onMoveCollection}
           onClone={onCloneCollection}
           onDelete={onDeleteCollection}
+        />
+      )}
+      {showFolderModal && (
+        <CreateFolderModal
+          onClose={() => { setShowFolderModal(false); setFolderParentId(null) }}
+          onConfirm={confirmNewFolder}
         />
       )}
     </div>
