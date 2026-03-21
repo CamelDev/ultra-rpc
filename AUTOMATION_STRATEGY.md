@@ -46,12 +46,12 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [ ] Postman Collection v2.1 Import
 
 #### Environment & Variable Resolution
-- [ ] Global active environment switching
-- [ ] Per-tab environment assignment (override global)
+- [x] Global active environment switching
+- [x] Per-tab environment assignment (override global)
 - [x] Variable interpolation (`{{key}}`) in URL, Headers, and Body
-- [ ] SSL/TLS verification toggle (Insecure mode)
-- [ ] Postman Environment Import
-- [ ] Workspace state saved (Window bounds, sidebars etc.)
+- [x] SSL/TLS verification toggle (Insecure mode)
+- [x] Postman Environment Import
+- [x] Workspace state saved (Window bounds, sidebars etc.)
 
 #### Scripting & Automation
 - [ ] Pre-request script execution (variable injection)

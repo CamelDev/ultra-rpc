@@ -424,7 +424,7 @@ const App: React.FC = () => {
   // ===== Helpers =====
   const activeTab = tabs.find(t => t.id === activeTabId)
   const activeRequest = activeTab?.request
-  const activeEnv = environments.find(e => e.id === activeEnvId)
+  const activeEnv = environments.find(e => e.id === (activeTab?.request.envId || activeEnvId))
   const activeRequestCollection = activeTab ? findCollectionByRequestId(activeTab.request.id) : null
 
   const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
@@ -505,8 +505,8 @@ const App: React.FC = () => {
     const requestEnvId = activeTab?.request.envId
     const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
     const currentEnv = envOverride || environments.find(e => e.id === effectiveEnvId)
-
-    return str.replace(/\{\{(\w+)\}\}/g, (_, varName) => {
+    
+    const result = str.replace(/\{\{([\w.-]+)\}\}/g, (_, varName) => {
       // 1. Collection variables
       if (activeColl?.variables) {
         const found = activeColl.variables.find(v => v.key === varName && v.enabled)
@@ -521,6 +521,9 @@ const App: React.FC = () => {
 
       return `{{${varName}}}`
     })
+    
+    console.log(`[interpolate] IN="${str}" OUT="${result}" (env=${currentEnv?.name} numVars=${currentEnv?.variables.length})`)
+    return result
   }
 
   // ===== Save to history =====
@@ -902,7 +905,8 @@ const App: React.FC = () => {
       console.error('Pre-request script failed, but continuing request:', e)
     }
 
-    const updatedEnv = scriptResult?.environments.find(e => e.id === activeEnvId)
+    const effectiveEnvIdForUrl = activeRequest.envId || activeEnvId
+    const updatedEnv = scriptResult?.environments.find(e => e.id === effectiveEnvIdForUrl) || environments.find(e => e.id === effectiveEnvIdForUrl)
     const url = interpolate(activeRequest.url, updatedEnv, scriptResult?.collections)
     let statusCode: number | undefined
 

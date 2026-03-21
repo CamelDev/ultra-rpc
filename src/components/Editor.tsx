@@ -46,7 +46,7 @@ const jsonValueHighlighter = Decoration.mark({ class: 'cm-json-value' })
 function getVariableDecos(view: EditorView) {
   const builder = new RangeSetBuilder<Decoration>()
   const text = view.state.doc.toString()
-  const regex = /\{\{\w+\}\}/g
+  const regex = /\{\{([\w.-]+)\}\}/g
   let match
   while ((match = regex.exec(text)) !== null) {
     builder.add(match.index, match.index + match[0].length, variableHighlighter)
@@ -210,12 +210,12 @@ const Editor: React.FC<Props> = ({
 
           const text = view.state.doc.toString()
           // Check if pos is inside a variable {{...}}
-          const regex = /\{\{\w+\}\}/g
+          const regex = /\{\{([\w.-]+)\}\}/g
           let match
           let found = false
           while ((match = regex.exec(text)) !== null) {
             if (pos >= match.index && pos <= match.index + match[0].length) {
-              const varName = match[0].slice(2, -2)
+              const varName = match[1] // Use the first capture group (the variable name inside {{...}})
               const titleText = resolveVariable(varName)
               handleMouseEnterVar(e as any, titleText)
               found = true
@@ -323,6 +323,11 @@ const Editor: React.FC<Props> = ({
     })
 
     viewRef.current = view
+    
+    // For E2E testing
+    if (editorRef.current) {
+      (editorRef.current as any).cmView = { view }
+    }
 
     return () => {
       view.destroy()

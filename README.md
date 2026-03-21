@@ -206,17 +206,21 @@ We use [Playwright](https://playwright.dev/) for End-to-End (E2E) testing. The t
 ### 1. Run Tests (Headless)
 Run the entire suite in your terminal:
 ```bash
-# Ensure the app is built first
-npm run build
-
-# Run Playwright tests
+# Run all tests (automatically builds the app)
 npm run test:e2e
+
+# Run a specific test file
+npx playwright test tests/e2e/rest-flow.spec.ts
 ```
 
 ### 2. UI Mode (Debug)
 Launch the interactive test runner to see the app in action and debug step-by-step:
 ```bash
+# Open UI mode for all tests
 npx playwright test --ui
+
+# Open UI mode for a specific test file
+npx playwright test tests/e2e/environment-workspace.spec.ts --ui
 ```
 
 ### 3. Trace Viewer

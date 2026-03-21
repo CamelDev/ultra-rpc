@@ -208,7 +208,7 @@ npm run preview      # Preview production build
 ## Known Constraints & Gotchas
 
 - **Bidi-streaming is not yet fully supported** — only unary and server-streaming are implemented.
-- **SSL Verification toggle** is available at the Environment level but affects all requests using that environment.
+- **SSL Verification toggle** is available at the Environment level but affects all requests using that environment. Note: Automated E2E testing for SSL Verification is performed against `grpcb.in`.
 - **Proto file path** is supported in the call handler but there is no UI for selecting/uploading proto files yet (uses Reflection by default).
 - **The reflection proto** is written to `os.tmpdir()` on each call — this is intentional to avoid shipping a proto file.
 - **Module format**: ESM (`"type": "module"`), but `grpc-js` and `protobufjs` interop is handled via `createRequire`.
