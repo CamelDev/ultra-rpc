@@ -9,6 +9,7 @@ interface RestRequest {
   headers: Record<string, string>
   body?: string
   insecure?: boolean
+  timeoutMs?: number
 }
 
 export function registerRestHandlers() {
@@ -58,6 +59,12 @@ export function registerRestHandlers() {
         if (req.body && ['POST', 'PUT', 'PATCH'].includes(req.method)) {
           request.write(req.body)
         }
+
+        const timeout = req.timeoutMs && req.timeoutMs > 0 ? req.timeoutMs : 60000
+        request.setTimeout(timeout, () => {
+          request.destroy(new Error(`Request timed out after ${timeout}ms`))
+        })
+
         request.end()
       })
 

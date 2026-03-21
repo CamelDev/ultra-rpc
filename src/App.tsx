@@ -1009,7 +1009,8 @@ const App: React.FC = () => {
           const result = await window.ultraRpc.sendRestRequest({
             method: activeRequest.method, url: fullUrl, headers,
             body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body, updatedEnv, scriptResult?.collections) : undefined,
-            insecure: isInsecure
+            insecure: isInsecure,
+            timeoutMs: activeRequest.timeoutMs
           })
           if (result.success && result.data) {
             statusCode = result.data.status

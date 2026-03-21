@@ -9,6 +9,7 @@ export interface UltraRpcApi {
     headers: Record<string, string>
     body?: string
     insecure?: boolean
+    timeoutMs?: number
   }) => Promise<{
     success: boolean
     data?: { type: RequestType; status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }

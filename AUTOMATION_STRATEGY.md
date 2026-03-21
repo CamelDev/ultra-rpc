@@ -16,48 +16,50 @@ Playwright is our primary tool for testing the Electron application, verifying U
 ### Core Feature Automation Checklist
 
 #### Workspace & UI State
-- [x] Tab persistence across application restarts
-- [x] Active tab restoration
-- [x] Unsaved changes (dirty state) tracking and prompt
-- [x] Two-column vs Three-column layout switching
-- [x] Dark/Light theme switching and persistence
+- [x] Tab persistence across application restarts (`Tab Persistence & Active Tab Restoration`)
+- [x] Active tab restoration (`Tab Persistence & Active Tab Restoration`)
+- [x] Unsaved changes (dirty state) tracking and prompt (`Unsaved Changes (Dirty State) Prompt`)
+- [x] Two-column vs Three-column layout switching (`Layout Switching & Persistence`)
+- [x] Dark/Light theme switching and persistence (`Theme Switching & Persistence`)
 
 #### REST Client
-- [x] Simple GET request execution
-- [x] POST request with JSON body and syntax highlighting
-- [x] Headers & Query Parameters handling (enable/disable toggles)
-- [x] Method switching logic (GET/POST/PUT/DELETE/PATCH)
-- [x] Response display (formatted JSON, status code, time, size)
+- [x] Request Timeout (Configurable per-request timeouts) `timeout.spec.ts`
+- [x] Simple GET request execution (`Should hit local REST mock server and get response`)
+- [x] POST request with JSON body and syntax highlighting (`should create, save, run and delete a REST request`)
+- [x] Headers & Query Parameters handling (`should create, save, run and delete a REST request`)
+- [x] Method switching logic (`Should correctly switch between HTTP methods`)
+- [x] Response display (`Should hit local REST mock server and get response`)
 
 #### gRPC Client
-- [x] Client-side Server Reflection (Service/Method discovery)
-- [x] Unary call execution
-- [x] Server Streaming response accumulation and display
-- [x] Rich error decoding (decoding `grpc-status-details-bin` trailers)
-- [x] One-click request payload generation from reflection sample
+- [x] Client-side Server Reflection (`Should discover services via reflection and generate payload`)
+- [x] Unary call execution (`Should discover services via reflection and generate payload`)
+- [x] Server Streaming response accumulation and display (`Should handle server streaming and accumulate responses`)
+- [x] Rich error decoding (`Should decode rich gRPC error details (grpc-status-details-bin)`)
+- [x] One-click request payload generation (`Should discover services via reflection and generate payload`)
 
 #### Collection Management
-- [x] Create new collection
-- [x] Save request to collection via modal
-- [x] Delete request from collection tree
-- [x] Collection renaming and cloning
-- [x] Folder creation and drag-and-drop reordering
-- [x] Collection-level variable editing and persistence
-- [x] Postman Collection v2.1 Import
+- [x] Create new collection (`should perform full collection management lifecycle`)
+- [x] Save request to collection via modal (`should perform full collection management lifecycle`)
+- [x] Delete request from collection tree (`should perform full collection management lifecycle`)
+- [x] Collection renaming and cloning (`should perform full collection management lifecycle`)
+- [x] Folder creation and drag-and-drop reordering (`should perform full collection management lifecycle`)
+- [x] Collection-level variable editing and persistence (`should perform full collection management lifecycle`)
+- [x] Postman Collection v2.1 Import (`should perform full collection management lifecycle`)
 
 #### Environment & Variable Resolution
-- [x] Global active environment switching
-- [x] Per-tab environment assignment (override global)
-- [x] Variable interpolation (`{{key}}`) in URL, Headers, and Body
-- [x] SSL/TLS verification toggle (Insecure mode)
-- [x] Postman Environment Import
-- [x] Workspace state saved (Window bounds, sidebars etc.)
+- [x] Global active environment switching (`Should handle environment variables, SSL toggle, and persistence`)
+- [x] Per-tab environment assignment (`Should handle environment variables, SSL toggle, and persistence`)
+- [x] Apply environment to all tabs (`Apply to all tabs should propagate environment to every open tab`)
+- [x] Variable interpolation (`Should handle environment variables, SSL toggle, and persistence`)
+- [x] SSL/TLS verification toggle (`Should handle environment variables, SSL toggle, and persistence`)
+- [x] Postman Environment Import (`Should import a Postman environment successfully`)
+- [x] Workspace state saved (`Should handle environment variables, SSL toggle, and persistence`)
 
 #### Scripting & Automation
-- [ ] Pre-request script execution (variable injection)
-- [ ] Post-response script execution (value extraction)
-- [ ] `ultra` object API verification (`ultra.env.set`, `ultra.response`)
-- [ ] Script console log capturing and display
+- [x] Pre-request script execution (`Pre-request script should inject value into environment and URL`)
+- [x] Post-response script execution (`Post-response script should extract value and run assertions`)
+- [x] `ultra` object API verification (`Post-response script should extract value and run assertions`)
+- [x] Script console log capturing and display (`Pre-request script should inject value into environment and URL`)
 
 ---
 
@@ -78,10 +80,10 @@ We intend to use Vitest for fast, isolated testing of individual React component
 | GitHub Actions Quality Gate | ✅ Active on PR/Push |
 | Core REST Flow | ✅ Automated (`rest-flow.spec.ts`) |
 | Workspace & UI Suite | ✅ Automated (`workspace-ui.spec.ts`) |
-- [x] gRPC Unary Suite | ✅ Automated (`mock-grpc.spec.ts`)
-- [x] gRPC Advanced Suite (Reflection/Streaming/Error) | ✅ Automated (`mock-grpc.spec.ts`)
-- [x] Scripting Sandbox Tests | 🏗️ In Progress
-- [x] Collection Management Suite | ✅ Automated (`collection-management.spec.ts`)
+| gRPC Unary Suite | ✅ Automated (`mock-grpc.spec.ts`) |
+| gRPC Advanced Suite (Reflection/Streaming/Error) | ✅ Automated (`mock-grpc.spec.ts`) |
+| Scripting Sandbox Tests | ✅ Automated (`scripting-automation.spec.ts`) |
+| Collection Management Suite | ✅ Automated (`collection-management.spec.ts`) |
 
 ---
 
@@ -109,6 +111,14 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Nesting & Cleanup**: Verified that folders appear correctly in the tree after expansion and that both folders and collections can be deleted.
     - **Variable Editing**: Verified that collection-level variables can be added, edited, and persisted successfully via the custom modal and CodeMirror editors.
     - **Postman Import**: Verified that Postman v2.1 collections (with folders, requests, and variables) can be imported and correctly reflected in the application tree.
+
+#### 4. Scripting & Automation
+- **Location**: [`tests/e2e/scripting-automation.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/scripting-automation.spec.ts)
+- **Scenarios**:
+    - **Pre-request Injection**: Verified that `ultra.env.set` in a pre-request script correctly updates variables used in the URL interpolation of the outgoing request.
+    - **Post-response Extraction**: Verified that values can be extracted from JSON responses and saved to collection variables using `ultra.collection.set`.
+    - **Test Assertions**: Verified that `ultra.test` and `ultra.expect` correctly run and report results (PASS/FAIL) to the console.
+    - **Console Logging**: Verified that `console.log` output from scripts is captured with timestamps and displayed in the UI.
 
 ## Final Verification Result
 

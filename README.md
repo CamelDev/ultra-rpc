@@ -277,24 +277,37 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
 
 ## 🗺 Roadmap
 
-- [x] Server side gRPC streaming support
-- [x] Request scripting (Post-response)
-- [x] Collection Variables
-- [x] Rich gRPC error decoding
-- [x] Pre-request scripts
-- [x] Postman Import (v2.1)
-- [x] Postman Environment Import
-- [x] Per-Tab Environment Selection
-- [x] Three-Column Layout
-- [x] Collection linked to file system (sync with GIT)
-- [ ] Cookies support
-- [ ] Secrets and vault support
-- [ ] Collection runner with reports
-- [ ] Run complex post response scripts
-- [ ] TLS/SSL configuration panel for gRPC (Client Certificates)
-- [ ] WebSocket support
-- [ ] GraphQL support
-- [ ] Response diffing
+### 🌐 REST Client
+- [ ] **Form-Data support** (Sending `multipart/form-data` with files/fields)
+- [ ] **Binary body support** (Raw data or file upload)
+- [ ] **Auth Helpers** (Dedicated UI for Basic/Bearer auth)
+- [ ] **Cookies support** (Cookie manager and persistence)
+- [ ] **WebSocket & GraphQL support**
+
+### ⚡ gRPC Client
+- [ ] **Bidirectional & Client Streaming** (Full support for all gRPC stream types)
+- [ ] **TLS/SSL Configuration** (Client certificates and dedicated config panel)
+- [ ] **Metadata (Headers) Helpers** (Dedicated UI for common gRPC metadata)
+
+### 📁 Collections & Management
+- [ ] Bruno Import
+- [ ] **Collection Search** (Filter tree nodes by name)
+- [ ] **Collection Runner** (Sequence execution with summary reports)
+- [ ] **Move Items** (Ability to drag/move requests between different collections)
+
+### 🤖 Scripting & Variables
+- [ ] **Global Variables** (Variables available across all environments)
+- [ ] **Secret Management** (Masked variable values and vault storage)
+- [ ] **Script Library** (Reusable global script snippets and complex post-response logic)
+- [ ] **Visual Test Results** (Dedicated UI for assertion summaries)
+
+### 🎨 UX & Reliability
+- [ ] **Keyboard Shortcuts** (Cmd+Enter to send, Cmd+S to save, etc.)
+- [ ] **Global Search** (Searching across history, and tabs)
+- [ ] **Response Search** (Find text within JSON response body)
+- [ ] **Response Diffing** (Compare two different responses visually)
+- [ ] **Large Response Handling** (Optimized rendering for 10MB+ JSON payloads)
+- [ ] **Code Generation** (Copy request as cURL, Fetch, or Python code)
 
 ---
 

@@ -4,6 +4,7 @@ import { MockGrpcServer } from '../mocks/grpc-server';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { tmpdir } from 'os';
 import fs from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -68,7 +69,7 @@ test('Should discover services via reflection and generate payload', async () =>
     await expect(methodBtn).toBeVisible({ timeout: 10000 });
   } catch (e) {
     console.log('SayHello button not found after retry. Taking diagnostic screenshot...');
-    await window.screenshot({ path: join(__dirname, '../../reflection-failure-v2.png') });
+    await window.screenshot({ path: join(tmpdir(), 'ultrarpc-reflection-failure.png') });
     throw e;
   }
   
@@ -87,7 +88,7 @@ test('Should discover services via reflection and generate payload', async () =>
   await expect(bodyEditor).toContainText('"name": ""');
 
   console.log('Taking success screenshot...');
-  await window.screenshot({ path: join(__dirname, '../../grpc-reflection-success.png') });
+  await window.screenshot({ path: join(tmpdir(), 'ultrarpc-grpc-reflection-success.png') });
 
   await electronApp.close();
 });

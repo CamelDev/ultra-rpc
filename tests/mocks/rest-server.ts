@@ -64,6 +64,16 @@ export class MockRestServer {
           return;
         }
 
+        if (req.url?.startsWith('/slow')) {
+          const url = new URL(req.url, 'http://localhost');
+          const delay = parseInt(url.searchParams.get('delay') || '2000');
+          setTimeout(() => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, delayed: delay }));
+          }, delay);
+          return;
+        }
+
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
       };
