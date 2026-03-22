@@ -285,3 +285,93 @@
   white-space: nowrap;
   opacity: 0.6;
 }
+
+/* Mode Toggle */
+.reflect-mode-toggle {
+  display: flex;
+  padding: 12px 14px;
+  gap: 1px;
+  background: rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.reflect-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reflect-mode-btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.reflect-mode-btn:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+
+.reflect-mode-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.reflect-mode-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  z-index: 1;
+}
+
+/* Proto Input Section */
+.reflect-proto-input {
+  display: flex;
+  padding: 14px;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.reflect-proto-input input {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.reflect-proto-input input:focus {
+  border-color: var(--accent);
+}
+
+.reflect-proto-input .btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reflect-proto-input .btn-secondary:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border);
+}

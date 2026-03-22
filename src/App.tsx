@@ -151,6 +151,8 @@ const App: React.FC = () => {
   })
   const [isResizingResponse, setIsResizingResponse] = useState(false)
   const [isResizingVertical, setIsResizingVertical] = useState(false)
+  const [showGrpcDiscovery, setShowGrpcDiscovery] = useState(false)
+  const [grpcDiscoveryUrl, setGrpcDiscoveryUrl] = useState('')
 
   useEffect(() => {
     if (isResizing) {
@@ -1474,7 +1476,7 @@ const App: React.FC = () => {
               {/* gRPC-specific fields at the top of the request pane (fixed) */}
               {activeRequest.type === 'GRPC' && (
                 (() => {
-                  const isLocked = !!activeRequestCollection || !!responses[activeTabId];
+                  const isLocked = !!responses[activeTabId];
                   return (
                     <div className="grpc-fields" style={{ padding: '4px 16px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
                       <div className="grpc-field-row" id="grpc-service-row">
@@ -1492,16 +1494,32 @@ const App: React.FC = () => {
                       </div>
                       <div className="grpc-field-row" id="grpc-method-row">
                         <label className="grpc-label">Method</label>
-                        <InterpolatedInput
-                          className="grpc-input"
-                          placeholder="e.g. GetUser"
-                          value={activeRequest.grpcMethod || ''}
-                          onChange={(val) => updateActiveRequest({ grpcMethod: val })}
-                          activeEnv={activeEnv}
-                          collectionVariables={activeRequestCollection?.variables}
-                          disabled={isLocked}
-                          theme={theme}
-                        />
+                        <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                          <InterpolatedInput
+                            className="grpc-input"
+                            style={{ flex: 1 }}
+                            placeholder="e.g. GetUser"
+                            value={activeRequest.grpcMethod || ''}
+                            onChange={(val) => updateActiveRequest({ grpcMethod: val })}
+                            activeEnv={activeEnv}
+                            collectionVariables={activeRequestCollection?.variables}
+                            disabled={isLocked}
+                            theme={theme}
+                          />
+                          <button 
+                            type="button"
+                            className="btn-primary"
+                            disabled={isLocked}
+                            onClick={() => {
+                              setGrpcDiscoveryUrl(activeRequest.url)
+                              setShowGrpcDiscovery(true)
+                            }}
+                            style={{ padding: '0 12px', whiteSpace: 'nowrap' }}
+                            title="Discover Services"
+                          >
+                            <Search size={14} style={{ marginRight: '6px' }} /> Discover
+                          </button>
+                        </div>
                       </div>
                       <div className="grpc-field-row" id="grpc-proto-row">
                         <label className="grpc-label">Proto Path</label>
@@ -1518,11 +1536,14 @@ const App: React.FC = () => {
                             theme={theme}
                           />
                           <button 
+                            type="button"
                             className="btn-ghost"
                             disabled={isLocked}
-                            onClick={async () => {
+                            onClick={async (e) => {
+                              e.preventDefault()
                               if (!window.ultraRpc) return
                               const res = await window.ultraRpc.pickFile()
+                              console.log("pickFile app result:", res)
                               if (res.success && res.path) {
                                 updateActiveRequest({ protoPath: res.path })
                               }
@@ -1566,14 +1587,32 @@ const App: React.FC = () => {
 
               {/* ==== Scrollable Config Content ==== */}
                 <div className="request-pane-content no-scrollbar" style={{ display: 'flex', flexDirection: 'column' }}>
-                  {/* gRPC discovery in the scrollable content */}
-                  {activeRequest.type === 'GRPC' && (
-                    (() => {
-                      const isLocked = !!activeRequestCollection || !!responses[activeTabId];
-                      return !isLocked && (
-                        <div style={{ marginBottom: '20px' }}>
+                  {/* gRPC discovery in a modal */}
+                  {activeRequest.type === 'GRPC' && showGrpcDiscovery && (
+                    <div className="modal-overlay" onClick={() => setShowGrpcDiscovery(false)}>
+                      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '800px', height: '85vh', display: 'flex', flexDirection: 'column' }}>
+                        <div className="modal-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
+                          <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3>gRPC Service Discovery</h3>
+                            <button className="btn-ghost" onClick={() => setShowGrpcDiscovery(false)} style={{ padding: '4px' }}>
+                              <X size={20} />
+                            </button>
+                          </div>
+                          <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Host</label>
+                            <input 
+                              type="text" 
+                              className="address-input" 
+                              style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', borderRadius: '6px', fontSize: '13px' }}
+                              value={grpcDiscoveryUrl}
+                              onChange={(e) => setGrpcDiscoveryUrl(e.target.value)}
+                              placeholder="host:port (e.g. api.example.com:443)"
+                            />
+                          </div>
+                        </div>
+                        <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                           <GrpcReflectionPanel
-                            host={interpolate(activeRequest.url)}
+                            host={interpolate(grpcDiscoveryUrl)}
                             insecure={(() => {
                               const effectiveEnvId = activeRequest.envId || activeEnvId
                               const currentEnv = environments.find(e => e.id === effectiveEnvId)
@@ -1586,20 +1625,26 @@ const App: React.FC = () => {
                               })
                               return h
                             })()}
+                            protoPath={interpolate(activeRequest.protoPath || '')}
+                            grpcReflection={activeRequest.grpcReflection !== false}
                             onSelectService={(svc) => updateActiveRequest({ grpcService: svc })}
                             onSelectMethod={(svc, method, sampleBody) => {
                               updateActiveRequest({
+                                url: grpcDiscoveryUrl,
                                 grpcService: svc,
                                 grpcMethod: method,
                                 grpcPayload: sampleBody || '{}',
                                 bodyType: 'json',
                               })
                               setActiveConfigTab('body')
+                              setShowGrpcDiscovery(false)
                             }}
+                            onProtoPathChange={(path) => updateActiveRequest({ protoPath: path })}
+                            onGrpcReflectionChange={(useReflection) => updateActiveRequest({ grpcReflection: useReflection })}
                           />
                         </div>
-                      );
-                    })()
+                      </div>
+                    </div>
                   )}
                   <div className="config-content">
                   {activeConfigTab === 'params' && (

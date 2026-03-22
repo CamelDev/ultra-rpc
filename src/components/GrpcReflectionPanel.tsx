@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Search, Loader2, ChevronRight, Server, Zap, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react'
+import { Search, Loader2, ChevronRight, Server, Zap, AlertCircle, RefreshCw, ArrowRight, FileType, FolderOpen } from 'lucide-react'
 import './GrpcReflectionPanel.css'
 
 interface MethodInfo {
@@ -16,11 +16,25 @@ interface Props {
   host: string
   insecure?: boolean
   headers: Record<string, string>
+  protoPath?: string
+  grpcReflection?: boolean
   onSelectService: (service: string) => void
   onSelectMethod: (service: string, method: string, sampleBody?: string) => void
+  onProtoPathChange: (path: string) => void
+  onGrpcReflectionChange: (useReflection: boolean) => void
 }
 
-const GrpcReflectionPanel: React.FC<Props> = ({ host, insecure = false, headers, onSelectService, onSelectMethod }) => {
+const GrpcReflectionPanel: React.FC<Props> = ({ 
+  host, 
+  insecure = false, 
+  headers, 
+  protoPath = '',
+  grpcReflection = true,
+  onSelectService, 
+  onSelectMethod,
+  onProtoPathChange,
+  onGrpcReflectionChange
+}) => {
   const [services, setServices] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,8 +45,13 @@ const GrpcReflectionPanel: React.FC<Props> = ({ host, insecure = false, headers,
   const [methodsError, setMethodsError] = useState<Record<string, string>>({})
 
   const discoverServices = async () => {
-    if (!host.trim()) {
+    if (grpcReflection && !host.trim()) {
       setError('Enter a host:port first')
+      return
+    }
+
+    if (!grpcReflection && !protoPath.trim()) {
+      setError('Select a proto file first')
       return
     }
 
@@ -49,12 +68,14 @@ const GrpcReflectionPanel: React.FC<Props> = ({ host, insecure = false, headers,
 
     try {
       const result = await window.ultraRpc.grpcReflect({
-        host: host.trim(),
+        host: host.trim() || 'localhost', // backend expects string
         insecure,
         headers,
+        protoPath: !grpcReflection ? protoPath : undefined
       })
 
       if (result.success && result.services) {
+        // filter out grpc built-ins if reflection, but if proto we can keep them or same logic
         const filtered = result.services.filter(
           s => !s.startsWith('grpc.reflection')
         )
@@ -80,10 +101,11 @@ const GrpcReflectionPanel: React.FC<Props> = ({ host, insecure = false, headers,
 
     try {
       const result = await window.ultraRpc.grpcMethods({
-        host: host.trim(),
+        host: host.trim() || 'localhost',
         insecure,
         headers,
         serviceName,
+        protoPath: !grpcReflection ? protoPath : undefined
       })
 
       if (result.success && result.methods) {
@@ -145,12 +167,66 @@ const GrpcReflectionPanel: React.FC<Props> = ({ host, insecure = false, headers,
         </button>
       </div>
 
+      <div className="reflect-mode-toggle">
+        <button 
+          type="button"
+          className={`reflect-mode-btn ${grpcReflection ? 'active' : ''}`}
+          onClick={() => onGrpcReflectionChange(true)}
+        >
+          <Server size={13} /> Server Reflection
+        </button>
+        <button 
+          type="button"
+          className={`reflect-mode-btn ${!grpcReflection ? 'active' : ''}`}
+          onClick={() => onGrpcReflectionChange(false)}
+        >
+          <FileType size={13} /> Proto File
+        </button>
+      </div>
+
+      {!grpcReflection && (
+        <div className="reflect-proto-input">
+          <input
+            type="text"
+            placeholder="Path to .proto file"
+            value={protoPath}
+            onChange={(e) => onProtoPathChange(e.target.value)}
+          />
+          <button 
+            type="button"
+            className="btn-secondary" 
+            title="Browse"
+            onClick={async (e) => {
+              e.preventDefault()
+              if (window.ultraRpc) {
+                const res = await window.ultraRpc.pickFile()
+                console.log("pickFile result:", res)
+                if (res.success && res.path) {
+                  onProtoPathChange(res.path)
+                }
+              }
+            }}
+          >
+            <FolderOpen size={14} />
+          </button>
+        </div>
+      )}
+
       {!discovered && !error && !loading && (
         <div className="reflect-hint">
           <div className="reflect-hint-icon">🔍</div>
           <div className="reflect-hint-text">
-            Enter a gRPC server address above and click <strong>Discover Services</strong> to
-            auto-detect available services via server reflection.
+            {grpcReflection ? (
+              <>
+                Enter a gRPC server address above and click <strong>Discover Services</strong> to
+                auto-detect available services via server reflection.
+              </>
+            ) : (
+              <>
+                Select a local <strong>.proto</strong> file and click <strong>Discover Services</strong> to
+                load services and methods from the definition.
+              </>
+            )}
           </div>
           <div className="reflect-hint-example">
             Example: <code>grpcb.in:9000</code>

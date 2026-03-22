@@ -367,8 +367,39 @@ function parseMapsToArrays(type: any, payload: any): any {
 
 export function registerGrpcHandlers() {
   // ===== List services via reflection =====
-  ipcMain.handle('grpc:reflect', async (_event, args: { host: string; insecure: boolean; headers: Record<string, string> }) => {
+  ipcMain.handle('grpc:reflect', async (_event, args: { host: string; insecure: boolean; headers: Record<string, string>; protoPath?: string }) => {
     try {
+      if (args.protoPath) {
+        try {
+          const protobuf = getProtobuf()
+          const root = new protobuf.Root()
+          root.resolvePath = (origin: string, target: string) => {
+             if (path.isAbsolute(target)) return target
+             return path.join(path.dirname(args.protoPath!), target)
+          }
+          root.loadSync(args.protoPath, { keepCase: true })
+          root.resolveAll()
+          
+          const services: string[] = []
+          const traverse = (ns: any, prefix = '') => {
+            if (ns.nestedArray) {
+              for (const child of ns.nestedArray) {
+                const fullName = prefix ? `${prefix}.${child.name}` : child.name
+                if (child.constructor.name === 'Service') {
+                  services.push(fullName)
+                } else if (child.constructor.name === 'Namespace' || child.constructor.name === 'Type') {
+                  traverse(child, fullName)
+                }
+              }
+            }
+          }
+          traverse(root)
+          return { success: true, services }
+        } catch (err: any) {
+          return { success: false, error: err.message || 'Failed to parse proto file' }
+        }
+      }
+
       const metadata = new grpc.Metadata()
       for (const [key, value] of Object.entries(args.headers || {})) {
         if (key && value) metadata.add(key, value)
@@ -406,8 +437,80 @@ export function registerGrpcHandlers() {
   })
 
   // ===== Get methods for a service via reflection file descriptors =====
-  ipcMain.handle('grpc:methods', async (_event, args: { host: string; insecure: boolean; headers: Record<string, string>; serviceName: string }) => {
+  ipcMain.handle('grpc:methods', async (_event, args: { host: string; insecure: boolean; headers: Record<string, string>; serviceName: string; protoPath?: string }) => {
     try {
+      if (args.protoPath) {
+        try {
+          const protobuf = getProtobuf()
+          const root = new protobuf.Root()
+          root.resolvePath = (origin: string, target: string) => {
+             if (path.isAbsolute(target)) return target
+             return path.join(path.dirname(args.protoPath!), target)
+          }
+          root.loadSync(args.protoPath, { keepCase: true })
+          root.resolveAll()
+
+          const methods: { name: string; fullName: string; requestType: string; responseType: string; clientStreaming: boolean; serverStreaming: boolean; sampleBody: string }[] = []
+          const targetShortName = args.serviceName.split('.').pop()
+          
+          const generateProtoSample = (type: any, visited: Set<string>): Record<string, any> => {
+            if (!type || visited.has(type.fullName)) return {}
+            visited.add(type.fullName)
+            const result: Record<string, any> = {}
+            for (const field of type.fieldsArray) {
+              let value: any
+              if (field.resolvedType) {
+                 if (field.resolvedType.constructor.name === 'Enum') {
+                   value = Object.keys(field.resolvedType.values)[0] || 0
+                 } else {
+                   value = generateProtoSample(field.resolvedType, new Set(visited))
+                 }
+              } else {
+                switch (field.type) {
+                  case 'double': case 'float': value = 0.0; break;
+                  case 'int32': case 'uint32': case 'sint32': case 'fixed32': case 'sfixed32': value = 0; break;
+                  case 'int64': case 'uint64': case 'sint64': case 'fixed64': case 'sfixed64': value = '0'; break;
+                  case 'bool': value = false; break;
+                  case 'string': value = ''; break;
+                  case 'bytes': value = ''; break;
+                  default: value = null;
+                }
+              }
+              if (field.repeated) {
+                result[field.name] = value !== null ? [value] : []
+              } else {
+                result[field.name] = value
+              }
+            }
+            visited.delete(type.fullName)
+            return result
+          }
+
+          const service = root.lookupService(args.serviceName) || root.lookupService(targetShortName!)
+          if (service) {
+            for (const mName of Object.keys(service.methods)) {
+              const m = service.methods[mName]
+              m.resolve()
+              const inputType = root.lookupType(m.requestType)
+              const sampleBody = generateProtoSample(inputType, new Set())
+              
+              methods.push({
+                name: mName,
+                fullName: `${args.serviceName}/${mName}`,
+                requestType: m.requestType,
+                responseType: m.responseType,
+                clientStreaming: m.requestStream || false,
+                serverStreaming: m.responseStream || false,
+                sampleBody: JSON.stringify(sampleBody, null, 2),
+              })
+            }
+          }
+          return { success: true, methods }
+        } catch (err: any) {
+             return { success: false, error: err.message || 'Failed to parse proto file for methods' }
+        }
+      }
+
       const metadata = new grpc.Metadata()
       for (const [key, value] of Object.entries(args.headers || {})) {
         if (key && value) metadata.add(key, value)
