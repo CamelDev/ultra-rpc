@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe, Check } from 'lucide-react'
 import type { Environment, KeyValuePair } from '../types'
 import { emptyKV } from '../lib/helpers'
 import './EnvironmentPanel.css'
@@ -191,7 +191,20 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteReq
               </div>
 
               {env.variables.map(v => (
-                <div className="env-var-row" key={v.id}>
+                <div 
+                  className={['env-var-row', !v.enabled ? 'env-var-row-disabled' : ''].filter(Boolean).join(' ')} 
+                  key={v.id}
+                >
+                  <button
+                    className={`env-var-check ${v.enabled ? 'env-var-check-on' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      updateVariable(env.id, v.id, 'enabled', !v.enabled)
+                    }}
+                    title={v.enabled ? 'Disable Variable' : 'Enable Variable'}
+                  >
+                    {v.enabled && <Check size={12} />}
+                  </button>
                   <input
                     className="env-var-input env-var-key"
                     placeholder="VARIABLE_NAME"

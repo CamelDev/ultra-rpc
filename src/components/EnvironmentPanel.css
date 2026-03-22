@@ -132,9 +132,39 @@
 
 .env-var-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 24px;
+  grid-template-columns: 24px 1fr 1fr 24px;
   gap: 6px;
   align-items: center;
+  transition: opacity 0.15s ease;
+}
+
+.env-var-row-disabled {
+  opacity: 0.4;
+}
+
+.env-var-row-disabled .env-var-input {
+  text-decoration: line-through;
+}
+
+.env-var-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-focus);
+  background: transparent;
+  color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+  padding: 0;
+}
+
+.env-var-check-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
 }
 
 .env-var-input {

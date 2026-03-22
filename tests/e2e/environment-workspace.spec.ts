@@ -90,81 +90,80 @@ test.describe('Environment & Variable Resolution', () => {
     }
   });
 
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const setCMValue = async (selector: string, value: string) => {
+    console.log(`[setCMValue] Starting for "${selector}"...`);
+    
+    await window.waitForSelector(selector, { state: 'attached', timeout: 20000 });
+    
+    await window.waitForFunction((s: string) => {
+      const container = document.querySelector(s);
+      if (!container) return false;
+      const editor = container.querySelector('.editor-container');
+      if (!editor) return false;
+      return (editor as any).cmView && (editor as any).cmView.view;
+    }, selector, { timeout: 20000 });
+
+    await window.evaluate(({ s, val }: { s: string, val: string }) => {
+      const container = document.querySelector(s);
+      const editor = container?.querySelector('.editor-container') as any;
+      const { view } = editor.cmView;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: val }
+      });
+    }, { s: selector, val: value });
+    
+    await wait(500);
+    console.log(`[setCMValue] Done for "${selector}".`);
+  };
+
+  const setEnvVarValue = async (key: string, value: string) => {
+    console.log(`Setting Env Var "${key}" to "${value}"...`);
+    
+    // Find the row first
+    const row = window.locator('.env-var-row', { has: window.locator('input.env-var-key', { hasValue: key }) }).first();
+    await row.waitFor({ state: 'visible', timeout: 15000 });
+    
+    // Target the value input
+    const valueInput = row.locator('input.env-var-value').first();
+    await valueInput.waitFor({ state: 'visible', timeout: 10000 });
+    
+    // Use standard fill instead of CM dispatch
+    await valueInput.fill(value);
+    await wait(1000);
+  };
+
+  const ensurePanelOpen = async (tooltip: string, panelSelector: string) => {
+    console.log(`Ensuring panel "${tooltip}" is open (with retry)...`);
+    const btn = window.locator(`button[data-tooltip="${tooltip}"]`).first();
+    await btn.waitFor({ state: 'visible' });
+    
+    const startTime = Date.now();
+    const timeout = 20000;
+    
+    while (Date.now() - startTime < timeout) {
+      const isActive = await btn.evaluate((el: HTMLElement) => el.classList.contains('env-toggle-active'));
+      if (isActive) {
+        // If active class is present, now check if the panel content is actually visible
+        const isContentVisible = await window.locator(panelSelector).isVisible().catch(() => false);
+        if (isContentVisible) {
+          console.log(`Panel "${tooltip}" is now ACTIVE and VISIBLE.`);
+          return;
+        }
+        console.log(`Panel "${tooltip}" has active class but content not visible yet...`);
+      } else {
+        console.log(`Clicking "${tooltip}" toggle...`);
+        await btn.click({ force: true }).catch(() => {});
+      }
+      await wait(2000);
+    }
+    
+    throw new Error(`Failed to open panel "${tooltip}" within ${timeout}ms`);
+  };
+
   test('Should handle environment variables, SSL toggle, and persistence', async () => {
     test.setTimeout(120000);
-    const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-    const setCMValue = async (selector: string, value: string) => {
-      console.log(`[setCMValue] Starting for "${selector}"...`);
-      
-      await window.waitForSelector(selector, { state: 'attached', timeout: 20000 });
-      
-      await window.waitForFunction((s: string) => {
-        const container = document.querySelector(s);
-        if (!container) return false;
-        const editor = container.querySelector('.editor-container');
-        if (!editor) return false;
-        return (editor as any).cmView && (editor as any).cmView.view;
-      }, selector, { timeout: 20000 });
-
-      await window.evaluate(({ s, val }: { s: string, val: string }) => {
-        const container = document.querySelector(s);
-        const editor = container?.querySelector('.editor-container') as any;
-        const { view } = editor.cmView;
-        view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: val }
-        });
-      }, { s: selector, val: value });
-      
-      await wait(500);
-      console.log(`[setCMValue] Done for "${selector}".`);
-    };
-
-    // Special helper for env variables which are standard inputs
-    const setEnvVarValue = async (key: string, value: string) => {
-      console.log(`Setting Env Var "${key}" to "${value}"...`);
-      
-      // Find the row first
-      const row = window.locator('.env-var-row', { has: window.locator('input.env-var-key', { hasValue: key }) }).first();
-      await row.waitFor({ state: 'visible', timeout: 15000 });
-      
-      // Target the value input
-      const valueInput = row.locator('input.env-var-value').first();
-      await valueInput.waitFor({ state: 'visible', timeout: 10000 });
-      
-      // Use standard fill instead of CM dispatch
-      await valueInput.fill(value);
-      await wait(1000);
-    };
-
-    // Helper to ensure a sidebar panel is open with aggressive retry
-    const ensurePanelOpen = async (tooltip: string, panelSelector: string) => {
-      console.log(`Ensuring panel "${tooltip}" is open (with retry)...`);
-      const btn = window.locator(`button[data-tooltip="${tooltip}"]`).first();
-      await btn.waitFor({ state: 'visible' });
-      
-      const startTime = Date.now();
-      const timeout = 20000;
-      
-      while (Date.now() - startTime < timeout) {
-        const isActive = await btn.evaluate((el: HTMLElement) => el.classList.contains('env-toggle-active'));
-        if (isActive) {
-          // If active class is present, now check if the panel content is actually visible
-          const isContentVisible = await window.locator(panelSelector).isVisible().catch(() => false);
-          if (isContentVisible) {
-            console.log(`Panel "${tooltip}" is now ACTIVE and VISIBLE.`);
-            return;
-          }
-          console.log(`Panel "${tooltip}" has active class but content not visible yet...`);
-        } else {
-          console.log(`Clicking "${tooltip}" toggle...`);
-          await btn.click({ force: true }).catch(() => {});
-        }
-        await wait(2000);
-      }
-      
-      throw new Error(`Failed to open panel "${tooltip}" within ${timeout}ms`);
-    };
 
     const httpPort = restServer.getPort();
     const httpsPort = httpsServer.getPort();
@@ -434,5 +433,49 @@ test.describe('Environment & Variable Resolution', () => {
     await expect(envItem.locator('.env-var-value').nth(1)).toHaveValue('stage-key-456');
     
     console.log('Postman import verified successfully.');
+  });
+
+  test('Should allow enabling/disabling variables via checkboxes', async () => {
+    test.setTimeout(60000);
+    const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    await ensurePanelOpen('Environments', '.env-panel');
+    await wait(1000);
+
+    console.log('Adding an environment for checkbox testing...');
+    await window.click('button[data-tooltip="Add Environment"]');
+    await wait(1000);
+
+    const envItem = window.locator('.env-item').last();
+    await envItem.scrollIntoViewIfNeeded();
+
+    // Verify checkbox on a default variable (e.g., BASE_URL)
+    const varRow = envItem.locator('.env-var-row').first();
+    const checkbox = varRow.locator('.env-var-check');
+    
+    // 1. Initial state: enabled
+    await expect(checkbox).toBeVisible();
+    await expect(checkbox).toHaveClass(/env-var-check-on/);
+    await expect(varRow).not.toHaveClass(/env-var-row-disabled/);
+
+    // 2. Click to disable
+    console.log('Clicking to disable variable...');
+    await checkbox.click({ force: true });
+    await wait(500);
+
+    // 3. Verify disabled state
+    await expect(checkbox).not.toHaveClass(/env-var-check-on/);
+    await expect(varRow).toHaveClass(/env-var-row-disabled/);
+
+    // 4. Click to re-enable
+    console.log('Clicking to re-enable variable...');
+    await checkbox.click({ force: true });
+    await wait(500);
+
+    // 5. Verify enabled state again
+    await expect(checkbox).toHaveClass(/env-var-check-on/);
+    await expect(varRow).not.toHaveClass(/env-var-row-disabled/);
+    
+    console.log('Checkbox E2E test passed!');
   });
 });
