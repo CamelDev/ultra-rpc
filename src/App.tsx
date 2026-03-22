@@ -237,7 +237,7 @@ const App: React.FC = () => {
         localStorage.setItem('ultraRpcRequestWidth', requestPanelWidth.toString())
       }
       document.addEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+      document.addEventListener('mouseup', handleMouseUp)
       return () => {
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', handleMouseUp)
@@ -1004,7 +1004,14 @@ const App: React.FC = () => {
             activeOperations--
             checkDone()
           })
-        }
+        },
+        // Top-level Variable Aliases
+        setEnvironmentVariable: (k: string, v: string) => ultra.env.set(k, v),
+        getEnvironmentVariable: (k: string) => ultra.env.get(k),
+        setCollectionVariable: (k: string, v: string) => ultra.collection.set(k, v),
+        getCollectionVariable: (k: string) => ultra.collection.get(k),
+        setGlobalVariable: (k: string, v: string) => ultra.globals.set(k, v),
+        getGlobalVariable: (k: string) => ultra.globals.get(k)
       }
 
       let activeOperations = 0
@@ -1236,7 +1243,14 @@ const App: React.FC = () => {
             activeOperations--
             checkDone()
           })
-        }
+        },
+        // Top-level Variable Aliases
+        setEnvironmentVariable: (k: string, v: string) => ultra.env.set(k, v),
+        getEnvironmentVariable: (k: string) => ultra.env.get(k),
+        setCollectionVariable: (k: string, v: string) => ultra.collection.set(k, v),
+        getCollectionVariable: (k: string) => ultra.collection.get(k),
+        setGlobalVariable: (k: string, v: string) => ultra.globals.set(k, v),
+        getGlobalVariable: (k: string) => ultra.globals.get(k)
       }
 
       let activeOperations = 0
@@ -1774,7 +1788,6 @@ const App: React.FC = () => {
                           onChange={(val) => updateActiveRequest({ grpcService: val })}
                           activeEnv={activeEnv}
                           collectionVariables={activeRequestCollection?.variables}
-                          disabled={isLocked}
                           theme={theme}
                         />
                       </div>
@@ -1789,13 +1802,11 @@ const App: React.FC = () => {
                             onChange={(val) => updateActiveRequest({ grpcMethod: val })}
                             activeEnv={activeEnv}
                             collectionVariables={activeRequestCollection?.variables}
-                            disabled={isLocked}
                             theme={theme}
                           />
                           <button 
                             type="button"
                             className="btn-primary"
-                            disabled={isLocked}
                             onClick={() => {
                               setGrpcDiscoveryUrl(activeRequest.url)
                               setShowGrpcDiscovery(true)
@@ -1818,13 +1829,11 @@ const App: React.FC = () => {
                             onChange={(val) => updateActiveRequest({ protoPath: val })}
                             activeEnv={activeEnv}
                             collectionVariables={activeRequestCollection?.variables}
-                            disabled={isLocked}
                             theme={theme}
                           />
                           <button 
                             type="button"
                             className="btn-ghost"
-                            disabled={isLocked}
                             onClick={async (e) => {
                               e.preventDefault()
                               if (!window.ultraRpc) return

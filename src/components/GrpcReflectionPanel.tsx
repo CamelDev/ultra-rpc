@@ -157,7 +157,7 @@ const GrpcReflectionPanel: React.FC<Props> = ({
         <button
           className="btn-primary reflect-discover-btn"
           onClick={discoverServices}
-          disabled={loading || !host.trim()}
+          disabled={loading || (grpcReflection ? !host.trim() : !protoPath.trim())}
         >
           {loading ? (
             <><Loader2 size={13} className="spin" /> Discovering...</>
