@@ -25,7 +25,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -34,19 +38,19 @@ jobs:
           sudo apt-get install -y libarchive-tools fakeroot
 
       - name: Install dependencies
-        run: npm install
+        run: bun install
 
       - name: Build
-        run: npm run build
+        run: bun run build
 
       - name: Build and Release
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
-            npx electron-builder --linux --publish always
+            bunx electron-builder --linux --publish always
           elif [ "$RUNNER_OS" == "Windows" ]; then
-            npx electron-builder --win --publish always
+            bunx electron-builder --win --publish always
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            npx electron-builder --mac --publish always
+            bunx electron-builder --mac --publish always
           fi
         shell: bash
         env:

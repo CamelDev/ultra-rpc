@@ -148,7 +148,7 @@ If your server doesn't support reflection, you can provide a path to a local `.p
 | Requirement | Version |
 |-------------|---------|
 | [Node.js](https://nodejs.org/) | v18 or higher |
-| npm | v9 or higher (ships with Node.js) |
+| [Bun](https://bun.sh/) | v1.x or higher |
 
 ### Install & Run
 
@@ -158,10 +158,10 @@ git clone <your-repo-url>
 cd UltraRPC
 
 # Install dependencies
-npm install
+bun install
 
 # Start in development mode (Electron + Vite HMR)
-npm run dev
+bun run dev
 ```
 
 The Electron app will launch automatically with hot module replacement enabled.
@@ -175,7 +175,7 @@ UltraRPC uses `electron-builder` to create native installers for all major platf
 ### 🍎 macOS
 Builds a universal DMG for Apple Silicon and Intel Macs.
 ```bash
-npm run package:mac
+bun run package:mac
 ```
 - **Output**: `release/UltraRPC-1.0.0-arm64.dmg` (or similar)
 - *Note: On macOS, this also generates a `.app` bundle in `release/mac-arm64/`.*
@@ -183,7 +183,7 @@ npm run package:mac
 ### 🪟 Windows
 Generates a standard NSIS installer.
 ```bash
-npm run package:win
+bun run package:win
 ```
 - **Output**: `release/UltraRPC-Setup-1.0.0.exe`
 - **Feature**: Supports custom installation paths and desktop shortcuts.
@@ -191,7 +191,7 @@ npm run package:win
 ### 🐧 Linux
 Creates a portable AppImage that runs on most distributions.
 ```bash
-npm run package:linux
+bun run package:linux
 ```
 - **Output**: `release/UltraRPC-1.0.0.AppImage`
 
@@ -211,13 +211,13 @@ We use [Playwright](https://playwright.dev/) for End-to-End (E2E) testing. The t
 - **State**: Tab persistence, config tab memory, and dark/light theme persistence.
 
 > [!IMPORTANT]
-> **Build Prerequisite**: Because E2E tests target the built application, you **must** run `npm run build` at least once before running tests.
+> **Build Prerequisite**: Because E2E tests target the built application, you **must** run `bun run build` at least once before running tests.
 
 ### 1. Run Tests (Headless)
 Run the entire suite in your terminal:
 ```bash
 # Run all tests (automatically builds the app)
-npm run test:e2e
+bun run test:e2e
 
 # Run a specific test file
 npx playwright test tests/e2e/rest-flow.spec.ts
@@ -243,7 +243,7 @@ npx playwright show-trace test-results/<test-directory>/trace.zip
 To view code quality warnings and TypeScript errors locally (like the ones caught by GitHub Actions), use:
 ```bash
 # Run ESLint to check for React Hooks and code style issues
-npm run lint
+bun run lint
 
 # Run the TypeScript compiler to catch type errors without building
 npx tsc --noEmit

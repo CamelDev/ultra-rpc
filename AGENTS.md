@@ -20,7 +20,7 @@
 | Desktop Runtime | Electron | 41.x | Multi-process: main (Node.js) + renderer (Chromium) |
 | Frontend Framework | React | 19.x | Functional components, hooks only |
 | Language | TypeScript | 5.9.x | Strict mode enabled, separate tsconfigs for app and node |
-| Build Tool | Vite | 7.x | Dev server with HMR for both React and Electron |
+| Build Tool | Bun + Vite | 7.x | Dev server with HMR for both React and Electron |
 | Electron ↔ Vite | vite-plugin-electron + vite-plugin-electron-renderer | 0.29.x / 0.14.6 | Handles main/preload compilation |
 | Styling | Vanilla CSS | — | No utility frameworks. Custom dark theme with glassmorphism. |
 | Animations | Framer Motion | 12.x | Micro-animations, layout transitions, reordering |
@@ -190,14 +190,14 @@ All data is persisted to the Electron `userData` directory:
 ## Development Commands
 
 ```bash
-npm install          # Install all dependencies
-npm run dev          # Start Electron + Vite dev server with HMR
-npm run build        # TypeScript compile + Vite production build
-npm run package:win  # Build + package Windows installer (NSIS)
-npm run package:mac  # Build + package macOS DMG
-npm run package:linux # Build + package Linux AppImage
-npm run lint         # Run ESLint
-npm run preview      # Preview production build
+bun install          # Install all dependencies
+bun run dev          # Start Electron + Vite dev server with HMR
+bun run build        # TypeScript compile + Vite production build
+bun run package:win  # Build + package Windows installer (NSIS)
+bun run package:mac  # Build + package macOS DMG
+bun run package:linux # Build + package Linux AppImage
+bun run lint         # Run ESLint
+bun run preview      # Preview production build
 ```
 
 ---

@@ -18,21 +18,23 @@ jobs:
     - uses: actions/setup-node@v4
       with:
         node-version: 22
-        cache: 'npm'
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
     - name: Install dependencies
-      run: npm install
+      run: bun install
     - name: Lint
-      run: npm run lint
+      run: bun run lint
     - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
+      run: bunx playwright install --with-deps
     - name: Build App
-      run: npm run build
+      run: bun run build
     - name: Run Playwright tests
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
-          xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- npm run test:e2e
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- bun run test:e2e
         else
-          npm run test:e2e
+          bun run test:e2e
         fi
       shell: bash
     - uses: actions/upload-artifact@v4
