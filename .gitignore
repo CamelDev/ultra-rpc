@@ -29,9 +29,12 @@ npm-debug.log*
 *.tsbuildinfo
 
 # Tests
+test-output/
 test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
 test-user-data*/
+trigger.txt
+trigger-browser.txt
 

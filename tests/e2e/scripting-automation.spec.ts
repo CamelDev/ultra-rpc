@@ -17,7 +17,7 @@ test.describe('Scripting & Automation Suite', () => {
     mockServer = new MockRestServer(MOCK_PORT);
     await mockServer.start();
 
-    const userDataDir = join(__dirname, '../../test-user-data-scripting');
+    const userDataDir = join(__dirname, '../../test-output/user-data/scripting');
     if (fs.existsSync(userDataDir)) {
       fs.rmSync(userDataDir, { recursive: true, force: true });
     }

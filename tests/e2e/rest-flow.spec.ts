@@ -12,7 +12,7 @@ test.describe('REST Request Lifecycle', () => {
 
   test.beforeAll(async () => {
     try {
-      const userDataDir = join(__dirname, '../../test-user-data');
+      const userDataDir = join(__dirname, '../../test-output/user-data/rest-flow');
       if (fs.existsSync(userDataDir)) {
         fs.rmSync(userDataDir, { recursive: true, force: true });
       }

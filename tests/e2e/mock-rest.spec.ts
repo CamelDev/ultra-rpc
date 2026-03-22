@@ -16,7 +16,7 @@ test.beforeAll(async () => {
   mockServer = new MockRestServer(MOCK_PORT);
   await mockServer.start();
 
-  const userDataDir = join(__dirname, '../../test-user-data-mock');
+  const userDataDir = join(__dirname, '../../test-output/user-data/mock-rest');
   if (fs.existsSync(userDataDir)) {
     fs.rmSync(userDataDir, { recursive: true, force: true });
   }

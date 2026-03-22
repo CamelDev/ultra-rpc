@@ -7,11 +7,12 @@ import fs from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 test('Should persist active config tab per request tab', async () => {
-  const userDataDir = join(__dirname, '../../test-user-data-tabs-persistence');
+  const userDataDir = join(__dirname, '../../test-output/user-data/tabs-persistence');
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
-  const triggerLog = join(__dirname, '../../trigger.txt');
-  const browserLog = join(__dirname, '../../trigger-browser.txt');
+  const triggerLog = join(__dirname, '../../test-output/logs/trigger.txt');
+  const browserLog = join(__dirname, '../../test-output/logs/trigger-browser.txt');
+  if (!fs.existsSync(join(__dirname, '../../test-output/logs'))) fs.mkdirSync(join(__dirname, '../../test-output/logs'), { recursive: true });
   if (fs.existsSync(triggerLog)) fs.unlinkSync(triggerLog);
   if (fs.existsSync(browserLog)) fs.unlinkSync(browserLog);
 
@@ -45,7 +46,7 @@ test('Should persist active config tab per request tab', async () => {
     const msg = `DIAGNOSTIC [${label}]: ${JSON.stringify(lTabs.map((t: any) => ({ id: t.id, isDirty: t.isDirty, name: t.request.name })))} Last trigger: ${lastTrigger}\n`;
     console.log(msg);
     fs.appendFileSync(triggerLog, msg);
-    await window.screenshot({ path: join(__dirname, `../../screenshot-${label.replace(/\s+/g, '-')}.png`) });
+    await window.screenshot({ path: join(__dirname, `../../test-output/screenshots/screenshot-${label.replace(/\s+/g, '-')}.png`) });
   };
 
   // 1. Initially (1 tab)

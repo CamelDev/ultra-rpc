@@ -12,7 +12,7 @@ test.describe('Collection Management', () => {
 
   test.beforeEach(async () => {
     try {
-      const userDataDir = join(__dirname, '../../test-user-data-coll');
+      const userDataDir = join(__dirname, '../../test-output/user-data/coll');
       if (fs.existsSync(userDataDir)) {
         fs.rmSync(userDataDir, { recursive: true, force: true });
       }
@@ -39,7 +39,7 @@ test.describe('Collection Management', () => {
   test('should perform full collection management lifecycle', async () => {
     test.setTimeout(120000);
     const screenshot = async (name: string) => {
-      await page.screenshot({ path: join(__dirname, `../../test-results/${name}.png`) });
+      await page.screenshot({ path: join(__dirname, `../../test-output/results/screenshots/${name}.png`) });
     };
 
     const setCMValue = async (selector: string, value: string) => {

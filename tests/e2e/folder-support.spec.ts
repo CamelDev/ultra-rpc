@@ -12,7 +12,7 @@ test.describe('Folder Support', () => {
 
   test.beforeEach(async () => {
     try {
-      const userDataDir = join(__dirname, '../../test-user-data-folders');
+      const userDataDir = join(__dirname, '../../test-output/user-data/folders');
       if (fs.existsSync(userDataDir)) {
         fs.rmSync(userDataDir, { recursive: true, force: true });
       }

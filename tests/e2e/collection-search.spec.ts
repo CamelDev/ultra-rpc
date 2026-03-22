@@ -12,7 +12,7 @@ test.describe('Collection Search', () => {
 
   test.beforeEach(async () => {
     try {
-      const userDataDir = join(__dirname, '../../test-user-data-search');
+      const userDataDir = join(__dirname, '../../test-output/user-data/search');
       if (fs.existsSync(userDataDir)) {
         fs.rmSync(userDataDir, { recursive: true, force: true });
       }

@@ -9,7 +9,7 @@ import fs from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 test('Should discover services via Proto File in modal and sync URL', async () => {
-  const userDataDir = join(__dirname, '../../test-user-data-grpc-proto-discovery');
+  const userDataDir = join(__dirname, '../../test-output/user-data/grpc-proto-discovery');
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
   const electronApp = await electron.launch({
@@ -32,7 +32,7 @@ test('Should discover services via Proto File in modal and sync URL', async () =
   console.log('Verifying Modal is visible...');
   const modal = window.locator('.modal-content');
   await expect(modal).toBeVisible({ timeout: 15000 });
-  await window.screenshot({ path: join(tmpdir(), 'ultrarpc-modal-opened.png') });
+  await window.screenshot({ path: join(__dirname, '../../test-output/screenshots/ultrarpc-modal-opened.png') });
   await expect(modal).toContainText('gRPC Service Discovery');
 
   console.log('Changing Host in Modal...');
@@ -83,7 +83,7 @@ test('Should discover services via Proto File in modal and sync URL', async () =
   await expect(mainProtoInput).toContainText(protoPath, { timeout: 10000 });
 
   console.log('Test passed! Taking final screenshot...');
-  await window.screenshot({ path: join(tmpdir(), 'ultrarpc-grpc-proto-discovery-success.png') });
+  await window.screenshot({ path: join(__dirname, '../../test-output/screenshots/ultrarpc-grpc-proto-discovery-success.png') });
 
   await electronApp.close();
 });

@@ -12,7 +12,7 @@ test.describe('Save Modal Name Extension', () => {
 
   test.beforeEach(async () => {
     try {
-      const userDataDir = join(__dirname, '../../test-user-data-save-name');
+      const userDataDir = join(__dirname, '../../test-output/user-data/save-name');
       if (fs.existsSync(userDataDir)) {
         fs.rmSync(userDataDir, { recursive: true, force: true });
       }

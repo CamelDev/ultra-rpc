@@ -22,7 +22,7 @@ test.afterAll(async () => {
 });
 
 test('Should discover services via reflection and generate payload', async () => {
-  const userDataDir = join(__dirname, '../../test-user-data-grpc-discovery');
+  const userDataDir = join(__dirname, '../../test-output/user-data/grpc-discovery');
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
   const electronApp = await electron.launch({
@@ -83,7 +83,7 @@ test('Should discover services via reflection and generate payload', async () =>
     await expect(methodBtn).toBeVisible({ timeout: 10000 });
   } catch (e) {
     console.log('SayHello button not found after retry. Taking diagnostic screenshot...');
-    await window.screenshot({ path: join(tmpdir(), 'ultrarpc-reflection-failure.png') });
+    await window.screenshot({ path: join(__dirname, '../../test-output/screenshots/ultrarpc-reflection-failure.png') });
     throw e;
   }
   
@@ -103,13 +103,13 @@ test('Should discover services via reflection and generate payload', async () =>
   await expect(bodyEditor).toContainText('"name": ""');
 
   console.log('Taking success screenshot...');
-  await window.screenshot({ path: join(tmpdir(), 'ultrarpc-grpc-reflection-success.png') });
+  await window.screenshot({ path: join(__dirname, '../../test-output/screenshots/ultrarpc-grpc-reflection-success.png') });
 
   await electronApp.close();
 });
 
 test('Should handle server streaming and accumulate responses', async () => {
-  const userDataDir = join(__dirname, '../../test-user-data-grpc-streaming');
+  const userDataDir = join(__dirname, '../../test-output/user-data/grpc-streaming');
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
   const electronApp = await electron.launch({
@@ -160,7 +160,7 @@ test('Should handle server streaming and accumulate responses', async () => {
 });
 
 test('Should decode rich gRPC error details (grpc-status-details-bin)', async () => {
-  const userDataDir = join(__dirname, '../../test-user-data-grpc-error');
+  const userDataDir = join(__dirname, '../../test-output/user-data/grpc-error');
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
   const electronApp = await electron.launch({

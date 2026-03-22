@@ -11,7 +11,7 @@ test.describe('JSON Formatting with Variables', () => {
   let window: any;
 
   test.beforeAll(async () => {
-    const userDataDir = join(__dirname, '../../test-user-data-json-format');
+    const userDataDir = join(__dirname, '../../test-output/user-data/json-format');
     if (fs.existsSync(userDataDir)) {
       fs.rmSync(userDataDir, { recursive: true, force: true });
     }
