@@ -14,6 +14,7 @@ import {
   FolderOpen,
   AlignLeft,
   Search,
+  AlertTriangle,
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import KeyValueEditor from './components/KeyValueEditor'
@@ -1117,6 +1118,7 @@ const App: React.FC = () => {
             method: activeRequest.method, url: fullUrl, headers,
             body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body, updatedEnv, scriptResult?.collections) : undefined,
             insecure: isInsecure,
+            protocol: currentEnv?.protocol,
             timeoutMs: activeRequest.timeoutMs
           })
           if (result.success && result.data) {
@@ -1519,6 +1521,11 @@ const App: React.FC = () => {
                       <option key={env.id} value={env.id}>{env.name}</option>
                     ))}
                   </select>
+                  {activeRequest.type === 'GRPC' && activeEnv?.protocol === 'http1' && (
+                    <div className="env-selector-warning" data-tooltip="gRPC strictly requires HTTP/2. Using an HTTP/1.1 environment will likely cause failures.">
+                      <AlertTriangle size={14} color="#ef4444" />
+                    </div>
+                  )}
                 </div>
               )}
 

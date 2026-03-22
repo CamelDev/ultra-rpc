@@ -80,6 +80,13 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteReq
     }))
   }
 
+  const updateProtocol = (envId: string, protocol: 'auto' | 'http1' | 'http2') => {
+    onChange(environments.map(env => {
+      if (env.id !== envId) return env
+      return { ...env, protocol }
+    }))
+  }
+
   const startRename = (env: Environment) => {
     setEditingName(env.id)
     setNameInput(env.name)
@@ -168,6 +175,19 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteReq
                     ? <><ShieldCheck size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-on">ON</span></>
                     : <><ShieldOff size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-off">OFF</span></>}
                 </button>
+              </div>
+
+              <div className="env-protocol-row">
+                <label className="env-protocol-label">Protocol</label>
+                <select
+                  className="env-protocol-select"
+                  value={env.protocol || 'auto'}
+                  onChange={(e) => updateProtocol(env.id, e.target.value as any)}
+                >
+                  <option value="auto">Auto</option>
+                  <option value="http1">HTTP/1.1</option>
+                  <option value="http2">HTTP/2</option>
+                </select>
               </div>
 
               {env.variables.map(v => (

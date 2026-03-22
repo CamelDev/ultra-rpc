@@ -598,6 +598,22 @@ input:focus, select:focus, textarea:focus {
   font-weight: 500;
 }
 
+.env-selector-warning {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 4px;
+  padding: 2px;
+  cursor: help;
+  transition: var(--transition);
+  margin-left: 4px;
+}
+
+.env-selector-warning:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
 /* ===== gRPC Fields ===== */
 .grpc-fields {
   display: flex;
