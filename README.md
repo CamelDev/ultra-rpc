@@ -46,6 +46,9 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - Click the **Globe** icon in the bottom left to open the Environment Panel.
 - Use the **+** button to create a new environment or the **Import** button to load a Postman environment file.
 - Add keys like `BASE_URL` or `API_KEY`.
+- **Selective Enabling**: Use the checkboxes next to each variable to quickly enable or disable it without deleting the entry.
+- **Protocol Selection**: Choose between **Auto**, **HTTP/1.1**, and **HTTP/2** specifically for the outgoing requests in this environment.
+- **SSL Toggle**: Disable SSL verification for development environments with self-signed certificates.
 
 - **Per-Tab Selection**: Select an environment from the dropdown near the address bar. This selection is **specific to the current tab**, allowing you to work across different environments simultaneously.
 - **Inheritance**: New tabs automatically inherit the currently active global environment.
@@ -75,6 +78,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ### 🌐 REST Client
 - Full HTTP method support — **GET**, **POST**, **PUT**, **DELETE**, **PATCH**
+- **Protocol Selection** — Choose between **HTTP/1.1** and **HTTP/2** (with ALPN/Auto support)
 - Key-value editors for **query parameters** and **headers** with enable/disable toggles
 - JSON and plain text body editor with **syntax highlighting** and **variable interpolation**
 - Formatted JSON response viewer with syntax highlighting
@@ -95,6 +99,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **Collection-Level Variables** — define variables scoped specifically to a collection
 - **Hierarchical Resolution** — Variables are resolved with priority: `Collection > Environment`
 - **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging", with automatic inheritance for new tabs.
+- **Selective Variable Enabling** — Checkboxes in the Environment Panel allow you to selectively disable variables during interpolation.
 - **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are flattened, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
 - **Environment Import** — Import Postman environment files (`.json`) directly into the Environment Panel.
 - **Import/Export** — Support for `.ultrarpc.json` archives and opening any local folder as a collection
@@ -198,7 +203,12 @@ npm run package:linux
 
 ## 🧪 Testing
 
-We use [Playwright](https://playwright.dev/) for End-to-End (E2E) testing. The tests launch a real Electron instance and verify critical user flows like creating, saving, and executing requests.
+We use [Playwright](https://playwright.dev/) for End-to-End (E2E) testing. The tests launch a real Electron instance to verify all critical user flows:
+- **REST**: GET/POST/PUT/DELETE, JSON body formatting, headers/params, and request timeouts.
+- **gRPC**: Server reflection discovery, local `.proto` file support, unary, and server-streaming calls.
+- **Collections**: Full CRUD lifecycle, search/filtering, folder support, and Postman v2.1 import.
+- **Environments**: Variable interpolation, SSL/TLS toggles, HTTP protocol selection, and Postman import.
+- **State**: Tab persistence, config tab memory, and dark/light theme persistence.
 
 > [!IMPORTANT]
 > **Build Prerequisite**: Because E2E tests target the built application, you **must** run `npm run build` at least once before running tests.
@@ -297,8 +307,6 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
 - [ ] **WebSocket & GraphQL support**
 
 ### ⚡ gRPC Client
-- [ ] **Bidirectional & Client Streaming** (Full support for all gRPC stream types)
-- [ ] **TLS/SSL Configuration** (Client certificates and dedicated config panel)
 - [ ] **Metadata (Headers) Helpers** (Dedicated UI for common gRPC metadata)
 
 ### 📁 Collections & Management

@@ -21,6 +21,8 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] Unsaved changes (dirty state) tracking and prompt (`Unsaved Changes (Dirty State) Prompt`)
 - [x] Two-column vs Three-column layout switching (`Layout Switching & Persistence`)
 - [x] Dark/Light theme switching and persistence (`Theme Switching & Persistence`)
+- [x] Config tab persistence per request tab (`Should persist active config tab per request tab`)
+- [x] JSON body auto-formatting with variable support (`JSON Formatting with Variables`)
 
 #### REST Client
 - [x] Request Timeout (Configurable per-request timeouts) `timeout.spec.ts`
@@ -36,6 +38,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] Server Streaming response accumulation and display (`Should handle server streaming and accumulate responses`)
 - [x] Rich error decoding (`Should decode rich gRPC error details (grpc-status-details-bin)`)
 - [x] One-click request payload generation (`Should discover services via reflection and generate payload`)
+- [x] Local `.proto` file discovery and field syncing (`Should discover services via proto file and sync URL`)
 
 #### Collection Management
 - [x] Create new collection (`should perform full collection management lifecycle`)
@@ -45,6 +48,8 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] Folder creation and drag-and-drop reordering (`should perform full collection management lifecycle`)
 - [x] Collection-level variable editing and persistence (`should perform full collection management lifecycle`)
 - [x] Postman Collection v2.1 Import (`should perform full collection management lifecycle`)
+- [x] Collection tree search and filtering (`should filter tree based on search input`)
+- [x] Request renaming during save flow (`should allow renaming request during save to collection`)
 
 #### Environment & Variable Resolution
 - [x] Global active environment switching (`Should handle environment variables, SSL toggle, and persistence`)
@@ -54,6 +59,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] SSL/TLS verification toggle (`Should handle environment variables, SSL toggle, and persistence`)
 - [x] Postman Environment Import (`Should import a Postman environment successfully`)
 - [x] Workspace state saved (`Should handle environment variables, SSL toggle, and persistence`)
+- [x] Selective Variable Enabling (`Should allow enabling/disabling variables via checkboxes`)
 
 #### Scripting & Automation
 - [x] Pre-request script execution (`Pre-request script should inject value into environment and URL`)
@@ -120,10 +126,22 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Test Assertions**: Verified that `ultra.test` and `ultra.expect` correctly run and report results (PASS/FAIL) to the console.
     - **Console Logging**: Verified that `console.log` output from scripts is captured with timestamps and displayed in the UI.
 
+#### 5. UI & Workspace Sophistication
+- **Location**: [`tests/e2e/config-tab-persistence.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/config-tab-persistence.spec.ts), [`tests/e2e/json-format.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/json-format.spec.ts)
+- **Scenarios**:
+    - **Tab Persistence**: Verified that each tab maintains its own active config section (e.g., Tab A is on "Headers" while Tab B is on "Body") and this state is restored after application restart.
+    - **Smart Formatting**: Verified that the JSON "Format" button handles unquoted template variables `{{like_this}}` correctly, preserving the template syntax while beautifying the surrounding JSON.
+
+#### 6. Search & Discovery
+- **Location**: [`tests/e2e/collection-search.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/collection-search.spec.ts), [`tests/e2e/grpc-proto-discovery.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/grpc-proto-discovery.spec.ts)
+- **Scenarios**:
+    - **Fuzzy Search**: Verified that the collection tree correctly filters items based on search input (3-char minimum), keeping parent collections visible if their children match.
+    - **Proto Import**: Verified that gRPC services can be discovered by selecting a local `.proto` file, and that the selection correctly syncs between the Discovery Modal and the main request view.
+
 ## Final Verification Result
 
 The automated suite results in a stable and passing verification for all core and advanced features:
 
 ```text
-  10 passed (45.3s)
+  15 passed (58.2s)
 ```
