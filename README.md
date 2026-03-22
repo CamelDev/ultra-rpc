@@ -64,12 +64,12 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ### 4. Variables & Scripting
 - **Resolution**: UltraRPC resolves `{{variable}}` by checking your **Collection Variables** first, then your **Active Environment**.
-- **Pre-request Scripts**:
-  - Run code *before* the request is sent (e.g., to generate dynamic headers or timestamps).
-  - Use `ultra.env.set('ts', Date.now())` to inject values into subsequent variable resolution.
-- **Post-Response Scripts**:
-  - Extract data: `const id = ultra.response.body.id;`.
-  - Save it for the next request: `ultra.setCollectionVariable('userId', id);`.
+- **Ultra Object**: UltraRPC provides a global `ultra` object for scripting:
+  - `ultra.sendRequest(req, callback)`: Send asynchronous HTTP requests from within scripts.
+  - `ultra.globals.set() / ultra.globals.get()`: Manage variables shared across all collections.
+  - `ultra.test() / ultra.expect()`: Write assertions for automated API testing.
+  - `ultra.env.set() / ultra.env.get()`: Access and modify the active environment.
+  - `ultra.collection.set() / ultra.collection.get()`: Access and modify collection-scoped variables.
 - Use the **Script Console** at the bottom of each script tab to debug with `console.log()`.
 
 ---
@@ -105,12 +105,13 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **Import/Export** — Support for `.ultrarpc.json` archives and opening any local folder as a collection
 
 ### 🤖 Scripting & Automation
-- **Pre-request Scripts** — Write code to prepare variables or headers before execution.
-- **Post-Response Scripts** — Write JavaScript code to run after any request.
-- **The `ultra` Object**:
-  - `ultra.response`: Access status, headers, and parsed JSON body
-  - `ultra.env.set(key, value)` / `ultra.collection.set(key, value)`: Update variables dynamically.
-- **Script Console**: Integrated log viewer for `console.log()` and `console.error()` calls within scripts
+- **Ultra Scripting Sandbox** — Write scripts using the powerful `ultra` object:
+  - `ultra.sendRequest`: Chain requests together (e.g., get an auth token then use it).
+  - `ultra.globals`: Persistent variables available globally across the app.
+  - `ultra.env` & `ultra.collection`: Access and modify environment/collection variables.
+  - `ultra.test` & `ultra.expect`: BDD-style assertions for validating responses.
+- **Pre-request & Post-Response Support** — Automate your workflows at every stage of the request lifecycle.
+- **Script Console** — Real-time logging for `console.log()` and runtime error tracking.
 
 ### 🎨 Premium UI
 - **Resizable Split Layout**: Independent scrolling for request config and response viewer

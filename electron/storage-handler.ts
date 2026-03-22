@@ -14,6 +14,11 @@ const getHistoryPath = () => {
   return p
 }
 
+const getGlobalsPath = () => {
+  const p = path.join(app.getPath('userData'), 'globals.json')
+  return p
+}
+
 const getEnvPath = () => {
   const p = path.join(app.getPath('userData'), 'environments.json')
   return p
@@ -1554,6 +1559,29 @@ export function registerStorageHandlers() {
       // Merge new settings with existing ones
       Object.assign(settings, newSettings)
       fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  // ===== Globals Persistence =====
+
+  ipcMain.handle('storage:getGlobals', async () => {
+    try {
+      const globalsPath = getGlobalsPath()
+      if (!fs.existsSync(globalsPath)) return { success: true, globals: [] }
+      const data = JSON.parse(fs.readFileSync(globalsPath, 'utf-8'))
+      return { success: true, globals: data }
+    } catch (err: any) {
+      return { success: false, globals: [], error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:saveGlobals', async (_event, globals: any[]) => {
+    try {
+      const globalsPath = getGlobalsPath()
+      fs.writeFileSync(globalsPath, JSON.stringify(globals, null, 2))
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }

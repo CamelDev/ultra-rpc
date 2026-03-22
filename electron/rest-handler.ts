@@ -116,6 +116,7 @@ export function registerRestHandlers() {
           method: req.method,
           headers: req.headers,
           rejectUnauthorized: !insecure, // Respect environment setting
+          agent: false, // Disable connection pooling to allow clean exit
         }
 
         const request = transport.request(options as any, (response) => {

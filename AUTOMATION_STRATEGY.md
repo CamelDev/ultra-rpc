@@ -64,8 +64,9 @@ Playwright is our primary tool for testing the Electron application, verifying U
 #### Scripting & Automation
 - [x] Pre-request script execution (`Pre-request script should inject value into environment and URL`)
 - [x] Post-response script execution (`Post-response script should extract value and run assertions`)
-- [x] `ultra` object API verification (`Post-response script should extract value and run assertions`)
+- [x] `ultra` object API verification (`ultra.sendRequest and ultra.globals work together correctly`)
 - [x] Script console log capturing and display (`Pre-request script should inject value into environment and URL`)
+- [x] Persistent Global variables (`ultra.sendRequest and ultra.globals work together correctly`)
 
 ---
 
@@ -89,6 +90,7 @@ We intend to use Vitest for fast, isolated testing of individual React component
 | gRPC Unary Suite | ✅ Automated (`mock-grpc.spec.ts`) |
 | gRPC Advanced Suite (Reflection/Streaming/Error) | ✅ Automated (`mock-grpc.spec.ts`) |
 | Scripting Sandbox Tests | ✅ Automated (`scripting-automation.spec.ts`) |
+| Ultra Scripting Suite | ✅ Automated (`scripting-ultra.spec.ts`) |
 | Collection Management Suite | ✅ Automated (`collection-management.spec.ts`) |
 
 ---
@@ -119,14 +121,17 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Postman Import**: Verified that Postman v2.1 collections (with folders, requests, and variables) can be imported and correctly reflected in the application tree.
 
 #### 4. Scripting & Automation
-- **Location**: [`tests/e2e/scripting-automation.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/scripting-automation.spec.ts)
+- **Location**: [`tests/e2e/scripting-automation.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/scripting-automation.spec.ts), [`tests/e2e/scripting-ultra.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/scripting-ultra.spec.ts)
 - **Scenarios**:
     - **Pre-request Injection**: Verified that `ultra.env.set` in a pre-request script correctly updates variables used in the URL interpolation of the outgoing request.
-    - **Post-response Extraction**: Verified that values can be extracted from JSON responses and saved to collection variables using `ultra.collection.set`.
+    - **Ultra API**: Verified that `ultra.sendRequest` can be used to chain requests and that `ultra.globals` correctly persists across multiple script executions.
+    - **Asynchronous Execution**: Confirmed that scripts wait for all `ultra.sendRequest` callbacks to complete before finishing the script execution phase.
     - **Test Assertions**: Verified that `ultra.test` and `ultra.expect` correctly run and report results (PASS/FAIL) to the console.
     - **Console Logging**: Verified that `console.log` output from scripts is captured with timestamps and displayed in the UI.
 
 #### 5. UI & Workspace Sophistication
+...
+...
 - **Location**: [`tests/e2e/config-tab-persistence.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/config-tab-persistence.spec.ts), [`tests/e2e/json-format.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/json-format.spec.ts)
 - **Scenarios**:
     - **Tab Persistence**: Verified that each tab maintains its own active config section (e.g., Tab A is on "Headers" while Tab B is on "Body") and this state is restored after application restart.

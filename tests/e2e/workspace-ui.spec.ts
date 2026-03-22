@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
 
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const getBaseDir = (suffix: string) => join(__dirname, `../../test-output/user-data/workspace-${suffix}`);

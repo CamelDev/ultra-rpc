@@ -26,7 +26,7 @@ import CollectionPanel from './components/CollectionPanel'
 import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
 import AboutModal from './components/AboutModal'
-import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem } from './types'
+import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem, KeyValuePair } from './types'
 import { createEmptyRequest } from './lib/helpers'
 import pkg from '../package.json'
 import Toaster, { addToast } from './components/Toaster'
@@ -94,7 +94,35 @@ const App: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder' | 'environment', id: string, name: string, collectionId?: string } | null>(null)
 
   // ===== Environments =====
-  const [environments, setEnvironments] = useState<Environment[]>([])
+  const [collections, setCollectionsState] = useState<Collection[]>([])
+  const collectionsRef = useRef<Collection[]>([])
+  const setCollections = useCallback((updater: React.SetStateAction<Collection[]>) => {
+    setCollectionsState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      collectionsRef.current = next
+      return next
+    })
+  }, [])
+
+  const [environments, setEnvironmentsState] = useState<Environment[]>([])
+  const environmentsRef = useRef<Environment[]>([])
+  const setEnvironments = useCallback((updater: React.SetStateAction<Environment[]>) => {
+    setEnvironmentsState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      environmentsRef.current = next
+      return next
+    })
+  }, [])
+
+  const [, setGlobalsState] = useState<KeyValuePair[]>([])
+  const globalsRef = useRef<KeyValuePair[]>([])
+  const setGlobals = useCallback((updater: React.SetStateAction<KeyValuePair[]>) => {
+    setGlobalsState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      globalsRef.current = next
+      return next
+    })
+  }, [])
   const [activeEnvId, setActiveEnvId] = useState<string | null>(null)
 
   // ===== Settings & Theme =====
@@ -103,7 +131,6 @@ const App: React.FC = () => {
   const [showAboutModal, setShowAboutModal] = useState(false)
   const [wrapLines, setWrapLines] = useState(true)
   const bodyEditorRef = useRef<EditorHandle>(null)
-  const [collections, setCollections] = useState<Collection[]>([])
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
 
   // ===== Helpers for Nested Collections =====
@@ -123,12 +150,12 @@ const App: React.FC = () => {
   }, [])
 
   const findCollectionByRequestId = useCallback((requestId: string): Collection | null => {
-    for (const coll of collections) {
+    for (const coll of collectionsRef.current) {
       const requests = getAllRequests(coll)
       if (requests.some(r => r.id === requestId)) return coll
     }
     return null
-  }, [collections, getAllRequests])
+  }, [getAllRequests])
 
   // ===== Sidebar Resizing =====
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -210,7 +237,7 @@ const App: React.FC = () => {
         localStorage.setItem('ultraRpcRequestWidth', requestPanelWidth.toString())
       }
       document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('mouseup', handleMouseUp)
       return () => {
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', handleMouseUp)
@@ -252,11 +279,6 @@ const App: React.FC = () => {
   useEffect(() => {
     tabsRef.current = tabs
   }, [tabs])
-
-  const collectionsRef = useRef(collections)
-  useEffect(() => {
-    collectionsRef.current = collections
-  }, [collections])
 
   useEffect(() => {
     if (!window.ultraRpc) return
@@ -336,20 +358,29 @@ const App: React.FC = () => {
     const res = await window.ultraRpc.listCollections()
     if (res.success && res.collections) {
       setCollections(res.collections)
-      // Show warnings if any (non-blocking toasts)
       if (res.warnings && res.warnings.length > 0) {
         res.warnings.forEach(w => addToast({ type: 'warning', message: w }))
       }
     } else {
       addToast({ type: 'error', message: res.error || 'Failed to load collections' })
     }
-  }, [])
+  }, [setCollections])
+
+  useEffect(() => {
+    if (window.ultraRpc) {
+      loadCollections()
+      window.ultraRpc.getEnvironments().then(res => { if (res.success && res.environments) setEnvironments(res.environments) })
+      window.ultraRpc.getGlobals().then(res => { if (res.success && res.globals) setGlobals(res.globals) })
+    }
+  }, [loadCollections, setEnvironments, setGlobals])
 
   const handleMoveCollection = async (collectionId: string, currentPath?: string) => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.moveCollection({ collectionId, currentPath })
     if (res.success) {
       addToast({ type: 'success', message: 'Collection moved successfully' })
+      setCollections(prev => prev.filter(c => c.id !== collectionId)) // Optimistic update
+      // Reload to get the full updated structure and ensure consistency
       loadCollections()
     } else if (res.error !== 'Cancelled') {
       addToast({ type: 'error', message: res.error || 'Failed to move collection' })
@@ -361,7 +392,7 @@ const App: React.FC = () => {
     const res = await window.ultraRpc.cloneCollection({ collectionId })
     if (res.success) {
       addToast({ type: 'success', message: 'Collection cloned successfully' })
-      loadCollections()
+      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
     } else {
       addToast({ type: 'error', message: res.error || 'Failed to clone collection' })
     }
@@ -372,7 +403,7 @@ const App: React.FC = () => {
     const res = await window.ultraRpc.cloneRequest({ collectionId, requestId })
     if (res.success) {
       addToast({ type: 'success', message: 'Request cloned successfully' })
-      loadCollections()
+      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
     } else {
       addToast({ type: 'error', message: res.error || 'Failed to clone request' })
     }
@@ -397,21 +428,18 @@ const App: React.FC = () => {
     if (res.success) {
       setCollections(prev => prev.map(c => c.id === id ? { ...c, variables } : c))
     }
-  }, [])
+  }, [setCollections])
 
   // Persist environments when they change
   const handleEnvChange = useCallback((envs: Environment[]) => {
     setEnvironments(envs)
     if (window.ultraRpc) window.ultraRpc.saveEnvironments(envs)
-  }, [])
+  }, [setEnvironments])
 
   // ===== Load persisted data on mount =====
   useEffect(() => {
     if (!window.ultraRpc) return
 
-    window.ultraRpc.getEnvironments().then(res => {
-      if (res.success && res.environments) setEnvironments(res.environments)
-    })
     window.ultraRpc.getSettings().then(res => {
       if (res.success && res.settings) {
         if (res.settings.theme) {
@@ -427,7 +455,7 @@ const App: React.FC = () => {
     })
     loadCollections()
     loadHistory()
-  }, [loadCollections, loadHistory])
+  }, [loadHistory, loadCollections])
 
   // ===== Helpers =====
   const activeTab = tabs.find(t => t.id === activeTabId)
@@ -555,13 +583,13 @@ const App: React.FC = () => {
     if (!str) return str
     
     // Find collection associated with active request in the override or current set
-    const currentCollections = collectionsOverride || collections
+    const currentCollections = collectionsOverride || collectionsRef.current
     const activeColl = activeTab ? currentCollections.find(c => getAllRequests(c).some(r => r.id === activeTab.request.id)) : null
     
     // Resolve environment: request-level first, then global active
     const requestEnvId = activeTab?.request.envId
     const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
-    const currentEnv = envOverride || environments.find(e => e.id === effectiveEnvId)
+    const currentEnv = envOverride || environmentsRef.current.find(e => e.id === effectiveEnvId)
     
     const result = str.replace(/\{\{([\w.-]+)\}\}/g, (_, varName) => {
       // 1. Collection variables
@@ -610,7 +638,7 @@ const App: React.FC = () => {
       setTabs(prev => prev.map(t => 
         t.id === activeTabId ? { ...t, isDirty: false, owningCollectionId: collectionId } : t
       ))
-      loadCollections()
+      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
       setShowSaveMenu(false)
     } else {
       addToast({ type: 'error', message: res.error || 'Failed to save request' })
@@ -629,7 +657,7 @@ const App: React.FC = () => {
     if (targetCollectionId) {
       // It's a known request linked to a collection, silently auto-save it
       saveToCollection(targetCollectionId)
-    } else if (collections.length === 0) {
+    } else if (collectionsRef.current.length === 0) {
       // No collections exist, auto-create "My collection"
       if (window.ultraRpc) {
         const result = await window.ultraRpc.createCollection({ name: 'My collection' })
@@ -651,7 +679,7 @@ const App: React.FC = () => {
       setSelectedCollectionId(null)
       setShowSaveMenu(true)
     }
-  }, [activeRequest, activeTab, findCollectionByRequestId, saveToCollection, collections, loadCollections, activeTabId])
+  }, [activeRequest, activeTab, findCollectionByRequestId, saveToCollection, loadCollections, activeTabId])
 
   const handleSaveAll = useCallback(async () => {
     if (!window.ultraRpc) return
@@ -682,7 +710,7 @@ const App: React.FC = () => {
         }
         return t
       }))
-      loadCollections()
+      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
     }
 
     if (savedIds.length > 0) {
@@ -776,8 +804,8 @@ const App: React.FC = () => {
     if (!request.preRequestScript || !request.preRequestScript.trim()) return null
 
     // We need to work with local copies to avoid race conditions with React state updates
-    let currentEnvs = [...environments]
-    let currentCollections = [...collections]
+    let currentEnvs = [...environmentsRef.current]
+    let currentCollections = [...collectionsRef.current]
     
     const parentCollection = currentCollections.find(c => getAllRequests(c).some(r => r.id === request.id))
     
@@ -794,7 +822,7 @@ const App: React.FC = () => {
       }
     }
 
-    const testResults: { name: string; status: 'pass' | 'fail'; message?: string }[] = []
+
 
     try {
       const ultra = {
@@ -827,12 +855,17 @@ const App: React.FC = () => {
               return e
             })
             setEnvironments(currentEnvs)
-            if (window.ultraRpc) window.ultraRpc.saveEnvironments(currentEnvs)
+            if (window.ultraRpc) {
+              activeOperations++
+              window.ultraRpc.saveEnvironments(currentEnvs).finally(() => {
+                activeOperations--
+                checkDone()
+              })
+            }
             mockConsole.log(`Set env variable: ${key}`)
           },
           all: () => {
-            const requestEnvId = request.envId
-            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const effectiveEnvId = request.envId !== undefined ? request.envId : activeEnvId
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return {}
             const vars: Record<string, string> = {}
@@ -840,11 +873,46 @@ const App: React.FC = () => {
             return vars
           }
         },
+        globals: {
+          get: (key: string) => globalsRef.current.find(v => v.key === key && v.enabled)?.value,
+          set: (key: string, value: string) => {
+            setGlobals(prev => {
+              const vars = [...prev]
+              const idx = vars.findIndex(v => v.key === key)
+              if (idx >= 0) {
+                vars[idx] = { ...vars[idx], value: String(value) }
+              } else {
+                vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
+              }
+              if (window.ultraRpc) {
+                activeOperations++
+                window.ultraRpc.saveGlobals(vars).finally(() => {
+                  activeOperations--
+                  checkDone()
+                })
+              }
+              return vars
+            })
+            mockConsole.log(`Set global variable: ${key}`)
+          },
+          all: () => {
+            const vars: Record<string, string> = {}
+            globalsRef.current.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            return vars
+          }
+        },
         collection: {
-          get: (key: string) => {
-            const target = currentCollections.find(c => c.id === parentCollection?.id)
-            if (!target?.variables) return undefined
-            return target.variables.find(v => v.key === key && v.enabled)?.value
+          get: (varName: string) => {
+            let currentParent: Collection | undefined = undefined
+            for (const col of currentCollections) {
+              const requestsInCol = getAllRequests(col)
+              if (requestsInCol.some(r => r.id === request.id)) {
+                currentParent = col
+                break
+              }
+            }
+            if (!currentParent?.variables) return undefined
+            return currentParent.variables.find(v => v.key === varName && v.enabled)?.value
           },
           set: (key: string, value: string) => {
             if (!parentCollection) {
@@ -860,7 +928,15 @@ const App: React.FC = () => {
                 } else {
                   vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
                 }
-                handleSaveCollectionVariables(c.id, vars)
+                activeOperations++
+                handleSaveCollectionVariables(c.id, vars).then(() => {
+                   mockConsole.log(`Set collection variable: ${key}`)
+                }).catch(err => {
+                   mockConsole.error(`Failed to save variable ${key}: ${err.message}`)
+                }).finally(() => {
+                   activeOperations--
+                   checkDone()
+                })
                 return { ...c, variables: vars }
               }
               return c
@@ -869,32 +945,86 @@ const App: React.FC = () => {
             mockConsole.log(`Set collection variable: ${key}`)
           },
           all: () => {
-            const target = currentCollections.find(c => c.id === parentCollection?.id)
-            if (!target?.variables) return {}
+            let currentParent: Collection | undefined = undefined
+            for (const col of currentCollections) {
+              const requestsInCol = getAllRequests(col)
+              if (requestsInCol.some(r => r.id === request.id)) {
+                currentParent = col
+                break
+              }
+            }
+            if (!currentParent?.variables) return {}
             const vars: Record<string, string> = {}
-            target.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            currentParent.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
             return vars
-          }
-        },
-        test: (name: string, fn: () => void) => {
-          try {
-            fn()
-            testResults.push({ name, status: 'pass' })
-            mockConsole.log(`TEST PASS: ${name}`)
-          } catch (err: any) {
-            testResults.push({ name, status: 'fail', message: err.message })
-            mockConsole.error(`TEST FAIL: ${name} -> ${err.message}`)
           }
         },
         expect: (val: any) => ({
           toBe: (expected: any) => { if (val !== expected) throw new Error(`Expected ${expected} but got ${val}`) },
           toInclude: (str: string) => { if (!String(val).includes(str)) throw new Error(`Expected "${val}" to include "${str}"`) },
           toBeTruthy: () => { if (!val) throw new Error(`Expected value to be truthy but got ${val}`) },
-        })
+        }),
+        sendRequest: (reqInput: any, cb: (err: any, res?: any) => void) => {
+          activeOperations++
+          if (!window.ultraRpc) {
+            cb(new Error('IPC not available'))
+            activeOperations--
+            checkDone()
+            return
+          }
+          const isObj = typeof reqInput === 'object'
+          const adaptedReq = {
+            method: isObj ? (reqInput.method || 'GET') : 'GET',
+            url: isObj ? (reqInput.url || '') : reqInput,
+            headers: isObj ? (reqInput.header || reqInput.headers || {}) : {},
+            body: isObj ? (reqInput.body?.raw || reqInput.body || undefined) : undefined
+          }
+          
+          window.ultraRpc.sendRestRequest(adaptedReq as any).then(res => {
+            if (res.success && res.data) {
+              const ultraRes = {
+                json: () => {
+                  try {
+                    return JSON.parse(res.data!.body)
+                  } catch (e) {
+                    return null
+                  }
+                },
+                text: () => res.data!.body,
+                status: res.data!.status,
+                headers: res.data!.headers
+              }
+              try { cb(null, ultraRes) } catch (e: any) { mockConsole.error('Callback error:', e.message) }
+            } else {
+              try { cb(new Error(res.error || 'Request failed')) } catch (e: any) { mockConsole.error('Callback error:', e.message) }
+            }
+          }).catch(err => {
+            try { cb(err) } catch (e: any) { mockConsole.error('Callback error:', e.message) }
+          }).finally(() => {
+            activeOperations--
+            checkDone()
+          })
+        }
       }
+
+      let activeOperations = 0
+      let resolveScript: () => void
+      const scriptDone = new Promise<void>(res => resolveScript = res)
+      const checkDone = () => { if (activeOperations === 0) resolveScript() }
 
       const script = new Function('ultra', 'console', request.preRequestScript)
       script(ultra, mockConsole)
+      checkDone()
+      
+      // Safety timeout to prevent hanging forever if activeOperations somehow fails to reach 0
+      let timer: any
+      await Promise.race([
+        scriptDone,
+        new Promise(resolve => {
+          timer = setTimeout(resolve, 5000)
+        })
+      ])
+      if (timer) clearTimeout(timer)
       
       return { environments: currentEnvs, collections: currentCollections }
     } catch (err: any) {
@@ -907,8 +1037,10 @@ const App: React.FC = () => {
   const runPostResponseScript = async (request: RequestConfig, response: ResponseData, tabId: string) => {
     if (!request.postResponseScript || !request.postResponseScript.trim()) return
 
-    const parentCollection = findCollectionByRequestId(request.id)
-    if (!parentCollection) return
+    // Use local copies to avoid race conditions with React state updates
+    let currentCollections = [...collectionsRef.current]
+    let currentEnvs = [...environmentsRef.current]
+    const parentCollection = currentCollections.find(c => getAllRequests(c).some(r => r.id === request.id))
 
     const mockConsole = {
       log: (...args: any[]) => {
@@ -936,7 +1068,7 @@ const App: React.FC = () => {
           get: (varName: string) => {
             const requestEnvId = request.envId
             const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
-            const targetEnv = environments.find(e => e.id === effectiveEnvId)
+            const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return undefined
             return targetEnv.variables.find(v => v.key === varName && v.enabled)?.value
           },
@@ -947,66 +1079,107 @@ const App: React.FC = () => {
               mockConsole.error('No active environment associated with this tab/globally.')
               return
             }
-            setEnvironments(prev => {
-              const newEnvs = prev.map(e => {
-                if (e.id === effectiveEnvId) {
-                  const vars = [...e.variables]
-                  const idx = vars.findIndex(v => v.key === varName)
-                  if (idx >= 0) {
-                    vars[idx] = { ...vars[idx], value: String(value) }
-                  } else {
-                    vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
-                  }
-                  return { ...e, variables: vars }
+            currentEnvs = currentEnvs.map(e => {
+              if (e.id === effectiveEnvId) {
+                const vars = [...e.variables]
+                const idx = vars.findIndex(v => v.key === varName)
+                if (idx >= 0) {
+                  vars[idx] = { ...vars[idx], value: String(value) }
+                } else {
+                  vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
                 }
-                return e
-              })
-              if (window.ultraRpc) window.ultraRpc.saveEnvironments(newEnvs)
-              return newEnvs
+                return { ...e, variables: vars }
+              }
+              return e
             })
+            setEnvironments(currentEnvs)
+            if (window.ultraRpc) {
+              activeOperations++
+              window.ultraRpc.saveEnvironments(currentEnvs).finally(() => {
+                activeOperations--
+                checkDone()
+              })
+            }
             mockConsole.log(`Set env variable: ${varName}`)
           },
           all: () => {
             const requestEnvId = request.envId
             const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
-            const targetEnv = environments.find(e => e.id === effectiveEnvId)
+            const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return {}
             const vars: Record<string, string> = {}
             targetEnv.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
             return vars
           }
         },
-        collection: {
-          get: (varName: string) => {
-            if (!parentCollection?.variables) return undefined
-            return parentCollection.variables.find(v => v.key === varName && v.enabled)?.value
-          },
-          set: (varName: string, value: string) => {
-            setCollections(prev => {
-              const target = prev.find(c => c.id === parentCollection.id)
-              if (!target) return prev
-              
-              const vars = [...(target.variables || [])]
-              const existingIdx = vars.findIndex(v => v.key === varName)
-              if (existingIdx >= 0) {
-                vars[existingIdx] = { ...vars[existingIdx], value: String(value) }
+        globals: {
+          get: (key: string) => globalsRef.current.find(v => v.key === key && v.enabled)?.value,
+          set: (key: string, value: string) => {
+            setGlobals(prev => {
+              const vars = [...prev]
+              const idx = vars.findIndex(v => v.key === key)
+              if (idx >= 0) {
+                vars[idx] = { ...vars[idx], value: String(value) }
               } else {
-                vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
+                vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
               }
-              
-              handleSaveCollectionVariables(target.id, vars).then(() => {
-                 mockConsole.log(`Set collection variable: ${varName}`)
-              }).catch(err => {
-                 mockConsole.error(`Failed to save variable ${varName}: ${err.message}`)
-              })
-              
-              return prev.map(c => c.id === target.id ? { ...c, variables: vars } : c)
+              if (window.ultraRpc) {
+                activeOperations++
+                window.ultraRpc.saveGlobals(vars).finally(() => {
+                  activeOperations--
+                  checkDone()
+                })
+              }
+              return vars
             })
+            mockConsole.log(`Set global variable: ${key}`)
           },
           all: () => {
-            if (!parentCollection?.variables) return {}
             const vars: Record<string, string> = {}
-            parentCollection.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            globalsRef.current.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            return vars
+          }
+        },
+        collection: {
+          get: (varName: string) => {
+            const target = currentCollections.find(c => c.id === parentCollection?.id)
+            if (!target?.variables) return undefined
+            return target.variables?.find(v => v.key === varName && v.enabled)?.value
+          },
+          set: (varName: string, value: string) => {
+            if (!parentCollection) {
+              mockConsole.error('Request must be in a collection to set variables.')
+              return
+            }
+            currentCollections = currentCollections.map(c => {
+               if (c.id === parentCollection.id) {
+                 const vars = [...(c.variables || [])]
+                 const idx = vars.findIndex(v => v.key === varName)
+                 if (idx >= 0) {
+                   vars[idx] = { ...vars[idx], value: String(value) }
+                 } else {
+                   vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
+                 }
+                 activeOperations++
+                 handleSaveCollectionVariables(c.id, vars).then(() => {
+                    mockConsole.log(`Set collection variable: ${varName}`)
+                 }).catch(err => {
+                    mockConsole.error(`Failed to save variable ${varName}: ${err.message}`)
+                 }).finally(() => {
+                    activeOperations--
+                    checkDone()
+                 })
+                 return { ...c, variables: vars }
+               }
+               return c
+            })
+            setCollections(currentCollections)
+          },
+          all: () => {
+            const target = currentCollections.find(c => c.id === parentCollection?.id)
+            if (!target?.variables) return {}
+            const vars: Record<string, string> = {}
+            target.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
             return vars
           }
         },
@@ -1022,15 +1195,72 @@ const App: React.FC = () => {
           toBe: (expected: any) => { if (val !== expected) throw new Error(`Expected ${expected} but got ${val}`) },
           toInclude: (str: string) => { if (!String(val).includes(str)) throw new Error(`Expected "${val}" to include "${str}"`) },
           toBeTruthy: () => { if (!val) throw new Error(`Expected value to be truthy but got ${val}`) },
-        })
+        }),
+        sendRequest: (reqInput: any, cb: (err: any, res?: any) => void) => {
+          activeOperations++
+          if (!window.ultraRpc) {
+            cb(new Error('IPC not available'))
+            activeOperations--
+            checkDone()
+            return
+          }
+          const isObj = typeof reqInput === 'object'
+          const adaptedReq = {
+            method: isObj ? (reqInput.method || 'GET') : 'GET',
+            url: isObj ? (reqInput.url || '') : reqInput,
+            headers: isObj ? (reqInput.header || reqInput.headers || {}) : {},
+            body: isObj ? (reqInput.body?.raw || reqInput.body || undefined) : undefined
+          }
+          
+          window.ultraRpc.sendRestRequest(adaptedReq as any).then(res => {
+            if (res.success && res.data) {
+              const ultraRes = {
+                json: () => {
+                  try {
+                    return JSON.parse(res.data!.body)
+                  } catch (e) {
+                    return null
+                  }
+                },
+                text: () => res.data!.body,
+                status: res.data!.status,
+                headers: res.data!.headers
+              }
+              try { cb(null, ultraRes) } catch (e: any) { mockConsole.error('Callback error:', e.message) }
+            } else {
+              try { cb(new Error(res.error || 'Request failed')) } catch (e: any) { mockConsole.error('Callback error:', e.message) }
+            }
+          }).catch(err => {
+            try { cb(err) } catch (e: any) { mockConsole.error('Callback error:', e.message) }
+          }).finally(() => {
+            activeOperations--
+            checkDone()
+          })
+        }
       }
+
+      let activeOperations = 0
+      let resolveScript: () => void
+      const scriptDone = new Promise<void>(res => resolveScript = res)
+      const checkDone = () => { if (activeOperations === 0) resolveScript() }
 
       // Sandbox execution
       const script = new Function('ultra', 'console', request.postResponseScript)
       script(ultra, mockConsole)
+      checkDone()
+      
+      // Safety timeout to prevent hanging forever if activeOperations somehow fails to reach 0
+      let timer: any
+      await Promise.race([
+        scriptDone,
+        new Promise(resolve => {
+          timer = setTimeout(resolve, 5000)
+        })
+      ])
+      if (timer) clearTimeout(timer)
     } catch (err: any) {
       mockConsole.error(`Post-response Runtime Error: ${err.message}`)
-      setScriptErrors(prev => ({ ...prev, [tabId]: `Script Error: ${err.message}` }))
+      setScriptErrors(prev => ({ ...prev, [tabId]: `Post-response Script Error: ${err.message}` }))
     }
   }
 
@@ -1087,7 +1317,7 @@ const App: React.FC = () => {
         if (result.success && result.data) {
           statusCode = result.data.status
           setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-          runPostResponseScript(activeRequest, result.data, tabId)
+          await runPostResponseScript(activeRequest, result.data, tabId)
         } else {
           throw new Error(result.error || 'gRPC call failed')
         }
@@ -1124,7 +1354,7 @@ const App: React.FC = () => {
           if (result.success && result.data) {
             statusCode = result.data.status
             setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-            runPostResponseScript(activeRequest, result.data, tabId)
+            await runPostResponseScript(activeRequest, result.data, tabId)
           } else {
             throw new Error(result.error || 'Request failed')
           }
@@ -1144,7 +1374,7 @@ const App: React.FC = () => {
             ...prev,
             [tabId]: respData,
           }))
-          runPostResponseScript(activeRequest, respData, tabId)
+          await runPostResponseScript(activeRequest, respData, tabId)
         }
       } catch (err: any) {
         setErrors(prev => ({ ...prev, [tabId]: err.message }))

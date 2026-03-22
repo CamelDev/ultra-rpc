@@ -8,7 +8,7 @@ import fs from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mockServer: MockRestServer;
-const MOCK_PORT = 3333;
+const MOCK_PORT = 3341;
 let electronApp: any;
 let window: any;
 

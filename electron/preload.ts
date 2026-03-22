@@ -52,6 +52,10 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   getSettings: () => ipcRenderer.invoke('storage:getSettings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('storage:saveSettings', settings),
 
+  // ===== Globals =====
+  getGlobals: () => ipcRenderer.invoke('storage:getGlobals'),
+  saveGlobals: (globals: any[]) => ipcRenderer.invoke('storage:saveGlobals', globals),
+
   // ===== Tree Open State =====
   getTreeOpenState: () => ipcRenderer.invoke('tree:getOpenState'),
   setTreeOpenState: (openState: Record<string, true>) => ipcRenderer.invoke('tree:setOpenState', openState),

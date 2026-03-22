@@ -10,7 +10,7 @@ import fs from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let grpcServer: MockGrpcServer;
-const GRPC_PORT = 50051;
+const GRPC_PORT = 50059;
 
 test.beforeAll(async () => {
   grpcServer = new MockGrpcServer(GRPC_PORT);
