@@ -43,6 +43,7 @@ const lightHighlightStyle = HighlightStyle.define([
 const variableHighlighter = Decoration.mark({ class: 'cm-variable-token' })
 const jsonKeyHighlighter = Decoration.mark({ class: 'cm-json-key' })
 const jsonValueHighlighter = Decoration.mark({ class: 'cm-json-value' })
+const propSyncEffect = StateEffect.define<boolean>()
 
 function getVariableDecos(view: EditorView) {
   const builder = new RangeSetBuilder<Decoration>()
@@ -340,7 +341,10 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       dispatch: (tr) => {
         view.update([tr])
         if (tr.docChanged && onChangeRef.current) {
-          onChangeRef.current(tr.newDoc.toString())
+          const isPropSync = tr.effects.some(e => e.is(propSyncEffect))
+          if (!isPropSync) {
+            onChangeRef.current(tr.newDoc.toString())
+          }
         }
       }
     })
@@ -361,7 +365,8 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   useEffect(() => {
     if (viewRef.current && viewRef.current.state.doc.toString() !== value) {
       viewRef.current.dispatch({
-        changes: { from: 0, to: viewRef.current.state.doc.length, insert: value }
+        changes: { from: 0, to: viewRef.current.state.doc.length, insert: value || '' },
+        effects: propSyncEffect.of(true)
       })
     }
   }, [value])

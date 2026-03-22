@@ -82,9 +82,11 @@ const GrpcReflectionPanel: React.FC<Props> = ({
         setServices(filtered)
         setDiscovered(true)
       } else {
+        console.error('Reflection failed with result error:', result.error)
         throw new Error(result.error || 'Reflection failed')
       }
     } catch (err: any) {
+      console.error('Reflection caught error:', err)
       setError(err.message || 'Failed to discover services')
     } finally {
       setLoading(false)

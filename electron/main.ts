@@ -24,7 +24,10 @@ process.on('unhandledRejection', (reason) => {
 })
 
 app.setName('UltraRPC')
-app.setName('UltraRPC')
+
+if (process.env.USER_DATA_DIR) {
+  app.setPath('userData', process.env.USER_DATA_DIR)
+}
 
 const template: Electron.MenuItemConstructorOptions[] = [
   {
@@ -131,6 +134,12 @@ try {
       readyToClose = true
       if (win) saveWindowState(win)
       app.quit()
+    })
+
+    ipcMain.handle('app:debug-log', (_, msg: string) => {
+      try {
+        fs.appendFileSync(join(__dirname, '../../trigger.txt'), `RENDERER: ${msg}\n`)
+      } catch {}
     })
 
     app.on('window-all-closed', () => {

@@ -18,6 +18,7 @@ export function createEmptyRequest(type: 'REST' | 'GRPC' = 'REST'): RequestConfi
     grpcPayload: '{}',
     grpcReflection: true,
     timeoutMs: 30000,
+    activeConfigTab: type === 'GRPC' ? 'headers' : 'params',
   }
 }
 

@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   showInFolder: (folderPath: string) => ipcRenderer.invoke('app:showInFolder', folderPath),
   confirmClose: () => ipcRenderer.invoke('app:confirm-close'),
+  debugLog: (msg: string) => ipcRenderer.invoke('app:debug-log', msg),
   onRequestClose: (callback: () => void) => {
     const listener = () => callback()
     ipcRenderer.on('app:request-close', listener)

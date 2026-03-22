@@ -9,6 +9,8 @@ export interface KeyValuePair {
   enabled: boolean
 }
 
+export type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'pre-request' | 'post-response'
+
 export interface RequestConfig {
   id: string
   name: string
@@ -19,6 +21,7 @@ export interface RequestConfig {
   headers: KeyValuePair[]
   body: string
   bodyType: 'json' | 'text' | 'form-data' | 'none'
+  activeConfigTab?: RequestTab
   // gRPC specific
   grpcService?: string
   grpcMethod?: string

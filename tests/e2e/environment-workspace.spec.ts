@@ -342,8 +342,11 @@ test.describe('Environment & Variable Resolution', () => {
     await setCMValue('.address-bar .address-input', '{{grpc_host}}');
     await wait(1000);
     
-    console.log('Triggering Reflection...');
-    // The button text is "Discover Services"
+    console.log('Opening Discover Modal...');
+    await window.locator('button[title="Discover Services"]').click();
+    await window.waitForSelector('.modal-overlay');
+
+    console.log('Triggering Reflection in Modal...');
     await window.locator('button.reflect-discover-btn').click();
     
     console.log('Waiting for services...');

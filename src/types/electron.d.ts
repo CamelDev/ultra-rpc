@@ -78,6 +78,7 @@ export interface UltraRpcApi {
   showInFolder: (folderPath: string) => Promise<void>
   confirmClose: () => Promise<void>
   onRequestClose: (callback: () => void) => () => void
+  debugLog: (msg: string) => void
 }
 
 declare global {

@@ -50,7 +50,7 @@ const App: React.FC = () => {
         console.error('Failed to restore tabs:', e)
       }
     }
-    return [{ id: '1', request: createEmptyRequest() }]
+    return [{ id: '1', request: createEmptyRequest(), isDirty: false }]
   })
 
   const [activeTabId, setActiveTabId] = useState(() => {
@@ -85,7 +85,6 @@ const App: React.FC = () => {
   const [scriptErrors, setScriptErrors] = useState<Record<string, string | null>>({})
 
   // ===== UI state =====
-  const [activeConfigTab, setActiveConfigTab] = useState<RequestTab>('params')
   const [showEnvPanel, setShowEnvPanel] = useState(false)
   const [showHistoryPanel, setShowHistoryPanel] = useState(() => localStorage.getItem('ultraRpcShowHistory') === 'true')
   const [showSaveMenu, setShowSaveMenu] = useState(false)
@@ -435,10 +434,59 @@ const App: React.FC = () => {
   const activeEnv = environments.find(e => e.id === (activeTab?.request.envId || activeEnvId))
   const activeRequestCollection = activeTab ? findCollectionByRequestId(activeTab.request.id) : null
 
-  const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
+  const activeConfigTab = activeRequest?.activeConfigTab || 'params'
+  const setActiveConfigTab = (tab: RequestTab) => {
     setTabs(prev => prev.map(t =>
-      t.id === activeTabId ? { ...t, request: { ...t.request, ...partial }, isDirty: true } : t
+      t.id === activeTabId ? { ...t, request: { ...t.request, activeConfigTab: tab } } : t
     ))
+  }
+
+  const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
+    // Log every call for debugging
+    const callMsg = `[CALL] updateActiveRequest: ${JSON.stringify(partial)}`
+    console.log(callMsg)
+    if (window.ultraRpc) window.ultraRpc.debugLog(callMsg)
+
+    setTabs(prev => prev.map(t => {
+      if (t.id !== activeTabId) return t
+      
+      const skipDirtyKeys = ['activeConfigTab']
+      const hasChanged = Object.entries(partial).some(([key, val]) => {
+        const current = (t.request as any)[key]
+        const isSkipped = skipDirtyKeys.includes(key)
+        
+        let changed = false
+        if (typeof val === 'object' && val !== null) {
+          if (Array.isArray(val) && val.length === 0 && (current === undefined || current === null || current === '')) {
+            changed = false
+          } else if (current === undefined || current === null) {
+            changed = JSON.stringify(val) !== JSON.stringify(Array.isArray(val) ? [] : {})
+          } else {
+            changed = JSON.stringify(val) !== JSON.stringify(current)
+          }
+        } else {
+          changed = (current ?? '') !== (val ?? '')
+        }
+
+        const traceMsg = `  [CHECK] ${key}: skipped=${isSkipped} changed=${changed} ("${current}" -> "${val}")`
+        console.log(traceMsg)
+        if (window.ultraRpc) window.ultraRpc.debugLog(traceMsg)
+
+        if (isSkipped) return false
+        if (changed) {
+          const msg = `[DIRTY] ${key} changed: ${JSON.stringify(current)} -> ${JSON.stringify(val)}`
+          localStorage.setItem('lastDirtyTrigger', msg)
+          localStorage.setItem('dirtyStack', new Error().stack || '')
+        }
+        return changed
+      })
+
+      return { 
+        ...t, 
+        request: { ...t.request, ...partial }, 
+        isDirty: t.isDirty || hasChanged 
+      }
+    }))
   }, [activeTabId])
 
   const applyEnvToAllTabs = useCallback((envId: string) => {
@@ -454,7 +502,7 @@ const App: React.FC = () => {
   const addEmptyTab = () => {
     const newReq = createEmptyRequest()
     newReq.envId = activeEnvId // Inherit global env for new tabs
-    const newTab: Tab = { id: newReq.id, request: newReq }
+    const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false }
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newReq.id)
   }
@@ -463,7 +511,7 @@ const App: React.FC = () => {
     if (fromHistory) {
       // Historical snapshots shouldn't overwrite the active collection model. Give them a new ID.
       const newReq = { ...request, id: Math.random().toString(36).substring(2, 11) }
-      const newTab: Tab = { id: newReq.id, request: newReq }
+      const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false }
       setTabs(prev => [...prev, newTab])
       setActiveTabId(newReq.id)
     } else {
@@ -475,7 +523,7 @@ const App: React.FC = () => {
       } else {
         // It's not open, so open it, preserving its unique ID so saves overwrite it.
         const owningCollection = findCollectionByRequestId(request.id)
-        const newTab: Tab = { id: request.id, request: { ...request }, owningCollectionId: owningCollection?.id }
+        const newTab: Tab = { id: request.id, request: { ...request }, owningCollectionId: owningCollection?.id, isDirty: false }
         setTabs(prev => [...prev, newTab])
         setActiveTabId(request.id)
       }
@@ -1343,6 +1391,7 @@ const App: React.FC = () => {
                 id={tab.id}
                 onClick={() => setActiveTabId(tab.id)}
                 className={`tab-item ${activeTabId === tab.id ? 'tab-active' : ''}`}
+                data-dirty={tab.isDirty ? 'true' : 'false'}
                 as="div"
               >
                 <span className="tab-method" style={{ color: methodColor(tab.request.type === 'GRPC' ? 'GRPC' : tab.request.method) }}>

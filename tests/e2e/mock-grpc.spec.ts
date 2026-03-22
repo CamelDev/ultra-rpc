@@ -33,17 +33,31 @@ test('Should discover services via reflection and generate payload', async () =>
   const window = await electronApp.firstWindow();
   await window.waitForSelector('.app-container');
 
+  const setCMValue = async (selector: string, value: string) => {
+    await window.evaluate(({ s, val }: { s: string, val: string }) => {
+      const container = document.querySelector(s);
+      const editor = container?.querySelector('.editor-container') as any;
+      const { view } = editor.cmView;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: val } });
+    }, { s: selector, val: value });
+    await window.waitForTimeout(500);
+  };
+
   console.log('Switching to gRPC mode...');
   await window.click('button.type-btn:has-text("gRPC")');
 
   console.log('Setting gRPC address...');
-  const addressInput = window.locator('.address-input .cm-content');
-  await addressInput.fill(`localhost:${GRPC_PORT}`);
+  await setCMValue('.address-bar .address-input', `localhost:${GRPC_PORT}`);
  
-  console.log('Clicking Discover Services...');
+  console.log('Opening Discover Modal...');
+  await window.click('button[title="Discover Services"]');
+  await window.waitForSelector('.modal-overlay');
+
+  console.log('Clicking Discover Services in Modal...');
   await window.click('button.reflect-discover-btn');
  
   console.log('Waiting for GreetingService...');
+
   const serviceBtn = window.locator('.reflect-service-btn:has-text("GreetingService")');
   await expect(serviceBtn).toBeVisible({ timeout: 10000 });
   await serviceBtn.click();
@@ -75,6 +89,7 @@ test('Should discover services via reflection and generate payload', async () =>
   
   console.log('Clicking Use on SayHello...');
   await methodBtn.click();
+  await window.waitForTimeout(500);
 
   console.log('Verifying populated fields...');
   const serviceInput = window.locator('#grpc-service-row .cm-content');
@@ -105,14 +120,24 @@ test('Should handle server streaming and accumulate responses', async () => {
   const window = await electronApp.firstWindow();
   await window.setViewportSize({ width: 1200, height: 800 });
 
+  const setCMValue = async (selector: string, value: string) => {
+    await window.evaluate(({ s, val }: { s: string, val: string }) => {
+      const container = document.querySelector(s);
+      const editor = container?.querySelector('.editor-container') as any;
+      const { view } = editor.cmView;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: val } });
+    }, { s: selector, val: value });
+    await window.waitForTimeout(500);
+  };
+
   await window.click('button.type-btn:has-text("gRPC")');
-  await window.locator('.address-input .cm-content').fill(`localhost:${GRPC_PORT}`);
+  await setCMValue('.address-bar .address-input', `localhost:${GRPC_PORT}`);
   
   // Use Proto Path for quick setup instead of reflection
   const protoPath = path.resolve(__dirname, '../mocks/test.proto');
-  await window.locator('#grpc-proto-row .cm-content').fill(protoPath);
-  await window.locator('#grpc-service-row .cm-content').fill('test.GreetingService');
-  await window.locator('#grpc-method-row .cm-content').fill('SayHellos'); // Note the 's' for streaming
+  await setCMValue('#grpc-proto-row', protoPath);
+  await setCMValue('#grpc-service-row', 'test.GreetingService');
+  await setCMValue('#grpc-method-row', 'SayHellos'); // Note the 's' for streaming
 
   await window.click('button.config-tab:has-text("Body")');
   const bodyEditor = window.locator('.body-textarea .cm-content');
@@ -145,13 +170,25 @@ test('Should decode rich gRPC error details (grpc-status-details-bin)', async ()
 
   const window = await electronApp.firstWindow();
 
+  const setCMValue = async (selector: string, value: string) => {
+    await window.evaluate(({ s, val }: { s: string, val: string }) => {
+      const container = document.querySelector(s);
+      if (!container) return;
+      const editor = container?.querySelector('.editor-container') as any;
+      if (!editor || !editor.cmView) return;
+      const { view } = editor.cmView;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: val } });
+    }, { s: selector, val: value });
+    await window.waitForTimeout(500);
+  };
+
   await window.click('button.type-btn:has-text("gRPC")');
-  await window.locator('.address-input .cm-content').fill(`localhost:${GRPC_PORT}`);
+  await setCMValue('.address-bar .address-input', `localhost:${GRPC_PORT}`);
   
   const protoPath = path.resolve(__dirname, '../mocks/test.proto');
-  await window.locator('#grpc-proto-row .cm-content').fill(protoPath);
-  await window.locator('#grpc-service-row .cm-content').fill('test.GreetingService');
-  await window.locator('#grpc-method-row .cm-content').fill('SayHelloError');
+  await setCMValue('#grpc-proto-row', protoPath);
+  await setCMValue('#grpc-service-row', 'test.GreetingService');
+  await setCMValue('#grpc-method-row', 'SayHelloError');
 
   console.log('Sending error request...');
   await window.click('button.send-btn');
