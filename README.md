@@ -52,6 +52,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 - **Per-Tab Selection**: Select an environment from the dropdown near the address bar. This selection is **specific to the current tab**, allowing you to work across different environments simultaneously.
 - **Inheritance**: New tabs automatically inherit the currently active global environment.
+- **Zero-Footprint Selection**: Environment selections are considered session-level UI state—they do **not** mark requests as "dirty" and are **never** persisted into collection `.json` files, ensuring your shared collections remain environment-agnostic.
 
 ### 3. Build Your First Request
 - Click the **+** in the top tab bar to open a fresh tab.
@@ -64,12 +65,20 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ### 4. Variables & Scripting
 - **Resolution**: UltraRPC resolves `{{variable}}` by checking your **Collection Variables** first, then your **Active Environment**.
-- **Ultra Object**: UltraRPC provides a global `ultra` object for scripting:
-  - `ultra.sendRequest(req, callback)`: Send asynchronous HTTP requests from within scripts.
-  - `ultra.globals.set() / ultra.globals.get()`: Manage variables shared across all collections.
-  - `ultra.test() / ultra.expect()`: Write assertions for automated API testing.
-  - `ultra.env.set() / ultra.env.get()`: Access and modify the active environment.
-  - `ultra.collection.set() / ultra.collection.get()`: Access and modify collection-scoped variables.
+- **Ultra Object**: UltraRPC provides a global `ultra` object for custom logic:
+  - **Pre-request Scripts**: Run before the request is sent to set dynamic variables or calculate signatures.
+  - **Post-response Scripts**: Run after a response is received to perform assertions or extract data.
+- **Example**:
+  ```javascript
+  // Pre-request: Set a timestamp
+  ultra.env.set("timestamp", Date.now().toString());
+
+  // Post-response: Validate status and save a token
+  ultra.expect(ultra.response.status).toBe(200);
+  if (ultra.response.body.token) {
+    ultra.collection.set("auth_token", ultra.response.body.token);
+  }
+  ```
 - Use the **Script Console** at the bottom of each script tab to debug with `console.log()`.
 
 ---
@@ -98,20 +107,57 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **File-based storage** — each collection is a folder, each request is a `.json` file
 - **Collection-Level Variables** — define variables scoped specifically to a collection
 - **Hierarchical Resolution** — Variables are resolved with priority: `Collection > Environment`
-- **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging", with automatic inheritance for new tabs.
+- **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging", with automatic inheritance for new tabs. This selection is **session-only** and does not trigger unsaved change warnings.
 - **Selective Variable Enabling** — Checkboxes in the Environment Panel allow you to selectively disable variables during interpolation.
 - **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are flattened, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
 - **Environment Import** — Import Postman environment files (`.json`) directly into the Environment Panel.
 - **Import/Export** — Support for `.ultrarpc.json` archives and opening any local folder as a collection
 
 ### 🤖 Scripting & Automation
-- **Ultra Scripting Sandbox** — Write scripts using the powerful `ultra` object:
-  - `ultra.sendRequest`: Chain requests together (e.g., get an auth token then use it).
-  - `ultra.globals`: Persistent variables available globally across the app.
-  - `ultra.env` & `ultra.collection`: Access and modify environment/collection variables.
-  - `ultra.test` & `ultra.expect`: BDD-style assertions for validating responses.
-- **Pre-request & Post-Response Support** — Automate your workflows at every stage of the request lifecycle.
-- **Script Console** — Real-time logging for `console.log()` and runtime error tracking.
+UltraRPC features a powerful scripting engine that allows you to automate workflows and validate responses using JavaScript.
+
+#### The `ultra` Object API
+The `ultra` object is available in both pre-request and post-response scripts.
+
+| Namespace | Method | Description |
+|-----------|--------|-------------|
+| **Environment** | `ultra.env.get(key)` | Returns the value of an environment variable. |
+| | `ultra.env.set(key, value)` | Sets/updates an environment variable. |
+| | `ultra.env.all()` | Returns all enabled environment variables as an object. |
+| **Collection** | `ultra.collection.get(key)` | Returns the value of a collection variable. |
+| | `ultra.collection.set(key, value)` | Sets/updates a collection variable. |
+| | `ultra.collection.all()` | Returns all enabled collection variables as an object. |
+| **Globals** | `ultra.globals.get(key)` | Returns the value of a global variable. |
+| | `ultra.globals.set(key, value)` | Sets/updates a global variable. |
+| | `ultra.globals.all()` | Returns all enabled global variables as an object. |
+| **Assertions** | `ultra.expect(val).toBe(exp)` | Strict equality check (`===`). |
+| | `ultra.expect(val).toInclude(str)`| Partial string match. |
+| | `ultra.expect(val).toBeTruthy()` | Checks if value is non-falsy. |
+| **Network** | `ultra.sendRequest(req, cb)` | Sends an async HTTP request. `req` can be a URL string or object. |
+
+#### Response Metadata (Post-Response Only)
+In post-response scripts, the `ultra.response` object contains the full result:
+- `ultra.response.status`: HTTP/gRPC status code.
+- `ultra.response.body`: The response body (automatically parsed to JSON if applicable).
+- `ultra.response.headers`: Response headers (object).
+- `ultra.response.responseTime`: Request duration in milliseconds.
+
+#### Chaining Requests
+You can use `ultra.sendRequest` to chain multiple APIs together:
+```javascript
+ultra.sendRequest({
+  url: "https://api.example.com/login",
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ user: "admin" })
+}, (err, res) => {
+  if (!err && res.status === 200) {
+    const token = res.json().access_token;
+    ultra.env.set("auth_token", token);
+    console.log("Token updated successfully!");
+  }
+});
+```
 
 ### 🎨 Premium UI
 - **Resizable Split Layout**: Independent scrolling for request config and response viewer
@@ -319,6 +365,12 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
 - [ ] **Secret Management** (Masked variable values and vault storage)
 - [ ] **Script Library** (Reusable global script snippets and complex post-response logic)
 - [ ] **Visual Test Results** (Dedicated UI for assertion summaries)
+- [ ] **Chai-like Assertions** (`ultra.expect(...).to...` for more expressive testing)
+- [ ] **Built-in JS Libraries** (CryptoJS for HMAC/SHA signing, ajv for JSON Schema)
+- [ ] **Dynamic Variables** (Support for `{{$guid}}`, `{{$timestamp}}`, and `{{$randomInt}}`)
+- [ ] **Local Variables** (`ultra.variables` for temporary request-level context)
+- [ ] **Response Visualizers** (Custom HTML/CSS rendering for data visualization)
+- [ ] **Workflows** (`ultra.setNextRequest` for collection runner logic)
 
 ### 🎨 UX & Reliability
 - [ ] **Global Search** (Searching across history, and tabs)

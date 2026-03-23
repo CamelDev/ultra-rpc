@@ -28,7 +28,6 @@ export interface RequestConfig {
   grpcPayload?: string
   grpcReflection?: boolean
   protoPath?: string
-  envId?: string | null
   timeoutMs?: number
   preRequestScript?: string
   postResponseScript?: string
@@ -50,6 +49,7 @@ export interface Tab {
   request: RequestConfig
   isDirty?: boolean
   owningCollectionId?: string
+  envId?: string | null
 }
 
 // ===== Collections =====

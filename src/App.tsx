@@ -460,7 +460,7 @@ const App: React.FC = () => {
   // ===== Helpers =====
   const activeTab = tabs.find(t => t.id === activeTabId)
   const activeRequest = activeTab?.request
-  const activeEnv = environments.find(e => e.id === (activeTab?.request.envId || activeEnvId))
+  const activeEnv = environments.find(e => e.id === (activeTab?.envId || activeEnvId))
   const activeRequestCollection = activeTab ? findCollectionByRequestId(activeTab.request.id) : null
 
   const activeConfigTab = activeRequest?.activeConfigTab || 'params'
@@ -502,11 +502,6 @@ const App: React.FC = () => {
         if (window.ultraRpc) window.ultraRpc.debugLog(traceMsg)
 
         if (isSkipped) return false
-        if (changed) {
-          const msg = `[DIRTY] ${key} changed: ${JSON.stringify(current)} -> ${JSON.stringify(val)}`
-          localStorage.setItem('lastDirtyTrigger', msg)
-          localStorage.setItem('dirtyStack', new Error().stack || '')
-        }
         return changed
       })
 
@@ -518,11 +513,16 @@ const App: React.FC = () => {
     }))
   }, [activeTabId])
 
+  const updateTabEnv = useCallback((envId: string | null) => {
+    setTabs(prev => prev.map(t => 
+      t.id === activeTabId ? { ...t, envId } : t
+    ))
+  }, [activeTabId])
+
   const applyEnvToAllTabs = useCallback((envId: string) => {
     setTabs(prev => prev.map(t => ({
       ...t,
-      request: { ...t.request, envId },
-      isDirty: true
+      envId
     })))
     setActiveEnvId(envId)
     saveAppSetting('activeEnvId', envId)
@@ -530,8 +530,7 @@ const App: React.FC = () => {
 
   const addEmptyTab = () => {
     const newReq = createEmptyRequest()
-    newReq.envId = activeEnvId // Inherit global env for new tabs
-    const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false }
+    const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false, envId: activeEnvId }
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newReq.id)
   }
@@ -540,7 +539,7 @@ const App: React.FC = () => {
     if (fromHistory) {
       // Historical snapshots shouldn't overwrite the active collection model. Give them a new ID.
       const newReq = { ...request, id: Math.random().toString(36).substring(2, 11) }
-      const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false }
+      const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false, envId: (request as any).envId || activeEnvId }
       setTabs(prev => [...prev, newTab])
       setActiveTabId(newReq.id)
     } else {
@@ -552,7 +551,13 @@ const App: React.FC = () => {
       } else {
         // It's not open, so open it, preserving its unique ID so saves overwrite it.
         const owningCollection = findCollectionByRequestId(request.id)
-        const newTab: Tab = { id: request.id, request: { ...request }, owningCollectionId: owningCollection?.id, isDirty: false }
+        const newTab: Tab = { 
+          id: request.id, 
+          request: { ...request }, 
+          owningCollectionId: owningCollection?.id, 
+          isDirty: false,
+          envId: (request as any).envId || activeEnvId
+        }
         setTabs(prev => [...prev, newTab])
         setActiveTabId(request.id)
       }
@@ -586,8 +591,8 @@ const App: React.FC = () => {
     const currentCollections = collectionsOverride || collectionsRef.current
     const activeColl = activeTab ? currentCollections.find(c => getAllRequests(c).some(r => r.id === activeTab.request.id)) : null
     
-    // Resolve environment: request-level first, then global active
-    const requestEnvId = activeTab?.request.envId
+    // Resolve environment: tab-level first, then global active
+    const requestEnvId = activeTab?.envId
     const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
     const currentEnv = envOverride || environmentsRef.current.find(e => e.id === effectiveEnvId)
     
@@ -800,7 +805,7 @@ const App: React.FC = () => {
     }
   }, [activeRequest, updateActiveRequest])
 
-  const runPreRequestScript = async (request: RequestConfig): Promise<{ environments: Environment[], collections: Collection[] } | null> => {
+  const runPreRequestScript = async (request: RequestConfig, tabEnvId: string | null | undefined): Promise<{ environments: Environment[], collections: Collection[] } | null> => {
     if (!request.preRequestScript || !request.preRequestScript.trim()) return null
 
     // We need to work with local copies to avoid race conditions with React state updates
@@ -828,15 +833,13 @@ const App: React.FC = () => {
       const ultra = {
         env: {
           get: (key: string) => {
-            const requestEnvId = request.envId
-            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return undefined
             return targetEnv.variables.find(v => v.key === key && v.enabled)?.value
           },
           set: (key: string, value: string) => {
-            const requestEnvId = request.envId
-            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
             if (!effectiveEnvId) {
               mockConsole.error('No active environment associated with this tab/globally.')
               return
@@ -865,7 +868,7 @@ const App: React.FC = () => {
             mockConsole.log(`Set env variable: ${key}`)
           },
           all: () => {
-            const effectiveEnvId = request.envId !== undefined ? request.envId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return {}
             const vars: Record<string, string> = {}
@@ -1041,7 +1044,7 @@ const App: React.FC = () => {
     }
   }
 
-  const runPostResponseScript = async (request: RequestConfig, response: ResponseData, tabId: string) => {
+  const runPostResponseScript = async (request: RequestConfig, response: ResponseData, tabId: string, tabEnvId: string | null | undefined) => {
     if (!request.postResponseScript || !request.postResponseScript.trim()) return
 
     // Use local copies to avoid race conditions with React state updates
@@ -1073,15 +1076,13 @@ const App: React.FC = () => {
         response: { ...response, body: bodyObj },
         env: {
           get: (varName: string) => {
-            const requestEnvId = request.envId
-            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return undefined
             return targetEnv.variables.find(v => v.key === varName && v.enabled)?.value
           },
           set: (varName: string, value: string) => {
-            const requestEnvId = request.envId
-            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
             if (!effectiveEnvId) {
               mockConsole.error('No active environment associated with this tab/globally.')
               return
@@ -1110,8 +1111,7 @@ const App: React.FC = () => {
             mockConsole.log(`Set env variable: ${varName}`)
           },
           all: () => {
-            const requestEnvId = request.envId
-            const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return {}
             const vars: Record<string, string> = {}
@@ -1291,12 +1291,12 @@ const App: React.FC = () => {
 
     let scriptResult = null
     try {
-      scriptResult = await runPreRequestScript(activeRequest)
+      scriptResult = await runPreRequestScript(activeRequest, activeTab?.envId)
     } catch (e) {
       console.error('Pre-request script failed, but continuing request:', e)
     }
 
-    const effectiveEnvIdForUrl = activeRequest.envId || activeEnvId
+    const effectiveEnvIdForUrl = activeTab?.envId || activeEnvId
     const updatedEnv = scriptResult?.environments.find(e => e.id === effectiveEnvIdForUrl) || environments.find(e => e.id === effectiveEnvIdForUrl)
     const url = interpolate(activeRequest.url, updatedEnv, scriptResult?.collections)
     let statusCode: number | undefined
@@ -1317,7 +1317,7 @@ const App: React.FC = () => {
           throw new Error('Enter a method name to call.')
         }
 
-        const effectiveEnvId = activeRequest.envId || activeEnvId
+        const effectiveEnvId = activeTab?.envId || activeEnvId
         const currentEnv = scriptResult?.environments.find(e => e.id === effectiveEnvId) || environments.find(e => e.id === effectiveEnvId)
         const isInsecure = currentEnv?.sslVerification === false
 
@@ -1331,7 +1331,7 @@ const App: React.FC = () => {
         if (result.success && result.data) {
           statusCode = result.data.status
           setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-          await runPostResponseScript(activeRequest, result.data, tabId)
+          await runPostResponseScript(activeRequest, result.data, tabId, activeTab?.envId)
         } else {
           throw new Error(result.error || 'gRPC call failed')
         }
@@ -1353,7 +1353,7 @@ const App: React.FC = () => {
           fullUrl += (fullUrl.includes('?') ? '&' : '?') + searchParams.toString()
         }
 
-        const effectiveEnvId = activeRequest.envId || activeEnvId
+        const effectiveEnvId = activeTab?.envId || activeEnvId
         const currentEnv = scriptResult?.environments.find(e => e.id === effectiveEnvId) || environments.find(e => e.id === effectiveEnvId)
         const isInsecure = currentEnv?.sslVerification === false
 
@@ -1368,7 +1368,7 @@ const App: React.FC = () => {
           if (result.success && result.data) {
             statusCode = result.data.status
             setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-            await runPostResponseScript(activeRequest, result.data, tabId)
+            await runPostResponseScript(activeRequest, result.data, tabId, activeTab?.envId)
           } else {
             throw new Error(result.error || 'Request failed')
           }
@@ -1388,7 +1388,7 @@ const App: React.FC = () => {
             ...prev,
             [tabId]: respData,
           }))
-          await runPostResponseScript(activeRequest, respData, tabId)
+          await runPostResponseScript(activeRequest, respData, tabId, activeTab?.envId)
         }
       } catch (err: any) {
         setErrors(prev => ({ ...prev, [tabId]: err.message }))
@@ -1753,11 +1753,11 @@ const App: React.FC = () => {
                   <Globe size={12} className="env-selector-icon" />
                   <select
                     className="env-selector"
-                    value={activeRequest.envId !== undefined ? (activeRequest.envId || '') : (activeEnvId || '')}
+                    value={activeTab?.envId !== undefined ? (activeTab?.envId || '') : (activeEnvId || '')}
                     onChange={(e) => {
                       const val = e.target.value;
                       const newId = val === '' ? null : val;
-                      updateActiveRequest({ envId: newId });
+                      updateTabEnv(newId);
                     }}
                   >
                     <option value="">No Environment</option>
@@ -1776,7 +1776,6 @@ const App: React.FC = () => {
               {/* gRPC-specific fields at the top of the request pane (fixed) */}
               {activeRequest.type === 'GRPC' && (
                 (() => {
-                  const isLocked = !!responses[activeTabId];
                   return (
                     <div className="grpc-fields" style={{ padding: '4px 16px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
                       <div className="grpc-field-row" id="grpc-service-row">
@@ -1909,7 +1908,7 @@ const App: React.FC = () => {
                           <GrpcReflectionPanel
                             host={interpolate(grpcDiscoveryUrl)}
                             insecure={(() => {
-                              const effectiveEnvId = activeRequest.envId || activeEnvId
+                              const effectiveEnvId = activeTab?.envId || activeEnvId
                               const currentEnv = environments.find(e => e.id === effectiveEnvId)
                               return currentEnv?.sslVerification === false
                             })()}
