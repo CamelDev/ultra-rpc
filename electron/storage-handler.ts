@@ -29,6 +29,14 @@ const getSettingsPath = () => {
   return p
 }
 
+/**
+ * NOTE ON VAULT STORAGE:
+ * Vaults are stored in app.getPath('userData')/vaults/{envId}.vault
+ * They are managed by vault-handler.ts using Electron's safeStorage (Native OS Encryption).
+ * For non-sensitive data, use environments.json (managed here).
+ * For secrets (API keys, tokens), use the Vault integration.
+ */
+
 const findFileRecursively = (dir: string, filename: string): string | null => {
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   for (const entry of entries) {

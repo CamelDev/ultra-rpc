@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe, Check } from 'lucide-react'
-import type { Environment, KeyValuePair } from '../types'
+import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe, Check, Lock } from 'lucide-react'
+import type { Environment, KeyValuePair, VaultEntry } from '../types'
 import { emptyKV } from '../lib/helpers'
 import './EnvironmentPanel.css'
 
@@ -9,12 +9,26 @@ interface Props {
   onChange: (environments: Environment[]) => void
   onDeleteRequest: (id: string, name: string) => void
   onApplyToAllTabs: (envId: string) => void
+  activeEnvId: string | null
+  onSetActive: (id: string | null) => void
+  vaults: Record<string, VaultEntry[]>
+  onVaultChange: (envId: string, entries: VaultEntry[]) => void
 }
 
-const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteRequest, onApplyToAllTabs }) => {
+const EnvironmentPanel: React.FC<Props> = ({ 
+  environments, 
+  activeEnvId,
+  onSetActive,
+  onChange, 
+  onDeleteRequest, 
+  onApplyToAllTabs, 
+  vaults, 
+  onVaultChange 
+}) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
+  const [vaultExpanded, setVaultExpanded] = useState<Record<string, boolean>>({})
 
   const uid = () => Math.random().toString(36).substring(2, 11)
 
@@ -87,6 +101,23 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteReq
     }))
   }
 
+  // ===== Vault handlers =====
+  const addVaultEntry = (envId: string) => {
+    const current = vaults[envId] ?? []
+    const newEntry: VaultEntry = { id: uid(), key: '', value: '' }
+    onVaultChange(envId, [...current, newEntry])
+  }
+
+  const updateVaultEntry = (envId: string, entryId: string, field: 'key' | 'value', value: string) => {
+    const current = vaults[envId] ?? []
+    onVaultChange(envId, current.map(e => e.id === entryId ? { ...e, [field]: value } : e))
+  }
+
+  const deleteVaultEntry = (envId: string, entryId: string) => {
+    const current = vaults[envId] ?? []
+    onVaultChange(envId, current.filter(e => e.id !== entryId))
+  }
+
   const startRename = (env: Environment) => {
     setEditingName(env.id)
     setNameInput(env.name)
@@ -118,8 +149,16 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteReq
       )}
 
       {environments.map(env => (
-        <div className="env-item" key={env.id}>
+        <div 
+          className={`env-item ${activeEnvId === env.id ? 'active' : ''} ${expandedId === env.id ? 'expanded' : ''}`} 
+          key={env.id}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            onSetActive(env.id === activeEnvId ? null : env.id)
+          }}
+        >
           <div className="env-item-header" onClick={() => setExpandedId(expandedId === env.id ? null : env.id)}>
+            <div className="env-status-dot" />
             <ChevronDown
               size={14}
               className={`env-chevron ${expandedId === env.id ? 'env-chevron-open' : ''}`}
@@ -225,6 +264,59 @@ const EnvironmentPanel: React.FC<Props> = ({ environments, onChange, onDeleteReq
               <button className="kv-add" onClick={() => addVariable(env.id)}>
                 <Plus size={14} /> Add variable
               </button>
+
+              {/* Vault Section */}
+              <div className="vault-section">
+                <div 
+                  className="vault-header" 
+                  onClick={() => setVaultExpanded(prev => ({ ...prev, [env.id]: !prev[env.id] }))}
+                >
+                  <div className="vault-header-left">
+                    <Lock size={13} className="vault-lock-icon" />
+                    <span className="vault-title">Vault</span>
+                    <span className="vault-count">({vaults[env.id]?.length || 0})</span>
+                  </div>
+                  <ChevronDown
+                    size={14}
+                    className={`env-chevron ${vaultExpanded[env.id] ? 'env-chevron-open' : ''}`}
+                  />
+                </div>
+
+                {vaultExpanded[env.id] && (
+                  <div className="vault-content">
+                    {(vaults[env.id] || []).map(v => (
+                      <div className="vault-row" key={v.id}>
+                        <input
+                          className="env-var-input vault-key"
+                          placeholder="SECRET_KEY"
+                          value={v.key}
+                          onChange={e => updateVaultEntry(env.id, v.id, 'key', e.target.value)}
+                        />
+                        <input
+                          className="env-var-input vault-value"
+                          type="password"
+                          placeholder="••••••••"
+                          autoComplete="off"
+                          spellCheck={false}
+                          value={v.value}
+                          onChange={e => updateVaultEntry(env.id, v.id, 'value', e.target.value)}
+                        />
+                        <button 
+                          className="env-var-delete" 
+                          data-tooltip="Remove Secret" 
+                          data-tooltip-pos="left" 
+                          onClick={() => deleteVaultEntry(env.id, v.id)}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    <button className="kv-add vault-add" onClick={() => addVaultEntry(env.id)}>
+                      <Plus size={14} /> Add secret
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

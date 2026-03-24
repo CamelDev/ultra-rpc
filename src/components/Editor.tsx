@@ -19,8 +19,9 @@ import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { syntaxHighlighting, HighlightStyle, codeFolding, foldGutter, foldKeymap, bracketMatching } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
+import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { createPortal } from 'react-dom'
-import type { Environment } from '../types'
+import type { Environment, VaultEntry } from '../types'
 import './Editor.css'
 
 const lightHighlightStyle = HighlightStyle.define([
@@ -122,6 +123,7 @@ interface Props {
   className?: string
   activeEnv?: Environment | null
   collectionVariables?: any[]
+  vaultEntries?: VaultEntry[]
   onKeyDown?: (e: React.KeyboardEvent) => void
   theme?: 'dark' | 'light'
   enableSearch?: boolean
@@ -142,6 +144,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   className = '',
   activeEnv,
   collectionVariables,
+  vaultEntries,
   onKeyDown,
   theme = 'dark',
   enableSearch = false,
@@ -170,23 +173,76 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   const resolveVariable = useCallback((varName: string) => {
     let titleText = `Variable: ${varName} (Not found)`
 
-    const collVar = collectionVariables?.find(v => v.enabled && v.key === varName)
-    if (collVar) {
-      const val = collVar.value
-      titleText = `${varName} = ${val} (Collection)`
-    } else if (activeEnv) {
-      const envVar = activeEnv.variables.find((v) => v.enabled && v.key === varName)
-      if (envVar) {
-        const val = envVar.value
-        titleText = `${varName} = ${val} (${activeEnv.name})`
-      } else {
-        titleText = `${varName} (Not found in ${activeEnv.name})`
-      }
+    const inVault = vaultEntries?.find(v => v.key === varName)
+    if (inVault) {
+       titleText = `${varName} = (Secret) (Vault)`
     } else {
-      titleText = `${varName} (No environment/collection variable found)`
+      const collVar = collectionVariables?.find(v => v.enabled && v.key === varName)
+      if (collVar) {
+        const val = collVar.value
+        titleText = `${varName} = ${val} (Collection)`
+      } else if (activeEnv) {
+        const envVar = activeEnv.variables.find((v) => v.enabled && v.key === varName)
+        if (envVar) {
+          const val = envVar.value
+          titleText = `${varName} = ${val} (${activeEnv.name})`
+        } else {
+          titleText = `${varName} (Not found in ${activeEnv.name})`
+        }
+      } else {
+        titleText = `${varName} (No environment/collection variable found)`
+      }
     }
     return titleText
-  }, [activeEnv, collectionVariables])
+  }, [activeEnv, collectionVariables, vaultEntries])
+
+  const variableCompletionSource = useCallback((context: CompletionContext): CompletionResult | null => {
+    const word = context.matchBefore(/\{\{[\w.-]*/)
+    if (!word || (word.from === word.to && !context.explicit)) return null
+
+    const options = []
+
+    // 1. Vault (Highest priority)
+    if (vaultEntries) {
+      for (const v of vaultEntries) {
+        if (v.key) {
+          options.push({ label: v.key, type: 'constant', detail: '(Vault Secret)', boost: 10 })
+        }
+      }
+    }
+
+    // 2. Collection 
+    if (collectionVariables) {
+      for (const v of collectionVariables) {
+        if (v.enabled && v.key) {
+          options.push({ label: v.key, type: 'variable', detail: `(Collection) ${v.value}`, boost: 5 })
+        }
+      }
+    }
+
+    // 3. Environment
+    if (activeEnv) {
+      for (const v of activeEnv.variables) {
+        if (v.enabled && v.key) {
+          options.push({ label: v.key, type: 'variable', detail: `(${activeEnv.name}) ${v.value}` })
+        }
+      }
+    }
+
+    // Deduplicate by label (key) - priority already handled by order/boost
+    const seen = new Set()
+    const uniqueOptions = options.filter(o => {
+      if (seen.has(o.label)) return false
+      seen.add(o.label)
+      return true
+    })
+
+    return {
+      from: word.text.startsWith('{{') ? word.from + 2 : word.from,
+      options: uniqueOptions,
+      filter: true
+    }
+  }, [activeEnv, collectionVariables, vaultEntries])
 
   const handleMouseEnterVar = useCallback((e: React.MouseEvent, text: string) => {
     if (tooltipTimeoutId.current) clearTimeout(tooltipTimeoutId.current)
@@ -213,6 +269,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       keymap.of([...defaultKeymap, ...historyKeymap, ...(enableSearch && !singleLine ? searchKeymap : [])]),
       ...(enableSearch && !singleLine ? [search({ top: true })] : []),
       variablePlugin,
+      autocompletion({ override: [variableCompletionSource] }),
       (wrapLines && !singleLine) ? EditorView.lineWrapping : [],
       EditorView.theme({
         '&': { height: '100%', backgroundColor: 'transparent' },

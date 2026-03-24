@@ -72,6 +72,13 @@ export interface Collection {
   path?: string // Filesystem path to the collection directory
 }
 
+// ===== Vault =====
+export interface VaultEntry {
+  id: string      // uid, local only
+  key: string
+  value: string
+}
+
 // ===== Environments =====
 export interface Environment {
   id: string
