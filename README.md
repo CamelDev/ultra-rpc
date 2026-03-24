@@ -53,6 +53,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **Per-Tab Selection**: Select an environment from the dropdown near the address bar. This selection is **specific to the current tab**, allowing you to work across different environments simultaneously.
 - **Inheritance**: New tabs automatically inherit the currently active global environment.
 - **Zero-Footprint Selection**: Environment selections are considered session-level UI state—they do **not** mark requests as "dirty" and are **never** persisted into collection `.json` files, ensuring your shared collections remain environment-agnostic.
+- **Secrets Vault**: Each environment has a dedicated **Vault** section for sensitive data (API keys, tokens). Data is encrypted using native OS security and is never stored in plain text or exported.
 
 ### 3. Build Your First Request
 - Click the **+** in the top tab bar to open a fresh tab.
@@ -110,7 +111,11 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging", with automatic inheritance for new tabs. This selection is **session-only** and does not trigger unsaved change warnings.
 - **Selective Variable Enabling** — Checkboxes in the Environment Panel allow you to selectively disable variables during interpolation.
 - **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are flattened, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
-- **Environment Import** — Import Postman environment files (`.json`) directly into the Environment Panel.
+- **Secrets Vault (Encrypted)**: Store sensitive keys (e.g., `STRIPE_KEY`, `SESSION_TOKEN`) in a per-environment vault.
+    - **Native Encryption**: Uses Electron's `safeStorage` (Keychain on macOS, DPAPI on Windows) to encrypt data at rest.
+    - **Isolation**: Vault files are stored separately from collections and are excluded from all exports.
+    - **Masking**: Values are masked in the UI and only revealed during active editing.
+    - **Highest Priority**: Vault keys override Collection and Environment variables of the same name.
 - **Import/Export** — Support for `.ultrarpc.json` archives and opening any local folder as a collection
 
 ### 🤖 Scripting & Automation
@@ -362,7 +367,7 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
 
 ### 🤖 Scripting & Variables
 - [ ] **Global Variables** (Variables available across all environments)
-- [ ] **Secret Management** (Masked variable values and vault storage)
+- [x] **Secret Management** (Masked variable values and vault storage)
 - [ ] **Script Library** (Reusable global script snippets and complex post-response logic)
 - [ ] **Visual Test Results** (Dedicated UI for assertion summaries)
 - [ ] **Chai-like Assertions** (`ultra.expect(...).to...` for more expressive testing)

@@ -26,7 +26,7 @@ import CollectionPanel from './components/CollectionPanel'
 import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
 import AboutModal from './components/AboutModal'
-import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem, KeyValuePair } from './types'
+import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem, KeyValuePair, VaultEntry } from './types'
 import { createEmptyRequest } from './lib/helpers'
 import pkg from '../package.json'
 import Toaster, { addToast } from './components/Toaster'
@@ -124,6 +124,9 @@ const App: React.FC = () => {
     })
   }, [])
   const [activeEnvId, setActiveEnvId] = useState<string | null>(null)
+  const [vaults, setVaults] = useState<Record<string, VaultEntry[]>>({})
+  const vaultsRef = useRef(vaults)
+  useEffect(() => { vaultsRef.current = vaults }, [vaults])
 
   // ===== Settings & Theme =====
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
@@ -369,7 +372,21 @@ const App: React.FC = () => {
   useEffect(() => {
     if (window.ultraRpc) {
       loadCollections()
-      window.ultraRpc.getEnvironments().then(res => { if (res.success && res.environments) setEnvironments(res.environments) })
+      window.ultraRpc.getEnvironments().then(async res => {
+        if (res.success && res.environments) {
+          setEnvironments(res.environments)
+          // Load vaults for each environment
+          const vaultEntries = await Promise.all(
+            res.environments.map((e: any) => window.ultraRpc.getVault({ envId: e.id }))
+          )
+          const vaultMap: Record<string, VaultEntry[]> = {}
+          res.environments.forEach((e: any, i: number) => {
+            vaultMap[e.id] = vaultEntries[i].entries ?? []
+          })
+          setVaults(vaultMap)
+          vaultsRef.current = vaultMap
+        }
+      })
       window.ultraRpc.getGlobals().then(res => { if (res.success && res.globals) setGlobals(res.globals) })
     }
   }, [loadCollections, setEnvironments, setGlobals])
@@ -436,6 +453,11 @@ const App: React.FC = () => {
     if (window.ultraRpc) window.ultraRpc.saveEnvironments(envs)
   }, [setEnvironments])
 
+  const handleVaultChange = useCallback(async (envId: string, entries: VaultEntry[]) => {
+    setVaults(prev => ({ ...prev, [envId]: entries }))
+    if (window.ultraRpc) await window.ultraRpc.saveVault({ envId, entries })
+  }, [])
+
   // ===== Load persisted data on mount =====
   useEffect(() => {
     if (!window.ultraRpc) return
@@ -461,6 +483,7 @@ const App: React.FC = () => {
   const activeTab = tabs.find(t => t.id === activeTabId)
   const activeRequest = activeTab?.request
   const activeEnv = environments.find(e => e.id === (activeTab?.envId || activeEnvId))
+  const activeVaultEntries = vaults[(activeTab?.envId || activeEnvId) ?? ''] || []
   const activeRequestCollection = activeTab ? findCollectionByRequestId(activeTab.request.id) : null
 
   const activeConfigTab = activeRequest?.activeConfigTab || 'params'
@@ -597,6 +620,13 @@ const App: React.FC = () => {
     const currentEnv = envOverride || environmentsRef.current.find(e => e.id === effectiveEnvId)
     
     const result = str.replace(/\{\{([\w.-]+)\}\}/g, (_, varName) => {
+      // 0. Vault (highest precedence — secrets override everything)
+      if (currentEnv) {
+        const vaultEntries = vaultsRef.current[currentEnv.id] ?? []
+        const found = vaultEntries.find(v => v.key === varName)
+        if (found) return found.value
+      }
+
       // 1. Collection variables
       if (activeColl?.variables) {
         const found = activeColl.variables.find(v => v.key === varName && v.enabled)
@@ -834,6 +864,11 @@ const App: React.FC = () => {
         env: {
           get: (key: string) => {
             const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
+            // 0. Vault first
+            const vaultEntries = vaultsRef.current[effectiveEnvId ?? ''] ?? []
+            const inVault = vaultEntries.find(v => v.key === key)
+            if (inVault) return inVault.value
+
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return undefined
             return targetEnv.variables.find(v => v.key === key && v.enabled)?.value
@@ -1077,6 +1112,11 @@ const App: React.FC = () => {
         env: {
           get: (varName: string) => {
             const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
+            // 0. Vault first
+            const vaultEntries = vaultsRef.current[effectiveEnvId ?? ''] ?? []
+            const inVault = vaultEntries.find(v => v.key === varName)
+            if (inVault) return inVault.value
+
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return undefined
             return targetEnv.variables.find(v => v.key === varName && v.enabled)?.value
@@ -1573,12 +1613,16 @@ const App: React.FC = () => {
         {showEnvPanel && (
           <div className="sidebar-env-container">
             <div className="sidebar-env-content no-scrollbar">
-              <EnvironmentPanel
-                environments={environments}
-                onChange={handleEnvChange}
-                onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
-                onApplyToAllTabs={applyEnvToAllTabs}
-              />
+                <EnvironmentPanel 
+                  environments={environments}
+                  activeEnvId={activeEnvId}
+                  onSetActive={setActiveEnvId}
+                  onChange={handleEnvChange}
+                  onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
+                  onApplyToAllTabs={applyEnvToAllTabs}
+                  vaults={vaults}
+                  onVaultChange={handleVaultChange}
+                />
             </div>
           </div>
         )}
@@ -1724,6 +1768,7 @@ const App: React.FC = () => {
                   onKeyDown={(e) => e.key === 'Enter' && sendRequest()}
                   activeEnv={activeEnv}
                   collectionVariables={activeRequestCollection?.variables}
+                  vaultEntries={activeVaultEntries}
                   theme={theme}
                 />
                 <button 
@@ -1787,6 +1832,7 @@ const App: React.FC = () => {
                           onChange={(val) => updateActiveRequest({ grpcService: val })}
                           activeEnv={activeEnv}
                           collectionVariables={activeRequestCollection?.variables}
+                          vaultEntries={activeVaultEntries}
                           theme={theme}
                         />
                       </div>
@@ -1801,6 +1847,7 @@ const App: React.FC = () => {
                             onChange={(val) => updateActiveRequest({ grpcMethod: val })}
                             activeEnv={activeEnv}
                             collectionVariables={activeRequestCollection?.variables}
+                            vaultEntries={activeVaultEntries}
                             theme={theme}
                           />
                           <button 
@@ -1828,6 +1875,7 @@ const App: React.FC = () => {
                             onChange={(val) => updateActiveRequest({ protoPath: val })}
                             activeEnv={activeEnv}
                             collectionVariables={activeRequestCollection?.variables}
+                            vaultEntries={activeVaultEntries}
                             theme={theme}
                           />
                           <button 
@@ -1894,13 +1942,16 @@ const App: React.FC = () => {
                           </div>
                           <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <label style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Host</label>
-                            <input 
-                              type="text" 
+                            <InterpolatedInput 
                               className="address-input" 
-                              style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', borderRadius: '6px', fontSize: '13px' }}
+                              style={{ flex: 1 }}
                               value={grpcDiscoveryUrl}
-                              onChange={(e) => setGrpcDiscoveryUrl(e.target.value)}
+                              onChange={(val) => setGrpcDiscoveryUrl(val)}
                               placeholder="host:port (e.g. api.example.com:443)"
+                              activeEnv={activeEnv}
+                              collectionVariables={activeRequestCollection?.variables}
+                              vaultEntries={activeVaultEntries}
+                              theme={theme}
                             />
                           </div>
                         </div>
@@ -1949,6 +2000,7 @@ const App: React.FC = () => {
                         valuePlaceholder="Value"
                         activeEnv={activeEnv}
                         collectionVariables={activeRequestCollection?.variables}
+                        vaultEntries={activeVaultEntries}
                         theme={theme}
                       />
                   )}
@@ -1960,6 +2012,7 @@ const App: React.FC = () => {
                         valuePlaceholder="Value"
                         activeEnv={activeEnv}
                         collectionVariables={activeRequestCollection?.variables}
+                        vaultEntries={activeVaultEntries}
                         theme={theme}
                       />
                   )}
@@ -2012,6 +2065,7 @@ const App: React.FC = () => {
                           activeEnv={activeEnv}
                           wrapLines={wrapLines}
                           collectionVariables={activeRequestCollection?.variables}
+                          vaultEntries={activeVaultEntries}
                           enableSearch
                           placeholder={activeRequest.type === 'GRPC'
                             ? '{\n  "field": "value"\n}'
@@ -2095,6 +2149,7 @@ const App: React.FC = () => {
                             highlightJs={true}
                             wrapLines={wrapLines}
                             collectionVariables={activeRequestCollection?.variables}
+                            vaultEntries={activeVaultEntries}
                             theme={theme}
                           />
                       </div>
@@ -2157,6 +2212,7 @@ const App: React.FC = () => {
                             highlightJs={true}
                             wrapLines={wrapLines}
                             collectionVariables={activeRequestCollection?.variables}
+                            vaultEntries={activeVaultEntries}
                             theme={theme}
                           />
                       </div>
@@ -2256,6 +2312,7 @@ const App: React.FC = () => {
                 keyPlaceholder="Variable Name"
                 valuePlaceholder="Current Value"
                 activeEnv={activeEnv}
+                vaultEntries={activeVaultEntries}
                 theme={theme}
               />
             </div>
@@ -2468,7 +2525,15 @@ const App: React.FC = () => {
                   } else if (confirmDelete.type === 'environment') {
                     const newEnvs = environments.filter(e => e.id !== confirmDelete.id)
                     setEnvironments(newEnvs)
-                    if (rpc) await rpc.saveEnvironments(newEnvs)
+                    if (rpc) {
+                      await rpc.saveEnvironments(newEnvs)
+                      await rpc.deleteVault({ envId: confirmDelete.id })
+                    }
+                    setVaults(prev => {
+                      const next = { ...prev }
+                      delete next[confirmDelete.id]
+                      return next
+                    })
                     if (activeEnvId === confirmDelete.id) setActiveEnvId(null)
                   }
 

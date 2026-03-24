@@ -12,6 +12,7 @@ interface Props {
   valuePlaceholder?: string
   activeEnv?: Environment | null
   collectionVariables?: any[]
+  vaultEntries?: any[]
   theme?: 'dark' | 'light'
 }
 
@@ -22,6 +23,7 @@ const KeyValueEditor: React.FC<Props> = ({
   valuePlaceholder = 'Value',
   activeEnv,
   collectionVariables,
+  vaultEntries,
   theme = 'dark',
 }) => {
   const update = (id: string, field: keyof KeyValuePair, value: string | boolean) => {
@@ -60,6 +62,7 @@ const KeyValueEditor: React.FC<Props> = ({
             onChange={(val) => update(pair.id, 'key', val)}
             activeEnv={activeEnv}
             collectionVariables={collectionVariables}
+            vaultEntries={vaultEntries}
             theme={theme}
           />
           <InterpolatedInput
@@ -69,6 +72,7 @@ const KeyValueEditor: React.FC<Props> = ({
             onChange={(val) => update(pair.id, 'value', val)}
             activeEnv={activeEnv}
             collectionVariables={collectionVariables}
+            vaultEntries={vaultEntries}
             theme={theme}
           />
           <button className="kv-delete" onClick={() => remove(pair.id)}>

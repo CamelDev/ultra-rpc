@@ -1,4 +1,4 @@
-import { RequestType } from './index'
+import { RequestType, VaultEntry } from './index'
 
 // Type declarations for the ultraRpc API exposed via preload
 export interface UltraRpcApi {
@@ -65,6 +65,11 @@ export interface UltraRpcApi {
   getEnvironments: () => Promise<{ success: boolean; environments?: any[]; error?: string }>
   saveEnvironments: (envs: any[]) => Promise<{ success: boolean; error?: string }>
   importEnvironment: () => Promise<{ success: boolean; environments?: any[]; error?: string }>
+
+  // Vault
+  getVault: (args: { envId: string }) => Promise<{ success: boolean; entries?: VaultEntry[]; error?: string }>
+  saveVault: (args: { envId: string; entries: VaultEntry[] }) => Promise<{ success: boolean; error?: string }>
+  deleteVault: (args: { envId: string }) => Promise<{ success: boolean; error?: string }>
 
   // Settings
   getSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>

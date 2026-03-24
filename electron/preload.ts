@@ -48,6 +48,11 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   saveEnvironments: (envs: any[]) => ipcRenderer.invoke('storage:saveEnvironments', envs),
   importEnvironment: () => ipcRenderer.invoke('storage:importEnvironment'),
 
+  // ===== Vault =====
+  getVault: (args: { envId: string }) => ipcRenderer.invoke('vault:get', args),
+  saveVault: (args: { envId: string; entries: any[] }) => ipcRenderer.invoke('vault:save', args),
+  deleteVault: (args: { envId: string }) => ipcRenderer.invoke('vault:delete', args),
+
   // ===== Settings =====
   getSettings: () => ipcRenderer.invoke('storage:getSettings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('storage:saveSettings', settings),

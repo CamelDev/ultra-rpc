@@ -6,6 +6,7 @@ import { createRequire } from 'module'
 import { registerRestHandlers } from './rest-handler'
 import { registerGrpcHandlers } from './grpc-handler'
 import { registerStorageHandlers } from './storage-handler'
+import { registerVaultHandlers } from './vault-handler'
 
 process.on('uncaughtException', (err) => {
   try {
@@ -120,6 +121,7 @@ try {
     registerRestHandlers()
     registerGrpcHandlers()
     registerStorageHandlers()
+    registerVaultHandlers()
 
     // Utils
     ipcMain.handle('app:openExternal', async (_, url: string) => {

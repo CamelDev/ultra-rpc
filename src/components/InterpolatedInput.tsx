@@ -8,6 +8,7 @@ interface Props {
   onChange: (value: string) => void
   activeEnv?: Environment | null
   collectionVariables?: any[]
+  vaultEntries?: any[]
   placeholder?: string
   className?: string
   multiline?: boolean
@@ -24,41 +25,43 @@ interface Props {
 const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedInput({
   value,
   onChange,
-  activeEnv,
-  collectionVariables,
-  placeholder,
-  className = '',
-  multiline = false,
-  highlightJson = false,
-  highlightJs = false,
-  wrapLines = true,
-  onKeyDown,
-  disabled = false,
-  theme = 'dark',
-  style,
-  enableSearch = false,
-}, ref) {
-  const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
-  
-  return (
-    <div className={`interpolated-input-container ${className}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', ...style }}>
-      <Editor
-        ref={ref}
-        value={value}
-        onChange={onChange}
-        language={language}
-        placeholder={placeholder}
-        readOnly={disabled}
-        singleLine={!multiline}
-        wrapLines={wrapLines}
-        activeEnv={activeEnv}
-        collectionVariables={collectionVariables}
-        onKeyDown={onKeyDown}
-        theme={theme}
-        enableSearch={enableSearch}
-      />
-    </div>
-  )
-})
+    activeEnv,
+    collectionVariables,
+    vaultEntries,
+    placeholder,
+    className = '',
+    multiline = false,
+    highlightJson = false,
+    highlightJs = false,
+    wrapLines = true,
+    onKeyDown,
+    disabled = false,
+    theme = 'dark',
+    style,
+    enableSearch = false,
+  }, ref) {
+    const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
+    
+    return (
+      <div className={`interpolated-input-container ${className}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', ...style }}>
+        <Editor
+          ref={ref}
+          value={value}
+          onChange={onChange}
+          language={language}
+          placeholder={placeholder}
+          readOnly={disabled}
+          singleLine={!multiline}
+          wrapLines={wrapLines}
+          activeEnv={activeEnv}
+          collectionVariables={collectionVariables}
+          vaultEntries={vaultEntries}
+          onKeyDown={onKeyDown}
+          theme={theme}
+          enableSearch={enableSearch}
+        />
+      </div>
+    )
+  })
 
 export default InterpolatedInput
