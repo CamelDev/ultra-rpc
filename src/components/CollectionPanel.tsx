@@ -24,7 +24,7 @@ import {
 import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
 import { useTreeOpenState } from '../hooks/useTreeOpenState'
 import './CollectionPanel.css'
-import type { Collection, RequestConfig, KeyValuePair } from '../types'
+import type { Collection, RequestConfig, KeyValuePair, Environment } from '../types'
 
 interface Props {
   collections: Collection[]
@@ -38,6 +38,7 @@ interface Props {
   onDeleteCollection: (id: string, name: string) => void
   onMoveCollection: (collectionId: string, currentPath?: string) => void
   onCloneCollection: (id: string) => void
+  onImportEnvironments?: (envs: Environment[], vaultEntries?: Record<string, { key: string; value: string }[]>) => void
 }
 
 // ─── Create Collection Modal ────────────────────────────────────────────────
@@ -350,6 +351,7 @@ const CollectionPanel: React.FC<Props> = ({
   onDeleteCollection,
   onMoveCollection,
   onCloneCollection,
+  onImportEnvironments,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
@@ -587,7 +589,12 @@ const CollectionPanel: React.FC<Props> = ({
   const importCollection = async () => {
     if (window.ultraRpc) {
       const result = await window.ultraRpc.importCollection()
-      if (result.success) onRefresh()
+      if (result.success) {
+        onRefresh()
+        if (result.environments?.length && onImportEnvironments) {
+          onImportEnvironments(result.environments, result.vaultEntries)
+        }
+      }
     }
   }
 

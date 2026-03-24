@@ -1,6 +1,9 @@
-import { ipcMain, dialog, app, shell } from 'electron'
+import { ipcMain, dialog, app, shell, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
+import { getVaultPath } from './vault-handler'
+import { VaultEntry } from '../src/types'
+import { parseBrunoCollection } from './bruno-importer'
 
 // Default storage root: user's home/.ultrarpc
 const getStorageRoot = () => {
@@ -432,8 +435,8 @@ export function registerStorageHandlers() {
 
         // The directory name is the source of truth for the collection name.
         // The ID is the slugified directory name to ensure valid paths and consistency.
-        const name = dirName
-        const id = dirName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+        let name = dirName
+        let id = dirName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 
         let meta: any = { variables: [] }
         if (fs.existsSync(metaPath)) {
@@ -442,10 +445,13 @@ export function registerStorageHandlers() {
           } catch { /* use defaults */ }
         }
 
-        // Clean up or backfill meta (we no longer store name, and ID should match dir slug)
+        // Favor name in meta if present (for imports/renames), fallback to dirname
+        name = meta.name || dirName
+        id = meta.id || dirName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+        // Clean up or backfill meta
         let changed = false
-        if (meta.name) { delete meta.name; changed = true }
-        if (meta.id !== id) { meta.id = id; changed = true }
+        if (!meta.id || meta.id !== id) { meta.id = id; changed = true }
         if (!meta.path) { meta.path = displayPath; changed = true }
 
         if (changed) {
@@ -689,20 +695,20 @@ export function registerStorageHandlers() {
       const collDir = getCollectionDir(args.collectionId)
       if (collDir && fs.existsSync(collDir)) {
         fs.rmSync(collDir, { recursive: true, force: true })
-        
+
         // If it was an external path, remove from settings
         const root = getStorageRoot()
         if (!collDir.startsWith(root)) {
-           const settingsPath = getSettingsPath()
-           if (fs.existsSync(settingsPath)) {
-              try {
-                const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
-                if (Array.isArray(settings.collectionPaths)) {
-                  settings.collectionPaths = settings.collectionPaths.filter((p: string) => p !== collDir)
-                  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
-                }
-              } catch { /* skip */ }
-           }
+          const settingsPath = getSettingsPath()
+          if (fs.existsSync(settingsPath)) {
+            try {
+              const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+              if (Array.isArray(settings.collectionPaths)) {
+                settings.collectionPaths = settings.collectionPaths.filter((p: string) => p !== collDir)
+                fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+              }
+            } catch { /* skip */ }
+          }
         }
       }
       return { success: true }
@@ -716,9 +722,9 @@ export function registerStorageHandlers() {
     try {
       const collDir = getCollectionDir(args.collectionId)
       if (!collDir) return { success: false, error: 'Collection not found' }
-      
+
       const folderPath = findFolderByIdRecursively(collDir, args.folderId)
-      
+
       if (folderPath && fs.existsSync(folderPath)) {
         fs.rmSync(folderPath, { recursive: true, force: true })
       }
@@ -749,7 +755,7 @@ export function registerStorageHandlers() {
       }
 
       fs.mkdirSync(folderPath, { recursive: true })
-      
+
       const folderId = Math.random().toString(36).substring(2, 11)
       const subMetaPath = path.join(folderPath, '_meta.json')
       fs.writeFileSync(
@@ -807,7 +813,7 @@ export function registerStorageHandlers() {
       if (!oldDir) {
         return { success: false, error: 'Collection not found' }
       }
-      
+
       const root = getStorageRoot()
       isExternal = !oldDir.startsWith(root)
 
@@ -868,11 +874,11 @@ export function registerStorageHandlers() {
 
       const parentDir = path.dirname(srcDir)
       const baseName = path.basename(srcDir)
-      
+
       let newName = `${baseName} Copy`
       let newSlug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
       let destDir = path.join(parentDir, newSlug)
-      
+
       let counter = 1
       while (fs.existsSync(destDir)) {
         newName = `${baseName} Copy ${counter}`
@@ -993,7 +999,7 @@ export function registerStorageHandlers() {
       // 4. Move the file/folder
       if (sourcePath !== newPath) {
         fs.renameSync(sourcePath, newPath)
-        
+
         // If it's a request, we might need to update its internal ID if it's a slug,
         // but currently we use the base filename as ID in many places.
         // Let's check if the ID needs update.
@@ -1034,10 +1040,10 @@ export function registerStorageHandlers() {
 
       const dir = path.dirname(sourcePath)
       const baseName = path.basename(sourcePath, '.json')
-      
+
       let newId = `${baseName}-copy`
       let newPath = path.join(dir, `${newId}.json`)
-      
+
       let counter = 1
       while (fs.existsSync(newPath)) {
         newId = `${baseName}-copy-${counter}`
@@ -1245,6 +1251,7 @@ export function registerStorageHandlers() {
       const result = await dialog.showOpenDialog({
         title: 'Import Collection',
         filters: [
+          { name: 'Bruno Collection', extensions: ['yml', 'yaml'] },
           { name: 'Postman Collection', extensions: ['postman_collection', 'json'] },
           { name: 'UltraRPC Collection', extensions: ['ultrarpc.json', 'json'] },
           { name: 'JSON Files', extensions: ['json'] },
@@ -1257,6 +1264,58 @@ export function registerStorageHandlers() {
       }
 
       const content = fs.readFileSync(result.filePaths[0], 'utf-8')
+
+      // ── Bruno opencollection format (YAML) ──────────────────────────────────
+      if (content.trimStart().startsWith('opencollection:')) {
+        const parsed = parseBrunoCollection(content)
+
+        if (parsed.children.length === 0) {
+          return { success: false, error: 'No valid requests found in file' }
+        }
+
+        const root = getStorageRoot()
+        const id = parsed.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
+        let finalId = id
+        let counter = 1
+        while (fs.existsSync(path.join(root, finalId))) {
+          finalId = `${id}-${counter++}`
+        }
+
+        const finalCollDir = path.join(root, finalId)
+        fs.mkdirSync(finalCollDir, { recursive: true })
+
+        fs.writeFileSync(
+          path.join(finalCollDir, '_meta.json'),
+          JSON.stringify({ id: finalId, name: parsed.name, variables: parsed.variables }, null, 2)
+        )
+
+        const saveItems = (folderPath: string, childrenToSave: CollectionItem[]) => {
+          for (const item of childrenToSave) {
+            if (item.type === 'folder' && item.children) {
+              const subDir = path.join(folderPath, item.name.replace(/[^a-z0-9 ]+/gi, '_'))
+              fs.mkdirSync(subDir, { recursive: true })
+              saveItems(subDir, item.children)
+            } else if (item.type === 'request' && item.request) {
+              fs.writeFileSync(
+                path.join(folderPath, `${item.request.id}.json`),
+                JSON.stringify(item.request, null, 2)
+              )
+            }
+          }
+        }
+        saveItems(finalCollDir, parsed.children)
+
+        return {
+          success: true,
+          id: finalId,
+          name: parsed.name,
+          requestCount: parsed.children.length,
+          environments: parsed.environments,
+          vaultEntries: parsed.vaultEntries,
+        }
+      }
+
+      // ── JSON-based formats (Postman / UltraRPC) ─────────────────────────────
       const data = JSON.parse(content)
 
       let collectionName = 'Imported Collection'
@@ -1484,12 +1543,73 @@ export function registerStorageHandlers() {
     }
   })
 
+  ipcMain.handle('storage:exportEnvironment', async (_event, { envId }: { envId: string }) => {
+    try {
+      const envPath = getEnvPath()
+      if (!fs.existsSync(envPath)) return { success: false, error: 'No environments found' }
+
+      const envs = JSON.parse(fs.readFileSync(envPath, 'utf-8'))
+      const env = envs.find((e: any) => e.id === envId)
+      if (!env) return { success: false, error: 'Environment not found' }
+
+      // Get vault entries
+      let vaultEntries: VaultEntry[] = []
+      const vPath = getVaultPath(envId)
+      if (fs.existsSync(vPath)) {
+        try {
+          const encrypted = fs.readFileSync(vPath)
+          if (safeStorage.isEncryptionAvailable()) {
+            const decrypted = safeStorage.decryptString(encrypted)
+            vaultEntries = JSON.parse(decrypted)
+          }
+        } catch (e) {
+          console.error('Failed to read vault for export:', e)
+        }
+      }
+
+      // Sanitize vault entries (clear values)
+      const sanitizedVault = vaultEntries.map(entry => ({
+        ...entry,
+        value: ''
+      }))
+
+      // Prepare export data
+      const exportData = {
+        _ultrarpc_environment_export: true,
+        version: 1,
+        name: env.name,
+        variables: env.variables,
+        vault: sanitizedVault,
+        sslVerification: env.sslVerification,
+        protocol: env.protocol
+      }
+
+      const result = await dialog.showSaveDialog({
+        title: 'Export UltraRPC Environment',
+        defaultPath: `${env.name.replace(/[^a-z0-9]/gi, '_')}.json`,
+        filters: [
+          { name: 'UltraRPC Environment', extensions: ['json'] }
+        ]
+      })
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, error: 'Cancelled' }
+      }
+
+      fs.writeFileSync(result.filePath, JSON.stringify(exportData, null, 2))
+      return { success: true, path: result.filePath }
+    } catch (err: any) {
+      console.error('Export Environment Error:', err)
+      return { success: false, error: err.message }
+    }
+  })
+
   ipcMain.handle('storage:importEnvironment', async () => {
     try {
       const result = await dialog.showOpenDialog({
-        title: 'Import Postman Environment',
+        title: 'Import Environment',
         filters: [
-          { name: 'Postman Environment', extensions: ['json'] },
+          { name: 'Environment', extensions: ['json'] },
         ],
         properties: ['openFile'],
       })

@@ -1,0 +1,63 @@
+opencollection: 1.0.0
+info:
+  name: Bruno REST Test
+config:
+  environments:
+    - name: Test Env
+      variables:
+        - name: BASE_URL
+          value: http://127.0.0.1:3341
+        - name: SECRET_KEY
+          secret: true
+items:
+  - info:
+      name: Auth
+      type: folder
+      seq: 1
+    request:
+      auth: inherit
+    items:
+      - info:
+          name: Get Data
+          type: http
+          seq: 1
+        http:
+          method: GET
+          url: '{{BASE_URL}}/data'
+          headers:
+            - name: X-Test
+              value: bruno-import
+              disabled: false
+        settings:
+          encodeUrl: true
+          timeout: 5000
+          followRedirects: true
+          maxRedirects: 5
+        runtime:
+          scripts:
+            - type: after-response
+              code: |-
+                bru.setVar("lastStatus", res.getStatus());
+                console.log("status:", res.getStatus());
+      - info:
+          name: Echo Post
+          type: http
+          seq: 2
+        http:
+          method: POST
+          url: '{{BASE_URL}}/echo'
+          headers:
+            - name: Content-Type
+              value: application/json
+              disabled: false
+          body:
+            type: json
+            data: |-
+              {
+                "hello": "world"
+              }
+        settings:
+          encodeUrl: true
+          timeout: 0
+          followRedirects: true
+          maxRedirects: 5

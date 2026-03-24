@@ -47,8 +47,25 @@ export interface UltraRpcApi {
   reorderRequests: (args: { collectionId: string; order: string[] }) => Promise<{ success: boolean; error?: string }>
   moveItem: (args: { collectionId: string; itemId: string; targetCollectionId?: string; targetParentId: string | null; newIndex: number }) => Promise<{ success: boolean; error?: string }>
   exportCollection: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
-  importCollection: () => Promise<{ success: boolean; id?: string; name?: string; requestCount?: number; error?: string }>
-  openFolder: () => Promise<{ success: boolean; id?: string; name?: string; requestCount?: number; path?: string; error?: string }>
+  importCollection: () => Promise<{ 
+    success: boolean; 
+    id?: string; 
+    name?: string; 
+    requestCount?: number; 
+    environments?: any[]; 
+    vaultEntries?: Record<string, any[]>; 
+    error?: string 
+  }>
+  openFolder: () => Promise<{ 
+    success: boolean; 
+    id?: string; 
+    name?: string; 
+    requestCount?: number; 
+    path?: string; 
+    environments?: any[]; 
+    vaultEntries?: Record<string, any[]>; 
+    error?: string 
+  }>
   getCollectionPath: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   showCollectionInFolder: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
   moveCollection: (args: { collectionId: string; currentPath?: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
@@ -65,6 +82,7 @@ export interface UltraRpcApi {
   getEnvironments: () => Promise<{ success: boolean; environments?: any[]; error?: string }>
   saveEnvironments: (envs: any[]) => Promise<{ success: boolean; error?: string }>
   importEnvironment: () => Promise<{ success: boolean; environments?: any[]; error?: string }>
+  exportEnvironment: (args: { envId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
 
   // Vault
   getVault: (args: { envId: string }) => Promise<{ success: boolean; entries?: VaultEntry[]; error?: string }>

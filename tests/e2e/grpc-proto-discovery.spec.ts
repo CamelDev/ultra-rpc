@@ -37,7 +37,7 @@ test('Should discover services via Proto File in modal and sync URL', async () =
 
   console.log('Changing Host in Modal...');
   // Ensure we target the input INSIDE the modal specifically
-  const modalHostInput = modal.locator('input.address-input');
+  const modalHostInput = modal.locator('.address-input .cm-content');
   await modalHostInput.click();
   await modalHostInput.fill('acme-corp.test:8443');
 

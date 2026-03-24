@@ -3,13 +3,13 @@ import fs from 'fs'
 import path from 'path'
 import { VaultEntry } from '../src/types'
 
-const getVaultDir = () => {
+export const getVaultDir = () => {
   const dir = path.join(app.getPath('userData'), 'vaults')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
   return dir
 }
 
-const getVaultPath = (envId: string) =>
+export const getVaultPath = (envId: string) =>
   path.join(getVaultDir(), `${envId}.vault`)
 
 export function registerVaultHandlers() {

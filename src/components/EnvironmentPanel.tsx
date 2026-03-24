@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe, Check, Lock } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe, Check, Lock, Download } from 'lucide-react'
 import type { Environment, KeyValuePair, VaultEntry } from '../types'
 import { emptyKV } from '../lib/helpers'
 import './EnvironmentPanel.css'
@@ -15,15 +15,15 @@ interface Props {
   onVaultChange: (envId: string, entries: VaultEntry[]) => void
 }
 
-const EnvironmentPanel: React.FC<Props> = ({ 
-  environments, 
+const EnvironmentPanel: React.FC<Props> = ({
+  environments,
   activeEnvId,
   onSetActive,
-  onChange, 
-  onDeleteRequest, 
-  onApplyToAllTabs, 
-  vaults, 
-  onVaultChange 
+  onChange,
+  onDeleteRequest,
+  onApplyToAllTabs,
+  vaults,
+  onVaultChange
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState<string | null>(null)
@@ -42,6 +42,15 @@ const EnvironmentPanel: React.FC<Props> = ({
       }
     } else if (result.error && result.error !== 'Cancelled') {
       alert(`Import failed: ${result.error}`)
+    }
+  }
+
+  const handleExport = async (envId: string) => {
+    const result = await window.ultraRpc.exportEnvironment({ envId })
+    if (result.success) {
+      console.log('Environment exported:', result.path)
+    } else if (result.error && result.error !== 'Cancelled') {
+      alert(`Export failed: ${result.error}`)
     }
   }
 
@@ -133,7 +142,7 @@ const EnvironmentPanel: React.FC<Props> = ({
       <div className="env-panel-header">
         <span className="env-panel-title">Environments</span>
         <div className="env-panel-actions">
-          <button className="btn-ghost env-action-btn" onClick={handleImport} data-tooltip="Import Postman Environment">
+          <button className="btn-ghost env-action-btn" onClick={handleImport} data-tooltip="Import Environment">
             <FileUp size={14} />
           </button>
           <button className="btn-ghost env-action-btn" onClick={addEnvironment} data-tooltip="Add Environment">
@@ -149,8 +158,8 @@ const EnvironmentPanel: React.FC<Props> = ({
       )}
 
       {environments.map(env => (
-        <div 
-          className={`env-item ${activeEnvId === env.id ? 'active' : ''} ${expandedId === env.id ? 'expanded' : ''}`} 
+        <div
+          className={`env-item ${activeEnvId === env.id ? 'active' : ''} ${expandedId === env.id ? 'expanded' : ''}`}
           key={env.id}
           onContextMenu={(e) => {
             e.preventDefault()
@@ -194,6 +203,10 @@ const EnvironmentPanel: React.FC<Props> = ({
                 <Globe size={13} />
               </button>
 
+              <button className="btn-ghost env-action" data-tooltip="Export UltraRPC Environment" data-tooltip-pos="top" onClick={() => handleExport(env.id)}>
+                <Download size={13} />
+              </button>
+
               <button className="btn-ghost env-action env-delete" data-tooltip="Delete Environment" data-tooltip-pos="top" onClick={() => onDeleteRequest(env.id, env.name)}>
                 <Trash2 size={13} />
               </button>
@@ -230,8 +243,8 @@ const EnvironmentPanel: React.FC<Props> = ({
               </div>
 
               {env.variables.map(v => (
-                <div 
-                  className={['env-var-row', !v.enabled ? 'env-var-row-disabled' : ''].filter(Boolean).join(' ')} 
+                <div
+                  className={['env-var-row', !v.enabled ? 'env-var-row-disabled' : ''].filter(Boolean).join(' ')}
                   key={v.id}
                 >
                   <button
@@ -267,8 +280,8 @@ const EnvironmentPanel: React.FC<Props> = ({
 
               {/* Vault Section */}
               <div className="vault-section">
-                <div 
-                  className="vault-header" 
+                <div
+                  className="vault-header"
                   onClick={() => setVaultExpanded(prev => ({ ...prev, [env.id]: !prev[env.id] }))}
                 >
                   <div className="vault-header-left">
@@ -301,10 +314,10 @@ const EnvironmentPanel: React.FC<Props> = ({
                           value={v.value}
                           onChange={e => updateVaultEntry(env.id, v.id, 'value', e.target.value)}
                         />
-                        <button 
-                          className="env-var-delete" 
-                          data-tooltip="Remove Secret" 
-                          data-tooltip-pos="left" 
+                        <button
+                          className="env-var-delete"
+                          data-tooltip="Remove Secret"
+                          data-tooltip-pos="left"
                           onClick={() => deleteVaultEntry(env.id, v.id)}
                         >
                           <Trash2 size={12} />
