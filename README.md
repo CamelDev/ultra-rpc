@@ -14,7 +14,7 @@
 ## 🎯 Overview
 
 <p align="center">
-  <img src="public/screenshots/screenshot.png" alt="UltraRPC App Screenshot" width="800" />
+  <img src="public/screenshots/screenshot.png" width="400" alt="UltraRPC App Screenshot" width="800" />
 </p>
 
 
@@ -249,9 +249,6 @@ bun run package:linux
 ```
 - **Output**: `release/UltraRPC-1.0.0.AppImage`
 
----
-
-![Tests Status](https://github.com/<your-username>/UltraRPC/actions/workflows/tests.yml/badge.svg)
 
 ---
 
