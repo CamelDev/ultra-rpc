@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ipcMain } from 'electron'
 import * as grpc from '@grpc/grpc-js'
 import * as protoLoader from '@grpc/proto-loader'
@@ -11,9 +10,7 @@ import os from 'os'
 let protobufInstance: any = null
 function getProtobuf() {
   if (protobufInstance) return protobufInstance
-  // @ts-expect-error
   protobufInstance = globalThis.require('protobufjs')
-  // @ts-expect-error
   globalThis.require('protobufjs/ext/descriptor')
   return protobufInstance
 }
