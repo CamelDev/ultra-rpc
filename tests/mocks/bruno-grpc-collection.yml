@@ -1,0 +1,29 @@
+opencollection: 1.0.0
+info:
+  name: Bruno gRPC Test
+config: {}
+items:
+  - info:
+      name: SayHello
+      type: grpc
+      seq: 1
+    grpc:
+      url: 'localhost:50051'
+      method: /test.GreetingService/SayHello
+      methodType: unary
+      metadata:
+        - name: Authorization
+          value: Bearer token123
+      message: |-
+        {
+          "name": "world"
+        }
+      auth: inherit
+    settings:
+      timeout: 10000
+    runtime:
+      scripts:
+        - type: after-response
+          code: |-
+            const body = res.getBody();
+            bru.setVar("lastGreeting", body.message);

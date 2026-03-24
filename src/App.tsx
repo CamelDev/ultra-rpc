@@ -453,6 +453,25 @@ const App: React.FC = () => {
     if (window.ultraRpc) window.ultraRpc.saveEnvironments(envs)
   }, [setEnvironments])
 
+  const handleImportEnvironments = useCallback((envs: Environment[], vaultEntries?: Record<string, { key: string; value: string }[]>) => {
+    setEnvironments(prev => {
+      const merged = [...prev, ...envs]
+      if (window.ultraRpc) window.ultraRpc.saveEnvironments(merged)
+      return merged
+    })
+    if (vaultEntries && window.ultraRpc) {
+      for (const [envId, entries] of Object.entries(vaultEntries)) {
+        const vaultItems = entries.map((e: { key: string; value: string }) => ({
+          id: Math.random().toString(36).substring(2, 11),
+          key: e.key,
+          value: e.value,
+        }))
+        setVaults(prev => ({ ...prev, [envId]: vaultItems }))
+        window.ultraRpc.saveVault({ envId, entries: vaultItems })
+      }
+    }
+  }, [setEnvironments])
+
   const handleVaultChange = useCallback(async (envId: string, entries: VaultEntry[]) => {
     setVaults(prev => ({ ...prev, [envId]: entries }))
     if (window.ultraRpc) await window.ultraRpc.saveVault({ envId, entries })
@@ -1653,6 +1672,7 @@ const App: React.FC = () => {
             onMoveCollection={handleMoveCollection}
             onCloneCollection={handleCloneCollection}
             onCloneRequest={handleCloneRequest}
+            onImportEnvironments={handleImportEnvironments}
           />
         </nav>
 

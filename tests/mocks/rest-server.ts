@@ -32,11 +32,15 @@ export class MockRestServer {
           return;
         }
 
-        if (req.url === '/headers') {
+        if (req.url?.startsWith('/headers')) {
+          const url = new URL(req.url, `http://${req.headers.host}`);
           res.writeHead(200, { 'Content-Type': 'application/json' });
+          const query: any = {};
+          url.searchParams.forEach((v, k) => query[k] = v);
           res.end(JSON.stringify({
             headers: req.headers,
-            method: req.method
+            method: req.method,
+            query
           }));
           return;
         }
