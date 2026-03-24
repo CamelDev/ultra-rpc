@@ -13,6 +13,7 @@ interface Props {
   onSetActive: (id: string | null) => void
   vaults: Record<string, VaultEntry[]>
   onVaultChange: (envId: string, entries: VaultEntry[]) => void
+  vaultAvailable: boolean
 }
 
 const EnvironmentPanel: React.FC<Props> = ({
@@ -23,7 +24,8 @@ const EnvironmentPanel: React.FC<Props> = ({
   onDeleteRequest,
   onApplyToAllTabs,
   vaults,
-  onVaultChange
+  onVaultChange,
+  vaultAvailable
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState<string | null>(null)
@@ -294,6 +296,13 @@ const EnvironmentPanel: React.FC<Props> = ({
                     className={`env-chevron ${vaultExpanded[env.id] ? 'env-chevron-open' : ''}`}
                   />
                 </div>
+                
+                {vaultExpanded[env.id] && !vaultAvailable && (
+                  <div className="vault-unavailable-warning">
+                    <ShieldOff size={14} />
+                    <span>Vault is disabled because encryption is unavailable on this system (access denied or not supported).</span>
+                  </div>
+                )}
 
                 {vaultExpanded[env.id] && (
                   <div className="vault-content">
@@ -304,6 +313,7 @@ const EnvironmentPanel: React.FC<Props> = ({
                           placeholder="SECRET_KEY"
                           value={v.key}
                           onChange={e => updateVaultEntry(env.id, v.id, 'key', e.target.value)}
+                          disabled={!vaultAvailable}
                         />
                         <input
                           className="env-var-input vault-value"
@@ -313,18 +323,24 @@ const EnvironmentPanel: React.FC<Props> = ({
                           spellCheck={false}
                           value={v.value}
                           onChange={e => updateVaultEntry(env.id, v.id, 'value', e.target.value)}
+                          disabled={!vaultAvailable}
                         />
                         <button
                           className="env-var-delete"
                           data-tooltip="Remove Secret"
                           data-tooltip-pos="left"
                           onClick={() => deleteVaultEntry(env.id, v.id)}
+                          disabled={!vaultAvailable}
                         >
                           <Trash2 size={12} />
                         </button>
                       </div>
                     ))}
-                    <button className="kv-add vault-add" onClick={() => addVaultEntry(env.id)}>
+                    <button 
+                      className="kv-add vault-add" 
+                      onClick={() => addVaultEntry(env.id)}
+                      disabled={!vaultAvailable}
+                    >
                       <Plus size={14} /> Add secret
                     </button>
                   </div>

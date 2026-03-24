@@ -127,6 +127,7 @@ const App: React.FC = () => {
   const [vaults, setVaults] = useState<Record<string, VaultEntry[]>>({})
   const vaultsRef = useRef(vaults)
   useEffect(() => { vaultsRef.current = vaults }, [vaults])
+  const [vaultAvailable, setVaultAvailable] = useState(true)
 
   // ===== Settings & Theme =====
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
@@ -494,6 +495,9 @@ const App: React.FC = () => {
         }
       }
     })
+    window.ultraRpc.checkVaultAvailability().then(available => {
+      setVaultAvailable(available)
+    })
     loadCollections()
     loadHistory()
   }, [loadHistory, loadCollections])
@@ -561,7 +565,7 @@ const App: React.FC = () => {
     ))
   }, [activeTabId])
 
-  const applyEnvToAllTabs = useCallback((envId: string) => {
+  const applyEnvToAllTabs = useCallback((envId: string | null) => {
     setTabs(prev => prev.map(t => ({
       ...t,
       envId
@@ -1634,13 +1638,14 @@ const App: React.FC = () => {
             <div className="sidebar-env-content no-scrollbar">
                 <EnvironmentPanel 
                   environments={environments}
-                  activeEnvId={activeEnvId}
-                  onSetActive={setActiveEnvId}
+                  activeEnvId={(activeTab?.envId || activeEnvId)}
+                  onSetActive={applyEnvToAllTabs}
                   onChange={handleEnvChange}
-                  onDeleteRequest={(id: string, name: string) => setConfirmDelete({ type: 'environment', id, name })}
+                  onDeleteRequest={(id, name) => setConfirmDelete({ type: 'environment', id, name })}
                   onApplyToAllTabs={applyEnvToAllTabs}
                   vaults={vaults}
                   onVaultChange={handleVaultChange}
+                  vaultAvailable={vaultAvailable}
                 />
             </div>
           </div>

@@ -346,6 +346,14 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
           <img src="public/screenshots/windows-protection.png" alt="More info - Run Anyway" width="300" />
     </p>
 
+### 🪟 Vault access
+
+The first time you try to access the vault, you will be prompted to grant access to the secure storage. You can chose either **Always Allow**, **Allow** or **Deny**. If you choose **Deny**, you will not be able to access the vault.
+
+    <p align="center">
+      <img src="public/screenshots/mac-vault-access.png" alt="Safe storage access prompt on MacOS" width="300">
+    </p>
+
 ---
 
 ## 🗺 Roadmap

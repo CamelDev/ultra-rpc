@@ -85,6 +85,7 @@ export interface UltraRpcApi {
   exportEnvironment: (args: { envId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
 
   // Vault
+  checkVaultAvailability: () => Promise<boolean>
   getVault: (args: { envId: string }) => Promise<{ success: boolean; entries?: VaultEntry[]; error?: string }>
   saveVault: (args: { envId: string; entries: VaultEntry[] }) => Promise<{ success: boolean; error?: string }>
   deleteVault: (args: { envId: string }) => Promise<{ success: boolean; error?: string }>

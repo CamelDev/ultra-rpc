@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   exportEnvironment: (args: { envId: string }) => ipcRenderer.invoke('storage:exportEnvironment', args),
 
   // ===== Vault =====
+  checkVaultAvailability: () => ipcRenderer.invoke('vault:check-availability'),
   getVault: (args: { envId: string }) => ipcRenderer.invoke('vault:get', args),
   saveVault: (args: { envId: string; entries: any[] }) => ipcRenderer.invoke('vault:save', args),
   deleteVault: (args: { envId: string }) => ipcRenderer.invoke('vault:delete', args),

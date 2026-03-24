@@ -13,8 +13,16 @@ export const getVaultPath = (envId: string) =>
   path.join(getVaultDir(), `${envId}.vault`)
 
 export function registerVaultHandlers() {
+  ipcMain.handle('vault:check-availability', () => {
+    if (process.env.MOCK_VAULT_UNAVAILABLE === 'true') return false
+    return safeStorage.isEncryptionAvailable()
+  })
+
   ipcMain.handle('vault:get', async (_, { envId }: { envId: string }) => {
     try {
+      if (process.env.MOCK_VAULT_UNAVAILABLE === 'true') {
+        throw new Error('Encryption is not available on this system (MOCK)')
+      }
       const filePath = getVaultPath(envId)
       if (!fs.existsSync(filePath)) {
         return { success: true, entries: [] }
@@ -38,6 +46,9 @@ export function registerVaultHandlers() {
 
   ipcMain.handle('vault:save', async (_, { envId, entries }: { envId: string; entries: VaultEntry[] }) => {
     try {
+      if (process.env.MOCK_VAULT_UNAVAILABLE === 'true') {
+        throw new Error('Encryption is not available on this system (MOCK)')
+      }
       const filePath = getVaultPath(envId)
       
       if (!safeStorage.isEncryptionAvailable()) {
