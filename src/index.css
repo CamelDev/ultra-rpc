@@ -342,7 +342,7 @@ input:focus, select:focus, textarea:focus {
 .request-top-pane {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
   overflow-x: hidden;
   padding: 24px 24px 0 24px;
   min-height: 200px;
@@ -389,6 +389,7 @@ input:focus, select:focus, textarea:focus {
   max-width: 1100px;
   margin: 0 auto;
   width: 100%;
+  height: 100%;
 }
 
 .h-resizer {
@@ -680,12 +681,16 @@ input:focus, select:focus, textarea:focus {
 
 /* ===== Config Content ===== */
 .config-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   min-height: 100px;
   padding: 12px 0;
 }
 
 /* ===== Body Editor ===== */
 .body-editor {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -711,8 +716,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .body-textarea {
-  min-height: 280px;
-  resize: vertical;
+  flex: 1;
+  min-height: 150px;
   border-radius: 8px;
 }
 

@@ -41,7 +41,7 @@ const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedI
   const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
   
   return (
-    <div className={`interpolated-input-container ${className}`} style={style}>
+    <div className={`interpolated-input-container ${className}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', ...style }}>
       <Editor
         ref={ref}
         value={value}

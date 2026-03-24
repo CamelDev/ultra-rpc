@@ -1880,7 +1880,7 @@ const App: React.FC = () => {
               </div>
 
               {/* ==== Scrollable Config Content ==== */}
-                <div className="request-pane-content no-scrollbar" style={{ display: 'flex', flexDirection: 'column' }}>
+                <div className="request-pane-content" style={{ display: 'flex', flexDirection: 'column' }}>
                   {/* gRPC discovery in a modal */}
                   {activeRequest.type === 'GRPC' && showGrpcDiscovery && (
                     <div className="modal-overlay" onClick={() => setShowGrpcDiscovery(false)}>
