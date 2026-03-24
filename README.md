@@ -106,11 +106,13 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ### 📁 Collections & Variables
 - **File-based storage** — each collection is a folder, each request is a `.json` file
+- **Native Recursive Folders** — support for deeply nested folder structures with drag-and-drop reordering and context menu management (Rename/Delete/New Folder).
 - **Collection-Level Variables** — define variables scoped specifically to a collection
-- **Hierarchical Resolution** — Variables are resolved with priority: `Collection > Environment`
+- **Hierarchical Resolution** — Variables are resolved with priority: `Vault > Collection > Environment`
 - **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging", with automatic inheritance for new tabs. This selection is **session-only** and does not trigger unsaved change warnings.
 - **Selective Variable Enabling** — Checkboxes in the Environment Panel allow you to selectively disable variables during interpolation.
-- **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are flattened, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
+- **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are preserved, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
+- **Bruno Import** — Import `.yml` or `.json` Bruno collections. Supports multi-protocol requests (REST + gRPC), automatic script conversion (`bru.*` -> `ultra.*`), and extracts environment variables and secret vault entries.
 - **Secrets Vault (Encrypted)**: Store sensitive keys (e.g., `STRIPE_KEY`, `SESSION_TOKEN`) in a per-environment vault.
     - **Native Encryption**: Uses Electron's `safeStorage` (Keychain on macOS, DPAPI on Windows) to encrypt data at rest.
     - **Isolation**: Vault files are stored separately from collections and are excluded from all exports.
@@ -362,15 +364,11 @@ When you run the installer, Windows SmartScreen may show a "Windows protected yo
 - [ ] **Metadata (Headers) Helpers** (Dedicated UI for common gRPC metadata)
 
 ### 📁 Collections & Management
-- [ ] Bruno Import
 - [ ] **Collection Runner** (Sequence execution with summary reports)
 
 ### 🤖 Scripting & Variables
-- [ ] **Global Variables** (Variables available across all environments)
-- [x] **Secret Management** (Masked variable values and vault storage)
 - [ ] **Script Library** (Reusable global script snippets and complex post-response logic)
 - [ ] **Visual Test Results** (Dedicated UI for assertion summaries)
-- [ ] **Chai-like Assertions** (`ultra.expect(...).to...` for more expressive testing)
 - [ ] **Built-in JS Libraries** (CryptoJS for HMAC/SHA signing, ajv for JSON Schema)
 - [ ] **Dynamic Variables** (Support for `{{$guid}}`, `{{$timestamp}}`, and `{{$randomInt}}`)
 - [ ] **Local Variables** (`ultra.variables` for temporary request-level context)

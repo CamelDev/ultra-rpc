@@ -16,57 +16,58 @@ Playwright is our primary tool for testing the Electron application, verifying U
 ### Core Feature Automation Checklist
 
 #### Workspace & UI State
-- [x] Tab persistence across application restarts (`Tab Persistence & Active Tab Restoration`)
-- [x] Active tab restoration (`Tab Persistence & Active Tab Restoration`)
-- [x] Unsaved changes (dirty state) tracking and prompt (`Unsaved Changes (Dirty State) Prompt`)
-- [x] Two-column vs Three-column layout switching (`Layout Switching & Persistence`)
-- [x] Dark/Light theme switching and persistence (`Theme Switching & Persistence`)
-- [x] Config tab persistence per request tab (`Should persist active config tab per request tab`)
-- [x] JSON body auto-formatting with variable support (`JSON Formatting with Variables`)
+- [x] Tab persistence across application restarts (`workspace-ui.spec.ts`)
+- [x] Active tab restoration (`workspace-ui.spec.ts`)
+- [x] Unsaved changes (dirty state) tracking and prompt (`workspace-ui.spec.ts`)
+- [x] Two-column vs Three-column layout switching (`workspace-ui.spec.ts`)
+- [x] Dark/Light theme switching and persistence (`workspace-ui.spec.ts`)
+- [x] Config tab persistence per request tab (`config-tab-persistence.spec.ts`)
+- [x] JSON body auto-formatting with variable support (`json-format.spec.ts`)
 
 #### REST Client
-- [x] Request Timeout (Configurable per-request timeouts) `timeout.spec.ts`
-- [x] Simple GET request execution (`Should hit local REST mock server and get response`)
-- [x] POST request with JSON body and syntax highlighting (`should create, save, run and delete a REST request`)
-- [x] Headers & Query Parameters handling (`should create, save, run and delete a REST request`)
-- [x] Method switching logic (`Should correctly switch between HTTP methods`)
-- [x] Response display (`Should hit local REST mock server and get response`)
+- [x] Request Timeout (Configurable per-request timeouts) (`timeout.spec.ts`)
+- [x] Simple GET request execution (`rest-flow.spec.ts`)
+- [x] POST request with JSON body and syntax highlighting (`rest-flow.spec.ts`)
+- [x] Headers & Query Parameters handling (`rest-flow.spec.ts`)
+- [x] Method switching logic (`mock-rest.spec.ts`)
+- [x] Response display (`rest-flow.spec.ts`)
 
 #### gRPC Client
-- [x] Client-side Server Reflection (`Should discover services via reflection and generate payload`)
-- [x] Unary call execution (`Should discover services via reflection and generate payload`)
-- [x] Server Streaming response accumulation and display (`Should handle server streaming and accumulate responses`)
-- [x] Rich error decoding (`Should decode rich gRPC error details (grpc-status-details-bin)`)
-- [x] One-click request payload generation (`Should discover services via reflection and generate payload`)
-- [x] Local `.proto` file discovery and field syncing (`Should discover services via proto file and sync URL`)
+- [x] Client-side Server Reflection (`mock-grpc.spec.ts`)
+- [x] Unary call execution (`mock-grpc.spec.ts`)
+- [x] Server Streaming response accumulation and display (`mock-grpc.spec.ts`)
+- [x] Rich error decoding (`mock-grpc.spec.ts`)
+- [x] One-click request payload generation (`mock-grpc.spec.ts`)
+- [x] Local `.proto` file discovery and field syncing (`grpc-proto-discovery.spec.ts`)
 
 #### Collection Management
-- [x] Create new collection (`should perform full collection management lifecycle`)
-- [x] Save request to collection via modal (`should perform full collection management lifecycle`)
-- [x] Delete request from collection tree (`should perform full collection management lifecycle`)
-- [x] Collection renaming and cloning (`should perform full collection management lifecycle`)
-- [x] Folder creation and drag-and-drop reordering (`should perform full collection management lifecycle`)
-- [x] Collection-level variable editing and persistence (`should perform full collection management lifecycle`)
-- [x] Postman Collection v2.1 Import (`should perform full collection management lifecycle`)
-- [x] Collection tree search and filtering (`should filter tree based on search input`)
-- [x] Request renaming during save flow (`should allow renaming request during save to collection`)
+- [x] Create new collection (`collection-management.spec.ts`)
+- [x] Save request to collection via modal (`collection-management.spec.ts`)
+- [x] Delete request from collection tree (`collection-management.spec.ts`)
+- [x] Collection renaming and cloning (`collection-management.spec.ts`)
+- [x] Folder creation and drag-and-drop reordering (`folder-support.spec.ts` & `collection-management.spec.ts`)
+- [x] Collection-level variable editing and persistence (`collection-management.spec.ts`)
+- [x] Postman Collection v2.1 Import (`collection-management.spec.ts`)
+- [x] Bruno Collection Import (`bruno-import.spec.ts`)
+- [x] Collection tree search and filtering (`collection-search.spec.ts`)
+- [x] Request renaming during save flow (`save-modal-name.spec.ts`)
 
 #### Environment & Variable Resolution
-- [x] Global active environment switching (`Should handle environment variables, SSL toggle, and persistence`)
-- [x] Per-tab environment assignment (`Should handle environment variables, SSL toggle, and persistence`)
-- [x] Apply environment to all tabs (`Apply to all tabs should propagate environment to every open tab`)
-- [x] Variable interpolation (`Should handle environment variables, SSL toggle, and persistence`)
-- [x] SSL/TLS verification toggle (`Should handle environment variables, SSL toggle, and persistence`)
-- [x] Postman Environment Import (`Should import a Postman environment successfully`)
-- [x] Workspace state saved (`Should handle environment variables, SSL toggle, and persistence`)
-- [x] Selective Variable Enabling (`Should allow enabling/disabling variables via checkboxes`)
+- [x] Global active environment switching (`environment-workspace.spec.ts`)
+- [x] Per-tab environment assignment (`environment-workspace.spec.ts`)
+- [x] Apply environment to all tabs (`environment-propagation.spec.ts`)
+- [x] Variable interpolation (`environment-workspace.spec.ts`)
+- [x] SSL/TLS verification toggle (`environment-workspace.spec.ts`)
+- [x] Postman Environment Import (`environment-workspace.spec.ts`)
+- [x] Workspace state saved (`environment-workspace.spec.ts`)
+- [x] Selective Variable Enabling (`environment-workspace.spec.ts`)
 
 #### Scripting & Automation
-- [x] Pre-request script execution (`Pre-request script should inject value into environment and URL`)
-- [x] Post-response script execution (`Post-response script should extract value and run assertions`)
-- [x] `ultra` object API verification (`ultra.sendRequest and ultra.globals work together correctly`)
-- [x] Script console log capturing and display (`Pre-request script should inject value into environment and URL`)
-- [x] Persistent Global variables (`ultra.sendRequest and ultra.globals work together correctly`)
+- [x] Pre-request script execution (`scripting-automation.spec.ts`)
+- [x] Post-response script execution (`scripting-automation.spec.ts`)
+- [x] `ultra` object API verification (`scripting-ultra.spec.ts`)
+- [x] Script console log capturing and display (`scripting-automation.spec.ts`)
+- [x] Persistent Global variables (`scripting-ultra.spec.ts`)
 
 ---
 
@@ -88,10 +89,11 @@ We intend to use Vitest for fast, isolated testing of individual React component
 | Core REST Flow | ✅ Automated (`rest-flow.spec.ts`) |
 | Workspace & UI Suite | ✅ Automated (`workspace-ui.spec.ts`) |
 | gRPC Unary Suite | ✅ Automated (`mock-grpc.spec.ts`) |
-| gRPC Advanced Suite (Reflection/Streaming/Error) | ✅ Automated (`mock-grpc.spec.ts`) |
+| gRPC Advanced Suite (Reflection/Streaming/Error) | ✅ Automated (`mock-grpc.spec.ts`, `grpc-proto-discovery.spec.ts`) |
 | Scripting Sandbox Tests | ✅ Automated (`scripting-automation.spec.ts`) |
 | Ultra Scripting Suite | ✅ Automated (`scripting-ultra.spec.ts`) |
-| Collection Management Suite | ✅ Automated (`collection-management.spec.ts`) |
+| Collection Management Suite | ✅ Automated (`collection-management.spec.ts`, `folder-support.spec.ts`, `bruno-import.spec.ts`) |
+| Environment & Variable Suite | ✅ Automated (`environment-workspace.spec.ts`, `environment-propagation.spec.ts`) |
 
 ---
 
@@ -130,23 +132,40 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Console Logging**: Verified that `console.log` output from scripts is captured with timestamps and displayed in the UI.
 
 #### 5. UI & Workspace Sophistication
-...
-...
-- **Location**: [`tests/e2e/config-tab-persistence.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/config-tab-persistence.spec.ts), [`tests/e2e/json-format.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/json-format.spec.ts)
+- **Location**: [`tests/e2e/workspace-ui.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/workspace-ui.spec.ts), [`tests/e2e/config-tab-persistence.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/config-tab-persistence.spec.ts), [`tests/e2e/json-format.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/json-format.spec.ts)
 - **Scenarios**:
     - **Tab Persistence**: Verified that each tab maintains its own active config section (e.g., Tab A is on "Headers" while Tab B is on "Body") and this state is restored after application restart.
     - **Smart Formatting**: Verified that the JSON "Format" button handles unquoted template variables `{{like_this}}` correctly, preserving the template syntax while beautifying the surrounding JSON.
+    - **Dirty State**: Verified that modifying a request marks the tab as dirty (`*`) and triggers a confirmation dialog when attempting to close without saving.
+    - **Theme & Layout**: Verified that light/dark theme and two/three-column layout settings are persisted across restarts.
 
 #### 6. Search & Discovery
-- **Location**: [`tests/e2e/collection-search.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/collection-search.spec.ts), [`tests/e2e/grpc-proto-discovery.spec.ts`](file:///c:/DEV/ultra-rpc/tests/e2e/grpc-proto-discovery.spec.ts)
+- **Location**: [`tests/e2e/collection-search.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/collection-search.spec.ts), [`tests/e2e/grpc-proto-discovery.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/grpc-proto-discovery.spec.ts)
 - **Scenarios**:
     - **Fuzzy Search**: Verified that the collection tree correctly filters items based on search input (3-char minimum), keeping parent collections visible if their children match.
     - **Proto Import**: Verified that gRPC services can be discovered by selecting a local `.proto` file, and that the selection correctly syncs between the Discovery Modal and the main request view.
+
+#### 7. Environment Propagation
+- **Location**: [`tests/e2e/environment-propagation.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/environment-propagation.spec.ts)
+- **Scenarios**:
+    - **Global Apply**: Verified that "Apply to all tabs" correctly propagates the selected environment to all currently open request tabs.
+
+#### 8. Bruno Collection Import
+- **Location**: [`tests/e2e/bruno-import.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/bruno-import.spec.ts)
+- **Scenarios**:
+    - **Multi-protocol Import**: Verified that Bruno collections containing both REST and gRPC requests are imported correctly.
+    - **Script Conversion**: Verified that Bruno-specific scripting (`bru.*`) is automatically converted to the `ultra.*` API during import.
+    - **Vault Integration**: Verified that secrets from Bruno collections are correctly identified and moved to the UltraRPC secret vault.
+
+#### 9. Save Flow Enhancements
+- **Location**: [`tests/e2e/save-modal-name.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/save-modal-name.spec.ts)
+- **Scenarios**:
+    - **Custom Naming**: Verified that users can rename a request directly within the "Save to Collection" modal before confirming.
 
 ## Final Verification Result
 
 The automated suite results in a stable and passing verification for all core and advanced features:
 
 ```text
-  15 passed (58.2s)
+  32 passed (2.8m)
 ```
