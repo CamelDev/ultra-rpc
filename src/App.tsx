@@ -1,22 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import {
-  Plus,
-  Send,
-  Save,
-  Settings,
-  Globe,
-
-  X,
-  Loader2,
-  Info,
-  WrapText,
-  Hourglass,
-  FolderOpen,
-  AlignLeft,
-  Search,
-  AlertTriangle,
+import { 
+  Plus, Send, Save, Settings, Globe, Braces, X, Loader2, 
+  Info, FolderOpen, 
+  Search, 
+  WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
+import { useScriptValidation } from './hooks/useScriptValidation'
+import ValidationBanner from './components/ValidationBanner'
 import KeyValueEditor from './components/KeyValueEditor'
 import InterpolatedInput from './components/InterpolatedInput'
 import type { EditorHandle } from './components/Editor'
@@ -26,7 +17,8 @@ import CollectionPanel from './components/CollectionPanel'
 import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
 import AboutModal from './components/AboutModal'
-import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem, KeyValuePair, VaultEntry } from './types'
+import LibraryModal from './components/LibraryModal'
+import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem, VaultEntry, Library } from './types'
 import { createEmptyRequest } from './lib/helpers'
 import pkg from '../package.json'
 import Toaster, { addToast } from './components/Toaster'
@@ -92,37 +84,57 @@ const App: React.FC = () => {
   const [saveModalRequestName, setSaveModalRequestName] = useState('')
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder' | 'environment', id: string, name: string, collectionId?: string } | null>(null)
+  const [showSettingsPopup, setShowSettingsPopup] = useState(false)
+  const [showAboutModal, setShowAboutModal] = useState(false)
 
   // ===== Environments =====
   const [collections, setCollectionsState] = useState<Collection[]>([])
   const collectionsRef = useRef<Collection[]>([])
   const setCollections = useCallback((updater: React.SetStateAction<Collection[]>) => {
-    setCollectionsState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      collectionsRef.current = next
-      return next
-    })
+    if (typeof updater === 'function') {
+      setCollectionsState(prev => {
+        const next = updater(prev)
+        collectionsRef.current = next
+        return next
+      })
+    } else {
+      collectionsRef.current = updater
+      setCollectionsState(updater)
+    }
   }, [])
 
   const [environments, setEnvironmentsState] = useState<Environment[]>([])
   const environmentsRef = useRef<Environment[]>([])
   const setEnvironments = useCallback((updater: React.SetStateAction<Environment[]>) => {
-    setEnvironmentsState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      environmentsRef.current = next
-      return next
-    })
+    if (typeof updater === 'function') {
+      setEnvironmentsState(prev => {
+        const next = updater(prev)
+        environmentsRef.current = next
+        return next
+      })
+    } else {
+      environmentsRef.current = updater
+      setEnvironmentsState(updater)
+    }
   }, [])
 
-  const [, setGlobalsState] = useState<KeyValuePair[]>([])
-  const globalsRef = useRef<KeyValuePair[]>([])
-  const setGlobals = useCallback((updater: React.SetStateAction<KeyValuePair[]>) => {
-    setGlobalsState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater
-      globalsRef.current = next
-      return next
-    })
+
+  const [libraries, setLibrariesState] = useState<Library[]>([])
+  const librariesRef = useRef<Library[]>([])
+  const setLibraries = useCallback((updater: React.SetStateAction<Library[]>) => {
+    if (typeof updater === 'function') {
+      setLibrariesState(prev => {
+        const next = updater(prev)
+        librariesRef.current = next
+        return next
+      })
+    } else {
+      librariesRef.current = updater
+      setLibrariesState(updater)
+    }
   }, [])
+  const [showLibraryModal, setShowLibraryModal] = useState(false)
+
   const [activeEnvId, setActiveEnvId] = useState<string | null>(null)
   const [vaults, setVaults] = useState<Record<string, VaultEntry[]>>({})
   const vaultsRef = useRef(vaults)
@@ -131,8 +143,9 @@ const App: React.FC = () => {
 
   // ===== Settings & Theme =====
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
-  const [showSettingsPopup, setShowSettingsPopup] = useState(false)
-  const [showAboutModal, setShowAboutModal] = useState(false)
+
+  const preRequestValidation = useScriptValidation()
+  const postResponseValidation = useScriptValidation()
   const [wrapLines, setWrapLines] = useState(true)
   const bodyEditorRef = useRef<EditorHandle>(null)
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
@@ -184,6 +197,14 @@ const App: React.FC = () => {
   const [isResizingVertical, setIsResizingVertical] = useState(false)
   const [showGrpcDiscovery, setShowGrpcDiscovery] = useState(false)
   const [grpcDiscoveryUrl, setGrpcDiscoveryUrl] = useState('')
+  const [libraryModalWidth, setLibraryModalWidth] = useState(() => {
+    const saved = localStorage.getItem('ultraRpcLibraryModalWidth')
+    return saved ? parseInt(saved, 10) : 1100
+  })
+  const [libraryModalHeight, setLibraryModalHeight] = useState(() => {
+    const saved = localStorage.getItem('ultraRpcLibraryModalHeight')
+    return saved ? parseInt(saved, 10) : 760
+  })
 
   useEffect(() => {
     if (isResizing) {
@@ -263,6 +284,13 @@ const App: React.FC = () => {
     setShowSettingsPopup(false)
   }
 
+  const handleLibraryModalResize = (width: number, height: number) => {
+    setLibraryModalWidth(width)
+    setLibraryModalHeight(height)
+    localStorage.setItem('ultraRpcLibraryModalWidth', width.toString())
+    localStorage.setItem('ultraRpcLibraryModalHeight', height.toString())
+  }
+
   // ===== Collections =====
 
   // ===== History =====
@@ -283,6 +311,12 @@ const App: React.FC = () => {
   useEffect(() => {
     tabsRef.current = tabs
   }, [tabs])
+
+  useEffect(() => {
+    setActiveConfigTab('params')
+    preRequestValidation.resetValidation()
+    postResponseValidation.resetValidation()
+  }, [activeTabId])
 
   useEffect(() => {
     if (!window.ultraRpc) return
@@ -388,9 +422,10 @@ const App: React.FC = () => {
           vaultsRef.current = vaultMap
         }
       })
-      window.ultraRpc.getGlobals().then(res => { if (res.success && res.globals) setGlobals(res.globals) })
+
+      window.ultraRpc.getLibraries().then(res => { if (res.success && res.libraries) setLibraries(res.libraries) })
     }
-  }, [loadCollections, setEnvironments, setGlobals])
+  }, [loadCollections, setEnvironments, setLibraries])
 
   const handleMoveCollection = async (collectionId: string, currentPath?: string) => {
     if (!window.ultraRpc) return
@@ -517,11 +552,6 @@ const App: React.FC = () => {
   }
 
   const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
-    // Log every call for debugging
-    const callMsg = `[CALL] updateActiveRequest: ${JSON.stringify(partial)}`
-    console.log(callMsg)
-    if (window.ultraRpc) window.ultraRpc.debugLog(callMsg)
-
     setTabs(prev => prev.map(t => {
       if (t.id !== activeTabId) return t
       
@@ -542,10 +572,6 @@ const App: React.FC = () => {
         } else {
           changed = (current ?? '') !== (val ?? '')
         }
-
-        const traceMsg = `  [CHECK] ${key}: skipped=${isSkipped} changed=${changed} ("${current}" -> "${val}")`
-        console.log(traceMsg)
-        if (window.ultraRpc) window.ultraRpc.debugLog(traceMsg)
 
         if (isSkipped) return false
         return changed
@@ -883,6 +909,11 @@ const App: React.FC = () => {
 
 
     try {
+      let activeOperations = 0
+      let resolveScript: () => void
+      const scriptDone = new Promise<void>(res => resolveScript = res)
+      const checkDone = () => { if (activeOperations === 0) resolveScript() }
+
       const ultra = {
         env: {
           get: (key: string) => {
@@ -934,34 +965,7 @@ const App: React.FC = () => {
             return vars
           }
         },
-        globals: {
-          get: (key: string) => globalsRef.current.find(v => v.key === key && v.enabled)?.value,
-          set: (key: string, value: string) => {
-            setGlobals(prev => {
-              const vars = [...prev]
-              const idx = vars.findIndex(v => v.key === key)
-              if (idx >= 0) {
-                vars[idx] = { ...vars[idx], value: String(value) }
-              } else {
-                vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
-              }
-              if (window.ultraRpc) {
-                activeOperations++
-                window.ultraRpc.saveGlobals(vars).finally(() => {
-                  activeOperations--
-                  checkDone()
-                })
-              }
-              return vars
-            })
-            mockConsole.log(`Set global variable: ${key}`)
-          },
-          all: () => {
-            const vars: Record<string, string> = {}
-            globalsRef.current.forEach(v => { if (v.enabled) vars[v.key] = v.value })
-            return vars
-          }
-        },
+
         collection: {
           get: (varName: string) => {
             let currentParent: Collection | undefined = undefined
@@ -1071,14 +1075,39 @@ const App: React.FC = () => {
         getEnvironmentVariable: (k: string) => ultra.env.get(k),
         setCollectionVariable: (k: string, v: string) => ultra.collection.set(k, v),
         getCollectionVariable: (k: string) => ultra.collection.get(k),
-        setGlobalVariable: (k: string, v: string) => ultra.globals.set(k, v),
-        getGlobalVariable: (k: string) => ultra.globals.get(k)
+
+        lib: {} as Record<string, any>
       }
 
-      let activeOperations = 0
-      let resolveScript: () => void
-      const scriptDone = new Promise<void>(res => resolveScript = res)
-      const checkDone = () => { if (activeOperations === 0) resolveScript() }
+      // Execute library scripts before main script
+      let currentLibName = ''
+      const libOwners: Record<string, string> = {}
+      const libTarget: Record<string, any> = {}
+      ultra.lib = new Proxy(libTarget, {
+        set(target, key, value) {
+          const k = String(key)
+          if (k in target) {
+            mockConsole.error(`[Library] Warning: ultra.lib.${k} already defined by "${libOwners[k]}", overwritten by "${currentLibName}"`)
+          }
+          libOwners[k] = currentLibName
+          target[k] = value
+          return true
+        }
+      })
+      for (const lib of librariesRef.current) {
+        if (!lib.enabled) continue
+        const fileRes = await window.ultraRpc?.readFileContents(lib.filePath)
+        if (!fileRes?.success || fileRes.content === undefined) {
+          mockConsole.error(`[Library] "${lib.name}": cannot read file ${lib.filePath}`)
+          continue
+        }
+        currentLibName = lib.name
+        try {
+          new Function('ultra', 'console', fileRes.content)(ultra, mockConsole)
+        } catch (err: any) {
+          mockConsole.error(`[Library] "${lib.name}" error: ${err.message}`)
+        }
+      }
 
       const script = new Function('ultra', 'console', request.preRequestScript)
       script(ultra, mockConsole)
@@ -1102,12 +1131,12 @@ const App: React.FC = () => {
     }
   }
 
-  const runPostResponseScript = async (request: RequestConfig, response: ResponseData, tabId: string, tabEnvId: string | null | undefined) => {
+  const runPostResponseScript = async (request: RequestConfig, response: ResponseData, tabId: string, tabEnvId: string | null | undefined, environmentsOverride?: Environment[]) => {
     if (!request.postResponseScript || !request.postResponseScript.trim()) return
 
     // Use local copies to avoid race conditions with React state updates
     let currentCollections = [...collectionsRef.current]
-    let currentEnvs = [...environmentsRef.current]
+    let currentEnvs = environmentsOverride || [...environmentsRef.current]
     const parentCollection = currentCollections.find(c => getAllRequests(c).some(r => r.id === request.id))
 
     const mockConsole = {
@@ -1124,6 +1153,11 @@ const App: React.FC = () => {
     }
 
     try {
+      let activeOperations = 0
+      let resolveScript: () => void
+      const scriptDone = new Promise<void>(res => resolveScript = res)
+      const checkDone = () => { if (activeOperations === 0) resolveScript() }
+
       // Prepare response body as object if JSON
       let bodyObj = response.body
       try {
@@ -1182,34 +1216,7 @@ const App: React.FC = () => {
             return vars
           }
         },
-        globals: {
-          get: (key: string) => globalsRef.current.find(v => v.key === key && v.enabled)?.value,
-          set: (key: string, value: string) => {
-            setGlobals(prev => {
-              const vars = [...prev]
-              const idx = vars.findIndex(v => v.key === key)
-              if (idx >= 0) {
-                vars[idx] = { ...vars[idx], value: String(value) }
-              } else {
-                vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
-              }
-              if (window.ultraRpc) {
-                activeOperations++
-                window.ultraRpc.saveGlobals(vars).finally(() => {
-                  activeOperations--
-                  checkDone()
-                })
-              }
-              return vars
-            })
-            mockConsole.log(`Set global variable: ${key}`)
-          },
-          all: () => {
-            const vars: Record<string, string> = {}
-            globalsRef.current.forEach(v => { if (v.enabled) vars[v.key] = v.value })
-            return vars
-          }
-        },
+
         collection: {
           get: (varName: string) => {
             const target = currentCollections.find(c => c.id === parentCollection?.id)
@@ -1312,19 +1319,45 @@ const App: React.FC = () => {
         getEnvironmentVariable: (k: string) => ultra.env.get(k),
         setCollectionVariable: (k: string, v: string) => ultra.collection.set(k, v),
         getCollectionVariable: (k: string) => ultra.collection.get(k),
-        setGlobalVariable: (k: string, v: string) => ultra.globals.set(k, v),
-        getGlobalVariable: (k: string) => ultra.globals.get(k)
+
+        lib: {} as Record<string, any>
       }
 
-      let activeOperations = 0
-      let resolveScript: () => void
-      const scriptDone = new Promise<void>(res => resolveScript = res)
-      const checkDone = () => { if (activeOperations === 0) resolveScript() }
+      // Execute library scripts before main script
+      let currentLibName = ''
+      const libOwners: Record<string, string> = {}
+      const libTarget: Record<string, any> = {}
+      ultra.lib = new Proxy(libTarget, {
+        set(target, key, value) {
+          const k = String(key)
+          if (k in target) {
+            mockConsole.error(`[Library] Warning: ultra.lib.${k} already defined by "${libOwners[k]}", overwritten by "${currentLibName}"`)
+          }
+          libOwners[k] = currentLibName
+          target[k] = value
+          return true
+        }
+      })
+      for (const lib of librariesRef.current) {
+        if (!lib.enabled) continue
+        const fileRes = await window.ultraRpc?.readFileContents(lib.filePath)
+        if (!fileRes?.success || fileRes.content === undefined) {
+          mockConsole.error(`[Library] "${lib.name}": cannot read file ${lib.filePath}`)
+          continue
+        }
+        currentLibName = lib.name
+        try {
+          new Function('ultra', 'console', fileRes.content)(ultra, mockConsole)
+        } catch (err: any) {
+          mockConsole.error(`[Library] "${lib.name}" error: ${err.message}`)
+        }
+      }
 
       // Sandbox execution
       const script = new Function('ultra', 'console', request.postResponseScript)
       script(ultra, mockConsole)
       checkDone()
+
       
       // Safety timeout to prevent hanging forever if activeOperations somehow fails to reach 0
       let timer: any
@@ -1394,7 +1427,7 @@ const App: React.FC = () => {
         if (result.success && result.data) {
           statusCode = result.data.status
           setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-          await runPostResponseScript(activeRequest, result.data, tabId, activeTab?.envId)
+          await runPostResponseScript(activeRequest, result.data, tabId, activeTab?.envId, scriptResult?.environments)
         } else {
           throw new Error(result.error || 'gRPC call failed')
         }
@@ -1431,7 +1464,7 @@ const App: React.FC = () => {
           if (result.success && result.data) {
             statusCode = result.data.status
             setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-            await runPostResponseScript(activeRequest, result.data, tabId, activeTab?.envId)
+            await runPostResponseScript(activeRequest, result.data, tabId, activeTab?.envId, scriptResult?.environments)
           } else {
             throw new Error(result.error || 'Request failed')
           }
@@ -1451,7 +1484,7 @@ const App: React.FC = () => {
             ...prev,
             [tabId]: respData,
           }))
-          await runPostResponseScript(activeRequest, respData, tabId, activeTab?.envId)
+          await runPostResponseScript(activeRequest, respData, tabId, activeTab?.envId, scriptResult?.environments)
         }
       } catch (err: any) {
         setErrors(prev => ({ ...prev, [tabId]: err.message }))
@@ -1551,6 +1584,18 @@ const App: React.FC = () => {
           >
             <Globe size={18} />
           </button>
+
+          <button
+            className="btn-ghost"
+            style={{ padding: '6px' }}
+            onClick={() => setShowLibraryModal(true)}
+            data-tooltip="Code Library"
+            data-tooltip-pos="right"
+          >
+            <Braces size={18} />
+          </button>
+          
+
 
           {showSettingsPopup && (
             <div className="settings-popup glass fade-in" style={{ top: '50px', bottom: 'auto' }}>
@@ -1817,31 +1862,50 @@ const App: React.FC = () => {
 
               </div>
 
-              {/* Active env selector */}
-              {environments.length > 0 && (
-                <div className="env-selector-wrapper">
-                  <Globe size={12} className="env-selector-icon" />
-                  <select
-                    className="env-selector"
-                    value={activeTab?.envId !== undefined ? (activeTab?.envId || '') : (activeEnvId || '')}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const newId = val === '' ? null : val;
-                      updateTabEnv(newId);
-                    }}
-                  >
-                    <option value="">No Environment</option>
-                    {environments.map(env => (
-                      <option key={env.id} value={env.id}>{env.name}</option>
-                    ))}
-                  </select>
-                  {activeRequest.type === 'GRPC' && activeEnv?.protocol === 'http1' && (
-                    <div className="env-selector-warning" data-tooltip="gRPC strictly requires HTTP/2. Using an HTTP/1.1 environment will likely cause failures.">
-                      <AlertTriangle size={14} color="#ef4444" />
+              {/* Collection label and active env selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div className="header-field-group">
+                  <span className="header-field-label">Collection</span>
+                  {activeRequestCollection ? (
+                    <div className="collection-label-wrapper" title={`Part of collection: ${activeRequestCollection.name}`}>
+                      <Folder size={12} className="collection-label-icon" />
+                      <span className="collection-label-text">{activeRequestCollection.name}</span>
+                    </div>
+                  ) : (
+                    <div className="collection-label-wrapper unassigned">
+                      <span className="collection-label-text">Save to assign to the collection</span>
                     </div>
                   )}
                 </div>
-              )}
+
+                {environments.length > 0 && (
+                  <div className="header-field-group" style={{ marginLeft: '8px' }}>
+                    <span className="header-field-label">Environment</span>
+                    <div className="env-selector-wrapper">
+                      <Globe size={12} className="env-selector-icon" />
+                      <select
+                        className="env-selector"
+                        value={activeTab?.envId !== undefined ? (activeTab?.envId || '') : (activeEnvId || '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const newId = val === '' ? null : val;
+                          updateTabEnv(newId);
+                        }}
+                      >
+                        <option value="">No Environment</option>
+                        {environments.map(env => (
+                          <option key={env.id} value={env.id}>{env.name}</option>
+                        ))}
+                      </select>
+                      {activeRequest.type === 'GRPC' && activeEnv?.protocol === 'http1' && (
+                        <div className="env-selector-warning" data-tooltip="gRPC strictly requires HTTP/2. Using an HTTP/1.1 environment will likely cause failures.">
+                          <AlertTriangle size={14} color="#ef4444" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* gRPC-specific fields at the top of the request pane (fixed) */}
               {activeRequest.type === 'GRPC' && (
@@ -2153,23 +2217,43 @@ const App: React.FC = () => {
                           <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                             Run code before the request is sent. Access <code>ultra.env</code> or <code>ultra.collection</code> to update variables.
                           </p>
-                          <button 
-                            className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
-                            style={{ padding: '4px 8px', fontSize: '11px', flexShrink: 0 }}
-                            onClick={() => setWrapLines(!wrapLines)}
-                            title="Toggle Line Wrap"
-                          >
-                            <WrapText size={14} />
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                            <button 
+                              className={`btn-ghost ${preRequestValidation.validationStatus === 'success' ? 'val-success' : preRequestValidation.validationStatus === 'error' ? 'val-error' : ''}`}
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => preRequestValidation.validate(activeRequest.preRequestScript || '')}
+                              title="Check for syntax errors"
+                            >
+                              <ShieldCheck size={14} /> Validate
+                            </button>
+                            <button 
+                              className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => setWrapLines(!wrapLines)}
+                              title="Toggle Line Wrap"
+                            >
+                              <WrapText size={14} />
+                            </button>
+                          </div>
                         </div>
                       </div>
+
+                      <ValidationBanner 
+                        status={preRequestValidation.validationStatus} 
+                        error={preRequestValidation.validationError} 
+                        style={{ borderTop: '1px solid var(--border)', borderBottom: 'none' }}
+                      />
+
                       <div style={{ flex: 1, minHeight: '150px' }}>
                         <InterpolatedInput
                             multiline
                             className="script-editor"
                             placeholder="// code here...&#10;ultra.env.set('timestamp', Date.now().toString());"
                             value={activeRequest.preRequestScript || ''}
-                            onChange={val => updateActiveRequest({ preRequestScript: val })}
+                            onChange={val => {
+                              updateActiveRequest({ preRequestScript: val })
+                              preRequestValidation.resetValidation()
+                            }}
                             activeEnv={activeEnv}
                             highlightJs={true}
                             wrapLines={wrapLines}
@@ -2216,23 +2300,43 @@ const App: React.FC = () => {
                           <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                             Run code after a successful response. Access <code>ultra.response</code> and update variables with <code>ultra.setCollectionVariable(key, value)</code>.
                           </p>
-                          <button 
-                            className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
-                            style={{ padding: '4px 8px', fontSize: '11px', flexShrink: 0 }}
-                            onClick={() => setWrapLines(!wrapLines)}
-                            title="Toggle Line Wrap"
-                          >
-                            <WrapText size={14} />
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                            <button 
+                              className={`btn-ghost ${postResponseValidation.validationStatus === 'success' ? 'val-success' : postResponseValidation.validationStatus === 'error' ? 'val-error' : ''}`}
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => postResponseValidation.validate(activeRequest.postResponseScript || '')}
+                              title="Check for syntax errors"
+                            >
+                              <ShieldCheck size={14} /> Validate
+                            </button>
+                            <button 
+                              className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => setWrapLines(!wrapLines)}
+                              title="Toggle Line Wrap"
+                            >
+                              <WrapText size={14} />
+                            </button>
+                          </div>
                         </div>
                       </div>
+
+                      <ValidationBanner 
+                        status={postResponseValidation.validationStatus} 
+                        error={postResponseValidation.validationError} 
+                        style={{ borderTop: '1px solid var(--border)', borderBottom: 'none' }}
+                      />
+
                       <div style={{ flex: 1, minHeight: '150px' }}>
                         <InterpolatedInput
                             multiline
                             className="script-editor"
                             placeholder="// code here...&#10;if (ultra.response.body.token) {&#10;  ultra.setCollectionVariable('auth_token', ultra.response.body.token);&#10;}"
                             value={activeRequest.postResponseScript || ''}
-                            onChange={val => updateActiveRequest({ postResponseScript: val })}
+                            onChange={val => {
+                              updateActiveRequest({ postResponseScript: val })
+                              postResponseValidation.resetValidation()
+                            }}
                             activeEnv={activeEnv}
                             highlightJs={true}
                             wrapLines={wrapLines}
@@ -2299,11 +2403,26 @@ const App: React.FC = () => {
         </section>
       </main>
 
-      <AboutModal 
-        isOpen={showAboutModal} 
-        onClose={() => setShowAboutModal(false)} 
+      <AboutModal
+        isOpen={showAboutModal}
+        onClose={() => setShowAboutModal(false)}
         version={pkg.version}
       />
+
+      <LibraryModal
+        isOpen={showLibraryModal}
+        onClose={() => setShowLibraryModal(false)}
+        libraries={libraries}
+        onSave={(libs) => {
+          setLibraries(libs)
+          if (window.ultraRpc) window.ultraRpc.saveLibraries(libs)
+        }}
+        initialWidth={libraryModalWidth}
+        initialHeight={libraryModalHeight}
+        onResize={handleLibraryModalResize}
+      />
+
+
 
       {/* Collection Variables Modal */}
       {editingCollection && (
@@ -2350,11 +2469,6 @@ const App: React.FC = () => {
           </motion.div>
         </div>
       )}
-      <AboutModal 
-        isOpen={showAboutModal} 
-        onClose={() => setShowAboutModal(false)} 
-        version={pkg.version}
-      />
 
       {/* Save Request Modal */}
       {showSaveMenu && (

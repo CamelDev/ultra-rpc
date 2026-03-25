@@ -59,9 +59,16 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   getSettings: () => ipcRenderer.invoke('storage:getSettings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('storage:saveSettings', settings),
 
-  // ===== Globals =====
-  getGlobals: () => ipcRenderer.invoke('storage:getGlobals'),
-  saveGlobals: (globals: any[]) => ipcRenderer.invoke('storage:saveGlobals', globals),
+
+
+  // ===== Libraries =====
+  getLibraries: () => ipcRenderer.invoke('storage:getLibraries'),
+  saveLibraries: (libraries: any[]) => ipcRenderer.invoke('storage:saveLibraries', libraries),
+  pickJsFile: () => ipcRenderer.invoke('storage:pickJsFile'),
+  saveNewJsFile: () => ipcRenderer.invoke('storage:saveNewJsFile'),
+  readFileContents: (filePath: string) => ipcRenderer.invoke('storage:readFileContents', filePath),
+  writeFileContents: (filePath: string, content: string) => ipcRenderer.invoke('storage:writeFileContents', filePath, content),
+  saveFileAs: (content: string) => ipcRenderer.invoke('storage:saveFileAs', content),
 
   // ===== Tree Open State =====
   getTreeOpenState: () => ipcRenderer.invoke('tree:getOpenState'),

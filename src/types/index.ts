@@ -105,6 +105,14 @@ export interface GrpcMethodInfo {
   requestSchema?: string  // JSON schema for request
 }
 
+// ===== Code Library =====
+export interface Library {
+  id: string
+  name: string
+  filePath: string
+  enabled: boolean
+}
+
 // ===== History =====
 export interface HistoryEntry {
   id: string

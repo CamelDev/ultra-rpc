@@ -166,6 +166,24 @@ ultra.sendRequest({
 });
 ```
 
+### 📚 Code Library
+Manage reusable JavaScript scripts that can be shared across all your API requests.
+- **Project-Wide Utilities**: Register helper functions on `ultra.lib` to use them in any pre-request or post-response script.
+- **File-Based**: Scripts reside as independent `.js` files on your disk. You can create new ones or link existing logic from your local file system.
+- **Selective Loading**: Use the checkboxes in the library to enable or disable specific scripts as needed.
+- **Real-Time Execution**: Every time you send a request, your enabled library scripts are executed before your main script, populating the `ultra.lib` object.
+- **Example**:
+  ```javascript
+  // Library Script: utils.js
+  ultra.lib.hash = (str) => {
+    return btoa(str); // Simple example
+  };
+
+  // Pre-request Script:
+  const authHeader = ultra.lib.hash("user:pass");
+  ultra.env.set("auth", authHeader);
+  ```
+
 ### 🎨 Premium UI
 - **Resizable Split Layout**: Independent scrolling for request config and response viewer
 - **Three-Column View**: Toggle a side-by-side layout (Request vs Response) in Settings for better visibility on wide monitors.
@@ -372,7 +390,6 @@ The first time you try to access the vault, you will be prompted to grant access
 - [ ] **Collection Runner** (Sequence execution with summary reports)
 
 ### 🤖 Scripting & Variables
-- [ ] **Script Library** (Reusable global script snippets and complex post-response logic)
 - [ ] **Visual Test Results** (Dedicated UI for assertion summaries)
 - [ ] **Built-in JS Libraries** (CryptoJS for HMAC/SHA signing, ajv for JSON Schema)
 - [ ] **Dynamic Variables** (Support for `{{$guid}}`, `{{$timestamp}}`, and `{{$randomInt}}`)

@@ -17,10 +17,7 @@ const getHistoryPath = () => {
   return p
 }
 
-const getGlobalsPath = () => {
-  const p = path.join(app.getPath('userData'), 'globals.json')
-  return p
-}
+
 
 const getEnvPath = () => {
   const p = path.join(app.getPath('userData'), 'environments.json')
@@ -1694,28 +1691,7 @@ export function registerStorageHandlers() {
     }
   })
 
-  // ===== Globals Persistence =====
 
-  ipcMain.handle('storage:getGlobals', async () => {
-    try {
-      const globalsPath = getGlobalsPath()
-      if (!fs.existsSync(globalsPath)) return { success: true, globals: [] }
-      const data = JSON.parse(fs.readFileSync(globalsPath, 'utf-8'))
-      return { success: true, globals: data }
-    } catch (err: any) {
-      return { success: false, globals: [], error: err.message }
-    }
-  })
-
-  ipcMain.handle('storage:saveGlobals', async (_event, globals: any[]) => {
-    try {
-      const globalsPath = getGlobalsPath()
-      fs.writeFileSync(globalsPath, JSON.stringify(globals, null, 2))
-      return { success: true }
-    } catch (err: any) {
-      return { success: false, error: err.message }
-    }
-  })
 
   // ===== Tree Open State Persistence =====
 
@@ -1748,6 +1724,94 @@ export function registerStorageHandlers() {
       return { success: true }
     } catch (err: any) {
       console.error('[Main/TreeState] Failed to save tree open state:', err)
+      return { success: false, error: err.message }
+    }
+  })
+
+  // ===== Libraries Persistence =====
+
+  const getLibrariesPath = () => path.join(app.getPath('userData'), 'libraries.json')
+
+  ipcMain.handle('storage:getLibraries', async () => {
+    try {
+      const librariesPath = getLibrariesPath()
+      if (!fs.existsSync(librariesPath)) return { success: true, libraries: [] }
+      const data = JSON.parse(fs.readFileSync(librariesPath, 'utf-8'))
+      return { success: true, libraries: data }
+    } catch (err: any) {
+      return { success: false, libraries: [], error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:saveLibraries', async (_event, libraries: any[]) => {
+    try {
+      const librariesPath = getLibrariesPath()
+      fs.writeFileSync(librariesPath, JSON.stringify(libraries, null, 2))
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:pickJsFile', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Select JavaScript Library File',
+        filters: [{ name: 'JavaScript', extensions: ['js'] }],
+        properties: ['openFile'],
+      })
+      if (result.canceled || result.filePaths.length === 0) return { success: false }
+      return { success: true, path: result.filePaths[0] }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:saveNewJsFile', async () => {
+    try {
+      const result = await dialog.showSaveDialog({
+        title: 'Create New Library Script',
+        defaultPath: 'my-library.js',
+        filters: [{ name: 'JavaScript', extensions: ['js'] }],
+      })
+      if (result.canceled || !result.filePath) return { success: false }
+      const template = '// Register functions on ultra.lib to use them in your scripts:\n// ultra.lib.myFunction = (arg) => { return arg }\n'
+      fs.writeFileSync(result.filePath, template, 'utf-8')
+      return { success: true, path: result.filePath }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:readFileContents', async (_event, filePath: string) => {
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8')
+      return { success: true, content }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:writeFileContents', async (_event, filePath: string, content: string) => {
+    try {
+      fs.writeFileSync(filePath, content, 'utf-8')
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:saveFileAs', async (_event, content: string) => {
+    try {
+      const result = await dialog.showSaveDialog({
+        title: 'Save Library Script As',
+        defaultPath: 'my-library.js',
+        filters: [{ name: 'JavaScript', extensions: ['js'] }],
+      })
+      if (result.canceled || !result.filePath) return { success: false }
+      fs.writeFileSync(result.filePath, content, 'utf-8')
+      return { success: true, path: result.filePath }
+    } catch (err: any) {
       return { success: false, error: err.message }
     }
   })

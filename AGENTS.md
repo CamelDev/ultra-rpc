@@ -84,6 +84,7 @@ src/                       # Renderer process code (React/Chromium)
     KeyValueEditor.tsx      # Reusable: key-value pair editor
     InterpolatedInput.tsx   # Specialized input with variable interpolation & autocomplete
     Editor.tsx              # CodeMirror wrapper for JSON/Code editing
+    LibraryModal.tsx        # Code Library: manage reusable JS script snippets
     ResponseViewer.tsx      # Response display: formatted JSON, trailers, metrics
     Toaster.tsx             # Notification system (toasts)
   

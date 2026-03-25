@@ -94,9 +94,16 @@ export interface UltraRpcApi {
   getSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>
 
-  // Globals (pm.globals)
-  getGlobals: () => Promise<{ success: boolean; globals?: any[]; error?: string }>
-  saveGlobals: (globals: any[]) => Promise<{ success: boolean; error?: string }>
+
+
+  // Libraries
+  getLibraries: () => Promise<{ success: boolean; libraries?: import('./index').Library[]; error?: string }>
+  saveLibraries: (libraries: import('./index').Library[]) => Promise<{ success: boolean; error?: string }>
+  pickJsFile: () => Promise<{ success: boolean; path?: string; error?: string }>
+  saveNewJsFile: () => Promise<{ success: boolean; path?: string; error?: string }>
+  readFileContents: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>
+  writeFileContents: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
+  saveFileAs: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>
 
   // Tree State
   getTreeOpenState: () => Promise<Record<string, true>>

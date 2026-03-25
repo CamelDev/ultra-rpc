@@ -12,7 +12,7 @@ import {
   ViewUpdate, 
   Decoration
 } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
@@ -266,7 +266,12 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     const extensions: Extension[] = [
       theme === 'dark' ? oneDark : (language !== 'plain' ? syntaxHighlighting(lightHighlightStyle) : []),
       history(),
-      keymap.of([...defaultKeymap, ...historyKeymap, ...(enableSearch && !singleLine ? searchKeymap : [])]),
+      keymap.of([
+        ...defaultKeymap, 
+        ...historyKeymap, 
+        ...(enableSearch && !singleLine ? searchKeymap : []),
+        ...(!singleLine ? [indentWithTab] : [])
+      ]),
       ...(enableSearch && !singleLine ? [search({ top: true })] : []),
       variablePlugin,
       autocompletion({ override: [variableCompletionSource] }),
