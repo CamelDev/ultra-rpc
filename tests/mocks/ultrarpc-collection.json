@@ -1,0 +1,28 @@
+{
+  "_ultrarpc_version": 1,
+  "collection": {
+    "id": "ultrarpc-test-collection",
+    "name": "UltraRPC Export Test",
+    "variables": [
+      { "id": "v1", "key": "base_url", "value": "https://api.example.com", "enabled": true }
+    ],
+    "children": [
+      {
+        "id": "req-1",
+        "name": "Get Info",
+        "type": "request",
+        "request": {
+          "id": "req-1",
+          "name": "Get Info",
+          "type": "REST",
+          "method": "GET",
+          "url": "{{base_url}}/info",
+          "headers": [],
+          "params": [],
+          "body": "",
+          "bodyType": "none"
+        }
+      }
+    ]
+  }
+}

@@ -1251,9 +1251,10 @@ export function registerStorageHandlers() {
       const result = await dialog.showOpenDialog({
         title: 'Import Collection',
         filters: [
-          { name: 'Bruno Collection', extensions: ['yml', 'yaml'] },
+          { name: 'All Supported Collections', extensions: ['json', 'postman_collection', 'yml', 'yaml'] },
           { name: 'Postman Collection', extensions: ['postman_collection', 'json'] },
-          { name: 'UltraRPC Collection', extensions: ['ultrarpc.json', 'json'] },
+          { name: 'UltraRPC Collection', extensions: ['json'] },
+          { name: 'Bruno (Exported)', extensions: ['yml', 'yaml'] },
           { name: 'JSON Files', extensions: ['json'] },
         ],
         properties: ['openFile'],
