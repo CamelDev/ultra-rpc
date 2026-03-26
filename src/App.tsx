@@ -84,6 +84,7 @@ const App: React.FC = () => {
   const [saveModalRequestName, setSaveModalRequestName] = useState('')
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder' | 'environment', id: string, name: string, collectionId?: string } | null>(null)
+  const [deleteCollectionFiles, setDeleteCollectionFiles] = useState(false)
   const [showSettingsPopup, setShowSettingsPopup] = useState(false)
   const [showAboutModal, setShowAboutModal] = useState(false)
 
@@ -2622,9 +2623,31 @@ const App: React.FC = () => {
                 <strong>{confirmDelete.name}</strong>
               </p>
               {confirmDelete.type === 'collection' && (
-                <p style={{ fontSize: '11px', color: 'var(--danger)', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Info size={12} /> This will also delete all requests inside this collection.
-                </p>
+                <div style={{ marginTop: '16px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Info size={12} /> This will remove the collection from the application.
+                  </p>
+                  <label 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      fontSize: '13px', 
+                      color: 'var(--danger)', 
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      padding: '4px 0'
+                    }}
+                  >
+                    <input 
+                      type="checkbox" 
+                      checked={deleteCollectionFiles} 
+                      onChange={e => setDeleteCollectionFiles(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    Also delete request files from collection
+                  </label>
+                </div>
               )}
               {confirmDelete.type === 'folder' && (
                 <p style={{ fontSize: '11px', color: 'var(--danger)', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2649,7 +2672,7 @@ const App: React.FC = () => {
                   let tabsToClose: string[] = []
 
                   if (confirmDelete.type === 'collection' && rpc) {
-                    await rpc.deleteCollection({ collectionId: confirmDelete.id })
+                    await rpc.deleteCollection({ collectionId: confirmDelete.id, deleteFiles: deleteCollectionFiles })
                     tabsToClose = tabs.filter(t => t.owningCollectionId === confirmDelete.id).map(t => t.id)
                   } else if (confirmDelete.type === 'request' && confirmDelete.collectionId && rpc) {
                     await rpc.deleteRequest({ collectionId: confirmDelete.collectionId, requestId: confirmDelete.id })
@@ -2693,6 +2716,7 @@ const App: React.FC = () => {
                   }
 
                   setConfirmDelete(null)
+                  setDeleteCollectionFiles(false)
                   if (rpc) loadCollections()
                 }}
               >

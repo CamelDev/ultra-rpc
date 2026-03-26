@@ -40,7 +40,7 @@ export interface UltraRpcApi {
   deleteRequest: (args: { collectionId: string; requestId: string }) => Promise<{ success: boolean; error?: string }>
   deleteFolder: (args: { collectionId: string; folderId: string }) => Promise<{ success: boolean; error?: string }>
   renameFolder: (args: { collectionId: string; folderId: string; newName: string }) => Promise<{ success: boolean; error?: string }>
-  deleteCollection: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
+  deleteCollection: (args: { collectionId: string; deleteFiles?: boolean }) => Promise<{ success: boolean; error?: string }>
   renameCollection: (args: { collectionId: string; newName: string }) => Promise<{ success: boolean; newId?: string; error?: string }>
   cloneCollection: (args: { collectionId: string }) => Promise<{ success: boolean; id?: string; error?: string }>
   cloneRequest: (args: { collectionId: string; requestId: string }) => Promise<{ success: boolean; id?: string; error?: string }>

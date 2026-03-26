@@ -687,15 +687,26 @@ export function registerStorageHandlers() {
   })
 
   // Delete a collection
-  ipcMain.handle('storage:deleteCollection', async (_event, args: { collectionId: string }) => {
+  ipcMain.handle('storage:deleteCollection', async (_event, args: { collectionId: string; deleteFiles?: boolean }) => {
     try {
       const collDir = getCollectionDir(args.collectionId)
       if (collDir && fs.existsSync(collDir)) {
-        fs.rmSync(collDir, { recursive: true, force: true })
+        const root = path.resolve(getStorageRoot())
+        const resolvedCollDir = path.resolve(collDir)
+        const isExternal = path.relative(root, resolvedCollDir).startsWith('..') || path.isAbsolute(path.relative(root, resolvedCollDir))
+
+        if (args.deleteFiles) {
+          fs.rmSync(collDir, { recursive: true, force: true })
+        } else if (!isExternal) {
+          // Internal path but we don't want to delete files -> move to backups
+          const backupDir = path.join(app.getPath('userData'), 'backups', 'collections')
+          if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true })
+          const targetPath = path.join(backupDir, path.basename(collDir) + '_' + Date.now())
+          fs.renameSync(collDir, targetPath)
+        }
 
         // If it was an external path, remove from settings
-        const root = getStorageRoot()
-        if (!collDir.startsWith(root)) {
+        if (isExternal) {
           const settingsPath = getSettingsPath()
           if (fs.existsSync(settingsPath)) {
             try {
