@@ -113,6 +113,7 @@ test('Should persist active config tab per request tab', async () => {
   // 7. Close and reopen the app
   console.log('Restarting app...');
   await electronApp.close();
+  await new Promise(r => setTimeout(r, 1000)); // Ensure clean shutdown
 
   electronApp = await electron.launch({
     args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
@@ -120,6 +121,7 @@ test('Should persist active config tab per request tab', async () => {
   });
   window = await electronApp.firstWindow();
   await window.waitForSelector('.app-container');
+  await window.waitForTimeout(2000); // Give React time to restore state from localStorage
 
   // 8. Verify tab-specific persistence
   console.log('Verifying persistence after restart...');
@@ -127,12 +129,12 @@ test('Should persist active config tab per request tab', async () => {
   await expect(restoredTabs).toHaveCount(2);
   
   await restoredTabs.nth(0).click();
-  await window.waitForTimeout(300);
-  await expect(window.locator('.config-tab-active')).toHaveText('Body');
+  await window.waitForTimeout(500);
+  await expect(window.locator('.config-tab-active')).toHaveText('Body', { timeout: 5000 });
 
   await restoredTabs.nth(1).click();
-  await window.waitForTimeout(300);
-  await expect(window.locator('.config-tab-active')).toHaveText('Headers');
+  await window.waitForTimeout(500);
+  await expect(window.locator('.config-tab-active')).toHaveText('Headers', { timeout: 5000 });
 
   await electronApp.close();
 });

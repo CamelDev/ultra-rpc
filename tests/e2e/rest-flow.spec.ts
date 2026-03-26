@@ -64,7 +64,7 @@ test.describe('REST Request Lifecycle', () => {
     // 2. Set URL in the address bar
     console.log('STEP 2: Setting URL...');
     await window.click('.address-input .cm-content');
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await window.keyboard.type('https://jsonplaceholder.typicode.com/posts/1');
     console.log('URL set!');

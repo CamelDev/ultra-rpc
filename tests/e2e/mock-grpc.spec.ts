@@ -10,10 +10,10 @@ import fs from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let grpcServer: MockGrpcServer;
-const GRPC_PORT = 50059;
 
 test.beforeAll(async () => {
-  grpcServer = new MockGrpcServer(GRPC_PORT);
+  // Use port 0 to get a random available port, avoiding EADDRINUSE on retries
+  grpcServer = new MockGrpcServer(0);
   await grpcServer.start();
 });
 
@@ -47,7 +47,7 @@ test('Should discover services via reflection and generate payload', async () =>
   await window.click('button.type-btn:has-text("gRPC")');
 
   console.log('Setting gRPC address...');
-  await setCMValue('.address-bar .address-input', `localhost:${GRPC_PORT}`);
+  await setCMValue('.address-bar .address-input', `localhost:${grpcServer.getPort()}`);
  
   console.log('Opening Discover Modal...');
   await window.click('button[title="Discover Services"]');
@@ -131,7 +131,7 @@ test('Should handle server streaming and accumulate responses', async () => {
   };
 
   await window.click('button.type-btn:has-text("gRPC")');
-  await setCMValue('.address-bar .address-input', `localhost:${GRPC_PORT}`);
+  await setCMValue('.address-bar .address-input', `localhost:${grpcServer.getPort()}`);
   
   // Use Proto Path for quick setup instead of reflection
   const protoPath = path.resolve(__dirname, '../mocks/test.proto');
@@ -142,7 +142,7 @@ test('Should handle server streaming and accumulate responses', async () => {
   await window.click('button.config-tab:has-text("Body")');
   const bodyEditor = window.locator('.body-textarea .cm-content');
   await bodyEditor.click();
-  await window.keyboard.press('Meta+A');
+  await window.keyboard.press('ControlOrMeta+A');
   await window.keyboard.press('Backspace');
   await bodyEditor.fill('{"name": "Stream Test"}');
 
@@ -183,7 +183,7 @@ test('Should decode rich gRPC error details (grpc-status-details-bin)', async ()
   };
 
   await window.click('button.type-btn:has-text("gRPC")');
-  await setCMValue('.address-bar .address-input', `localhost:${GRPC_PORT}`);
+  await setCMValue('.address-bar .address-input', `localhost:${grpcServer.getPort()}`);
   
   const protoPath = path.resolve(__dirname, '../mocks/test.proto');
   await setCMValue('#grpc-proto-row', protoPath);

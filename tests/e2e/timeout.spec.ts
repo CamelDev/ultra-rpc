@@ -46,7 +46,7 @@ test('REST Request Timeout - Should fail when timeout is too low', async () => {
   // 1. Set URL
   const addressInput = window.locator('.address-input .cm-content');
   await addressInput.click();
-  await window.keyboard.press('Meta+A');
+  await window.keyboard.press('ControlOrMeta+A');
   await window.keyboard.press('Backspace');
   await addressInput.fill(slowUrl);
 
@@ -70,7 +70,7 @@ test('REST Request Timeout - Should succeed when timeout is high enough', async 
   // 1. Set URL (already set from previous test but let's be explicit)
   const addressInput = window.locator('.address-input .cm-content');
   await addressInput.click();
-  await window.keyboard.press('Meta+A');
+  await window.keyboard.press('ControlOrMeta+A');
   await window.keyboard.press('Backspace');
   await addressInput.fill(slowUrl);
 

@@ -50,7 +50,7 @@ test.describe('Library Validation Suite', () => {
 
     // Type correct code
     await window.click('.library-editor .cm-content');
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await window.keyboard.type('ultra.lib.test = () => "ok";', { delay: 5 });
 
@@ -80,7 +80,7 @@ test.describe('Library Validation Suite', () => {
 
     // Type invalid code
     await window.click('.library-editor .cm-content');
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await window.keyboard.type('const x = ;', { delay: 5 });
 
@@ -110,7 +110,7 @@ test.describe('Library Validation Suite', () => {
 
     // Type valid code but no ultra.lib
     await window.click('.library-editor .cm-content');
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await window.keyboard.type('console.log("hello");', { delay: 5 });
 

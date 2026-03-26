@@ -12,6 +12,7 @@ const __dirname = dirname(__filename);
 export class MockGrpcServer {
   private server: grpc.Server;
   private port: number;
+  private boundPort: number = 0;
 
   constructor(port: number = 50051) {
     this.port = port;
@@ -112,12 +113,17 @@ export class MockGrpcServer {
         grpc.ServerCredentials.createInsecure(),
         (err, port) => {
           if (err) return reject(err);
+          this.boundPort = port;
           this.server.start();
           console.log(`[MockGrpcServer] Running at localhost:${port}`);
           resolve();
         }
       );
     });
+  }
+
+  getPort(): number {
+    return this.boundPort || this.port;
   }
 
   async stop(): Promise<void> {
@@ -129,6 +135,6 @@ export class MockGrpcServer {
   }
 
   get url() {
-    return `localhost:${this.port}`;
+    return `localhost:${this.getPort()}`;
   }
 }

@@ -47,7 +47,7 @@ test('Should hit local REST mock server and get response', async () => {
   
   const addressInput = window.locator('.address-input .cm-content');
   await addressInput.click();
-  await window.keyboard.press('Meta+A');
+  await window.keyboard.press('ControlOrMeta+A');
   await window.keyboard.press('Backspace');
   await addressInput.fill(mockUrl);
 
@@ -77,7 +77,7 @@ test('Should correctly switch between HTTP methods', async () => {
   // 1. Set URL
   const addressInput = window.locator('.address-input .cm-content');
   await addressInput.click();
-  await window.keyboard.press('Meta+A');
+  await window.keyboard.press('ControlOrMeta+A');
   await window.keyboard.press('Backspace');
   await addressInput.fill(mockUrl);
 

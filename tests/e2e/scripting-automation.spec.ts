@@ -48,7 +48,7 @@ test.describe('Scripting & Automation Suite', () => {
     // 3. Set URL with a variable placeholder
     const addressInput = window.locator('.address-input .cm-content');
     await addressInput.click();
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await addressInput.fill(`${mockServer.url}/{{path_var}}`);
 
@@ -84,7 +84,7 @@ test.describe('Scripting & Automation Suite', () => {
     // 2. Set URL to /data (which returns JSON with "status": "success")
     const addressInput = window.locator('.address-input .cm-content');
     await addressInput.click();
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await addressInput.fill(`${mockServer.url}/data`);
 

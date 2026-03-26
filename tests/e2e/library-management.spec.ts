@@ -100,7 +100,7 @@ test.describe('Library Management Suite', () => {
     // 3. Edit and Save
     await linkedItem.click();
     await window.click('.library-editor .cm-content');
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await window.keyboard.type('ultra.lib.updated = () => "updated"', { delay: 5 });
 

@@ -55,7 +55,7 @@ test.describe('Script Validation Suite', () => {
 
     // Enter valid JS
     await editor.click();
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await window.keyboard.type('console.log("hello");', { delay: 10 });
 
@@ -89,7 +89,7 @@ test.describe('Script Validation Suite', () => {
 
     // Enter valid JS
     await editor.click();
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await window.keyboard.type('ultra.expect(1).toBe(1);', { delay: 10 });
 

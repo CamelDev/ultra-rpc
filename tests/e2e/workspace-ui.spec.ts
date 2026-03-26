@@ -27,7 +27,7 @@ test.describe('Workspace & UI State', () => {
     // Tab 1 (default)
     const address1 = window.locator('.address-input .cm-content');
     await address1.click();
-    await window.keyboard.press('Meta+A');
+    await window.keyboard.press('ControlOrMeta+A');
     await window.keyboard.press('Backspace');
     await address1.fill('http://localhost:3333/1');
     await window.waitForTimeout(500); // Allow persistence

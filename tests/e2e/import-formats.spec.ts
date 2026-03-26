@@ -23,7 +23,7 @@ test.describe('Collection Import Formats', () => {
     mkdirSync(userDataDir, { recursive: true });
 
     electronApp = await electron.launch({
-      args: ['/Users/kamildabrowski/projects/ultra-rpc', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     page = await electronApp.firstWindow();
