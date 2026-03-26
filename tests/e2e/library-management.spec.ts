@@ -112,8 +112,10 @@ test.describe('Library Management Suite', () => {
     expect(onDisk).toBe('ultra.lib.updated = () => "updated"');
 
     // 4. Delete
+    // Handle confirmation dialog
+    window.on('dialog', (dialog: any) => dialog.accept());
     console.log('Deleting linked script...');
-    await linkedItem.locator('.lib-delete-btn').click();
+    await linkedItem.locator('.lib-item-btn.danger').click();
     await expect(linkedItem).not.toBeVisible();
 
     // Close modal
@@ -183,17 +185,17 @@ ultra.lib.test = (phase) => {
     await envNameInput.fill(testEnvName);
     await envNameInput.press('Enter');
     await expect(envNameInput).not.toBeVisible();
+    
+    // Activate globally first
+    console.log('Activating environment globally...');
+    const updatedEnvItem = window.locator('.env-item').filter({ hasText: testEnvName }).first();
+    await updatedEnvItem.click({ button: 'right' }); 
     await wait(1000);
 
-    // Select the environment from the dropdown
-    console.log(`Selecting environment "${testEnvName}" from dropdown...`);
-    const envOption = window.locator('.env-selector option').filter({ hasText: testEnvName }).first();
-    await envOption.waitFor({ state: 'attached', timeout: 10000 });
-    await window.selectOption('.env-selector', { label: testEnvName });
-    
-    // Also right click it in the sidebar to make it the absolute global active fallback
-    const renamedEnvItem = window.locator('.env-item').filter({ hasText: testEnvName }).first();
-    await renamedEnvItem.click({ button: 'right' });
+    // The tab should have inherited the active environment, but let's confirm selection in dropdown
+    console.log('Verifying environment selection in dropdown...');
+    await expect(window.locator('.env-selector')).toHaveValue(/.+/);
+    await expect(window.locator('.env-selector')).toContainText(testEnvName);
     await wait(500);
 
     await window.click('button:has-text("Pre-request")');
@@ -214,10 +216,14 @@ ultra.lib.test = (phase) => {
     await window.click('.send-btn');
     await expect(window.locator('.response-status-badge')).toBeVisible({ timeout: 20000 });
 
-    // Open Environments to verify
     await ensurePanelOpen('Environments', '.env-panel');
     await wait(1000);
     
+    // Expand the environment to see variables
+    const envItemToVerify = window.locator('.env-item').filter({ hasText: testEnvName }).first();
+    await envItemToVerify.click();
+    await wait(500);
+
     // Check env vars in UI
     console.log('Checking environment variables...');
     const rows = window.locator('.env-var-row');

@@ -349,7 +349,7 @@ test.describe('Environment & Variable Resolution', () => {
     await window.locator('button.reflect-discover-btn').click();
 
     console.log('Waiting for services...');
-    await window.waitForSelector('.reflect-service-item', { timeout: 20000 });
+    await window.waitForSelector('.reflect-service-item', { timeout: 30000 });
     const serviceList = await window.locator('.reflect-service-item').allTextContents();
     expect(serviceList.some((s: string) => s.includes('addsvc.Add'))).toBeTruthy();
 

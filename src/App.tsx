@@ -33,7 +33,7 @@ interface HistoryEntry {
 }
 
 const App: React.FC = () => {
-  const [tabs, setTabs] = useState<Tab[]>(() => {
+  const [tabs, setTabsState] = useState<Tab[]>(() => {
     const saved = localStorage.getItem('ultraRpcTabs')
     if (saved) {
       try {
@@ -45,8 +45,17 @@ const App: React.FC = () => {
     }
     return [{ id: '1', request: createEmptyRequest(), isDirty: false }]
   })
+  const tabsRef = useRef<Tab[]>(tabs)
+  const setTabs = useCallback((updater: React.SetStateAction<Tab[]>) => {
+    const next = typeof updater === 'function' 
+      ? (updater as any)(tabsRef.current) 
+      : updater
+    
+    tabsRef.current = next
+    setTabsState(next)
+  }, [])
 
-  const [activeTabId, setActiveTabId] = useState(() => {
+  const [activeTabId, setActiveTabIdState] = useState(() => {
     const savedId = localStorage.getItem('ultraRpcActiveTabId')
     const savedTabs = localStorage.getItem('ultraRpcTabs')
     if (savedId && savedTabs) {
@@ -67,6 +76,11 @@ const App: React.FC = () => {
     }
     return '1'
   })
+  const activeTabIdRef = useRef<string>(activeTabId)
+  const setActiveTabId = useCallback((id: string) => {
+    setActiveTabIdState(id)
+    activeTabIdRef.current = id
+  }, [])
 
 
 
@@ -136,7 +150,12 @@ const App: React.FC = () => {
   }, [])
   const [showLibraryModal, setShowLibraryModal] = useState(false)
 
-  const [activeEnvId, setActiveEnvId] = useState<string | null>(null)
+  const [activeEnvId, setActiveEnvIdState] = useState<string | null>(null)
+  const activeEnvIdRef = useRef<string | null>(null)
+  const setActiveEnvId = useCallback((id: string | null) => {
+    setActiveEnvIdState(id)
+    activeEnvIdRef.current = id
+  }, [])
   const [vaults, setVaults] = useState<Record<string, VaultEntry[]>>({})
   const vaultsRef = useRef(vaults)
   useEffect(() => { vaultsRef.current = vaults }, [vaults])
@@ -308,16 +327,10 @@ const App: React.FC = () => {
     localStorage.setItem('ultraRpcActiveTabId', activeTabId)
   }, [activeTabId])
 
-  const tabsRef = useRef(tabs)
-  useEffect(() => {
-    tabsRef.current = tabs
-  }, [tabs])
+  // Removed stale tabsRef update useEffect
 
-  useEffect(() => {
-    setActiveConfigTab('params')
-    preRequestValidation.resetValidation()
-    postResponseValidation.resetValidation()
-  }, [activeTabId])
+  // Removed useEffect that was resetting activeConfigTab on every activeTabId change.
+  // This was breaking persistence and causing E2E failures.
 
   useEffect(() => {
     if (!window.ultraRpc) return
@@ -547,56 +560,64 @@ const App: React.FC = () => {
 
   const activeConfigTab = activeRequest?.activeConfigTab || 'params'
   const setActiveConfigTab = (tab: RequestTab) => {
-    setTabs(prev => prev.map(t =>
-      t.id === activeTabId ? { ...t, request: { ...t.request, activeConfigTab: tab } } : t
-    ))
+    setTabs(prev =>
+      prev.map(t =>
+        t.id === activeTabId ? { ...t, request: { ...t.request, activeConfigTab: tab } } : t
+      )
+    )
   }
 
   const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
-    setTabs(prev => prev.map(t => {
-      if (t.id !== activeTabId) return t
-      
-      const skipDirtyKeys = ['activeConfigTab']
-      const hasChanged = Object.entries(partial).some(([key, val]) => {
-        const current = (t.request as any)[key]
-        const isSkipped = skipDirtyKeys.includes(key)
+    setTabs(prev => {
+      return prev.map(t => {
+        if (t.id !== activeTabIdRef.current) return t
         
-        let changed = false
-        if (typeof val === 'object' && val !== null) {
-          if (Array.isArray(val) && val.length === 0 && (current === undefined || current === null || current === '')) {
-            changed = false
-          } else if (current === undefined || current === null) {
-            changed = JSON.stringify(val) !== JSON.stringify(Array.isArray(val) ? [] : {})
+        const skipDirtyKeys = ['activeConfigTab']
+        const hasChanged = Object.entries(partial).some(([key, val]) => {
+          const current = (t.request as any)[key]
+          const isSkipped = skipDirtyKeys.includes(key)
+          
+          let changed = false
+          if (typeof val === 'object' && val !== null) {
+            if (Array.isArray(val) && val.length === 0 && (current === undefined || current === null || current === '')) {
+              changed = false
+            } else if (current === undefined || current === null) {
+              changed = JSON.stringify(val) !== JSON.stringify(Array.isArray(val) ? [] : {})
+            } else {
+              changed = JSON.stringify(val) !== JSON.stringify(current)
+            }
           } else {
-            changed = JSON.stringify(val) !== JSON.stringify(current)
+            changed = (current ?? '') !== (val ?? '')
           }
-        } else {
-          changed = (current ?? '') !== (val ?? '')
+
+          if (isSkipped) return false
+          return changed
+        })
+
+        return { 
+          ...t, 
+          request: { ...t.request, ...partial }, 
+          isDirty: t.isDirty || hasChanged 
         }
-
-        if (isSkipped) return false
-        return changed
       })
-
-      return { 
-        ...t, 
-        request: { ...t.request, ...partial }, 
-        isDirty: t.isDirty || hasChanged 
-      }
-    }))
+    })
   }, [activeTabId])
 
   const updateTabEnv = useCallback((envId: string | null) => {
-    setTabs(prev => prev.map(t => 
-      t.id === activeTabId ? { ...t, envId } : t
-    ))
+    setTabs(prev => {
+      return prev.map(t => 
+        t.id === activeTabIdRef.current ? { ...t, envId } : t
+      )
+    })
   }, [activeTabId])
 
   const applyEnvToAllTabs = useCallback((envId: string | null) => {
-    setTabs(prev => prev.map(t => ({
-      ...t,
-      envId
-    })))
+    setTabs(prev => {
+      return prev.map(t => ({
+        ...t,
+        envId
+      }))
+    })
     setActiveEnvId(envId)
     saveAppSetting('activeEnvId', envId)
   }, [saveAppSetting])
@@ -608,66 +629,87 @@ const App: React.FC = () => {
     setActiveTabId(newReq.id)
   }
 
-  const openRequestTab = (request: RequestConfig, fromHistory: boolean) => {
-    if (fromHistory) {
-      // Historical snapshots shouldn't overwrite the active collection model. Give them a new ID.
-      const newReq = { ...request, id: Math.random().toString(36).substring(2, 11) }
-      const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false, envId: (request as any).envId || activeEnvId }
-      setTabs(prev => [...prev, newTab])
-      setActiveTabId(newReq.id)
-    } else {
-      // From Collection
-      const existingTab = tabs.find(t => t.id === request.id)
-      if (existingTab) {
-        // Tab exactly matching this collection request is already open, just switch to it.
-        setActiveTabId(request.id)
-      } else {
-        // It's not open, so open it, preserving its unique ID so saves overwrite it.
-        const owningCollection = findCollectionByRequestId(request.id)
-        const newTab: Tab = { 
-          id: request.id, 
-          request: { ...request }, 
-          owningCollectionId: owningCollection?.id, 
-          isDirty: false,
-          envId: (request as any).envId || activeEnvId
-        }
-        setTabs(prev => [...prev, newTab])
-        setActiveTabId(request.id)
-      }
-    }
-  }
+   const openRequestTab = (request: RequestConfig, fromHistory: boolean) => {
+     const latestTabs = tabsRef.current
+     if (fromHistory) {
+       // Historical snapshots shouldn't overwrite the active collection model. Give them a new ID.
+       const newReq = { ...request, id: Math.random().toString(36).substring(2, 11) }
+       const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false, envId: (request as any).envId || activeEnvIdRef.current }
+       setTabs(prev => [...prev, newTab])
+       setActiveTabId(newReq.id)
+     } else {
+       // From Collection
+       const existingTab = latestTabs.find(t => t.id === request.id)
+       if (existingTab) {
+         // Tab exactly matching this collection request is already open, just switch to it.
+         setActiveTabId(request.id)
+       } else {
+         // It's not open, so open it, preserving its unique ID so saves overwrite it.
+         const owningCollection = findCollectionByRequestId(request.id)
+         const newTab: Tab = { 
+           id: request.id, 
+           request: { ...request }, 
+           owningCollectionId: owningCollection?.id, 
+           isDirty: false,
+           envId: (request as any).envId || activeEnvIdRef.current
+         }
+         setTabs(prev => [...prev, newTab])
+         setActiveTabId(request.id)
+       }
+     }
+   }
+ 
+   const removeTab = (e: React.MouseEvent, id: string) => {
+     e.stopPropagation()
+     const latestTabs = tabsRef.current
+     const tabToClose = latestTabs.find(t => t.id === id)
+     if (tabToClose?.isDirty) {
+       if (!window.confirm(`This request has unsaved changes.\nAre you sure you want to close it?`)) {
+         return
+       }
+     }
+ 
+     const newTabs = latestTabs.filter(t => t.id !== id)
+     if (newTabs.length === 0) {
+       const newReq = createEmptyRequest()
+       setTabs([{ id: newReq.id, request: newReq, isDirty: false }])
+       setActiveTabId(newReq.id)
+     } else {
+       setTabs(newTabs)
+       if (activeTabIdRef.current === id) setActiveTabId(newTabs[newTabs.length - 1].id)
+     }
+   }
 
-  const removeTab = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    const tabToClose = tabs.find(t => t.id === id)
-    if (tabToClose?.isDirty) {
-      if (!window.confirm(`This request has unsaved changes.\nAre you sure you want to close it?`)) {
-        return
-      }
-    }
-
-    const newTabs = tabs.filter(t => t.id !== id)
-    if (newTabs.length === 0) {
-      const newReq = createEmptyRequest()
-      setTabs([{ id: newReq.id, request: newReq, isDirty: false }])
-      setActiveTabId(newReq.id)
-    } else {
-      setTabs(newTabs)
-      if (activeTabId === id) setActiveTabId(newTabs[newTabs.length - 1].id)
-    }
-  }
-
-  const interpolate = (str: string, envOverride?: Environment, collectionsOverride?: Collection[]): string => {
+  const interpolate = (
+    str: string, 
+    envOverride?: Environment, 
+    collectionsOverride?: Collection[],
+    tabIdOverride?: string
+  ): string => {
     if (!str) return str
     
-    // Find collection associated with active request in the override or current set
+    const targetTabId = tabIdOverride || activeTabId
+    const currentTabs = tabsRef.current
+    const targetTab = currentTabs.find(t => t.id === targetTabId)
+
+    // Find collection associated with the target request
     const currentCollections = collectionsOverride || collectionsRef.current
-    const activeColl = activeTab ? currentCollections.find(c => getAllRequests(c).some(r => r.id === activeTab.request.id)) : null
+    const activeColl = targetTab ? currentCollections.find(c => {
+      const traverse = (children: CollectionItem[]): boolean => {
+        for (const item of children) {
+          if (item.type === 'request' && item.request?.id === targetTab.request.id) return true
+          if (item.type === 'folder' && item.children && traverse(item.children)) return true
+        }
+        return false
+      }
+      return traverse(c.children)
+    }) : null
     
-    // Resolve environment: tab-level first, then global active
-    const requestEnvId = activeTab?.envId
-    const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvId
-    const currentEnv = envOverride || environmentsRef.current.find(e => e.id === effectiveEnvId)
+    // Resolve environment: override first, then tab-level, then global active
+    const requestEnvId = targetTab?.envId
+    const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvIdRef.current
+    const latestEnvs = environmentsRef.current
+    const currentEnv = envOverride || latestEnvs.find(e => e.id === effectiveEnvId)
     
     const result = str.replace(/\{\{([\w.-]+)\}\}/g, (_, varName) => {
       // 0. Vault (highest precedence — secrets override everything)
@@ -715,27 +757,37 @@ const App: React.FC = () => {
 
   // ===== Save current request to collection =====
   const saveToCollection = useCallback(async (collectionId: string) => {
-    if (!activeRequest || !window.ultraRpc) return
-    const res = await window.ultraRpc.saveRequest({ collectionId, request: activeRequest })
+    const tabId = activeTabIdRef.current
+    const latestTabs = tabsRef.current
+    const currentTab = latestTabs.find(t => t.id === tabId)
+    const requestToSave = currentTab?.request
+
+    if (!requestToSave || !window.ultraRpc) return
+    const res = await window.ultraRpc.saveRequest({ collectionId, request: requestToSave })
     
     if (res.success) {
       // Clear dirty flag on active tab and remember the collection
       setTabs(prev => prev.map(t => 
-        t.id === activeTabId ? { ...t, isDirty: false, owningCollectionId: collectionId } : t
+        t.id === tabId ? { ...t, isDirty: false, owningCollectionId: collectionId } : t
       ))
       window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
       setShowSaveMenu(false)
     } else {
       addToast({ type: 'error', message: res.error || 'Failed to save request' })
     }
-  }, [activeRequest, activeTabId, loadCollections])
+  }, [setCollections])
 
   const handleSaveActiveRequest = useCallback(async () => {
-    if (!activeRequest) return
+    const tabId = activeTabIdRef.current
+    const latestTabs = tabsRef.current
+    const currentTab = latestTabs.find(t => t.id === tabId)
+    const requestToSave = currentTab?.request
+
+    if (!requestToSave) return
     
-    let targetCollectionId = activeTab?.owningCollectionId
+    let targetCollectionId = currentTab?.owningCollectionId
     if (!targetCollectionId) {
-      const owningCollection = findCollectionByRequestId(activeRequest.id)
+      const owningCollection = findCollectionByRequestId(requestToSave.id)
       targetCollectionId = owningCollection?.id
     }
 
@@ -748,11 +800,11 @@ const App: React.FC = () => {
         const result = await window.ultraRpc.createCollection({ name: 'My collection' })
         if (result.success && result.id) {
           // Immediately save to this new collection
-          await window.ultraRpc.saveRequest({ collectionId: result.id, request: activeRequest })
+          await window.ultraRpc.saveRequest({ collectionId: result.id, request: requestToSave })
           
           // Clear dirty flag on active tab
           setTabs(prev => prev.map(t => 
-            t.id === activeTabId ? { ...t, isDirty: false } : t
+            t.id === tabId ? { ...t, isDirty: false, owningCollectionId: result.id! } : t
           ))
 
           loadCollections()
@@ -760,16 +812,17 @@ const App: React.FC = () => {
       }
     } else {
       // It's a new or decoupled request, open the standard picker
-      setSaveModalRequestName(activeRequest.name || 'New Request')
+      setSaveModalRequestName(requestToSave.name || 'New Request')
       setSelectedCollectionId(null)
       setShowSaveMenu(true)
     }
-  }, [activeRequest, activeTab, findCollectionByRequestId, saveToCollection, loadCollections, activeTabId])
+  }, [saveToCollection, loadCollections, findCollectionByRequestId])
 
   const handleSaveAll = useCallback(async () => {
     if (!window.ultraRpc) return
     
-    const dirtyTabsWithCollection = tabs.filter(t => t.isDirty)
+    const latestTabs = tabsRef.current
+    const dirtyTabsWithCollection = latestTabs.filter(t => t.isDirty)
       .map(t => ({ tab: t, collectionId: t.owningCollectionId || findCollectionByRequestId(t.id)?.id }))
       .filter(x => !!x.collectionId) as { tab: Tab, collectionId: string }[]
     
@@ -892,18 +945,30 @@ const App: React.FC = () => {
     let currentEnvs = [...environmentsRef.current]
     let currentCollections = [...collectionsRef.current]
     
-    const parentCollection = currentCollections.find(c => getAllRequests(c).some(r => r.id === request.id))
+    // Find parent collection using the ref-based collections
+    const parentCollection = currentCollections.find(c => {
+      const traverse = (children: CollectionItem[]): boolean => {
+        for (const item of children) {
+          if (item.type === 'request' && item.request?.id === request.id) return true
+          if (item.type === 'folder' && item.children && traverse(item.children)) return true
+        }
+        return false
+      }
+      return traverse(c.children)
+    })
+    
+    const tabId = activeTabIdRef.current
     
     const mockConsole = {
       log: (...args: any[]) => {
         const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
-        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[${timestamp}] LOG: ${msg}`] }))
+        setScriptLogs(prev => ({ ...prev, [tabId]: [...(prev[tabId] || []), `[${timestamp}] LOG: ${msg}`] }))
       },
       error: (...args: any[]) => {
         const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')
-        setScriptLogs(prev => ({ ...prev, [activeTabId]: [...(prev[activeTabId] || []), `[${timestamp}] ERROR: ${msg}`] }))
+        setScriptLogs(prev => ({ ...prev, [tabId]: [...(prev[tabId] || []), `[${timestamp}] ERROR: ${msg}`] }))
       }
     }
 
@@ -918,7 +983,7 @@ const App: React.FC = () => {
       const ultra = {
         env: {
           get: (key: string) => {
-            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvIdRef.current
             // 0. Vault first
             const vaultEntries = vaultsRef.current[effectiveEnvId ?? ''] ?? []
             const inVault = vaultEntries.find(v => v.key === key)
@@ -929,7 +994,7 @@ const App: React.FC = () => {
             return targetEnv.variables.find(v => v.key === key && v.enabled)?.value
           },
           set: (key: string, value: string) => {
-            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvIdRef.current
             if (!effectiveEnvId) {
               mockConsole.error('No active environment associated with this tab/globally.')
               return
@@ -958,7 +1023,7 @@ const App: React.FC = () => {
             mockConsole.log(`Set env variable: ${key}`)
           },
           all: () => {
-            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvIdRef.current
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return {}
             const vars: Record<string, string> = {}
@@ -1169,7 +1234,7 @@ const App: React.FC = () => {
         response: { ...response, body: bodyObj },
         env: {
           get: (varName: string) => {
-            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvIdRef.current
             // 0. Vault first
             const vaultEntries = vaultsRef.current[effectiveEnvId ?? ''] ?? []
             const inVault = vaultEntries.find(v => v.key === varName)
@@ -1180,7 +1245,7 @@ const App: React.FC = () => {
             return targetEnv.variables.find(v => v.key === varName && v.enabled)?.value
           },
           set: (varName: string, value: string) => {
-            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvIdRef.current
             if (!effectiveEnvId) {
               mockConsole.error('No active environment associated with this tab/globally.')
               return
@@ -1209,7 +1274,7 @@ const App: React.FC = () => {
             mockConsole.log(`Set env variable: ${varName}`)
           },
           all: () => {
-            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvId
+            const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvIdRef.current
             const targetEnv = currentEnvs.find(e => e.id === effectiveEnvId)
             if (!targetEnv) return {}
             const vars: Record<string, string> = {}
@@ -1377,58 +1442,67 @@ const App: React.FC = () => {
 
   // ===== Send Request =====
   const sendRequest = async () => {
-    if (!activeRequest) return
+    const tabId = activeTabIdRef.current
+    const latestTabs = tabsRef.current
+    const currentTab = latestTabs.find(t => t.id === tabId)
+    
+    if (!currentTab || !tabId) return
 
-    const tabId = activeTabId // Capture current active tab ID
     setLoadingTabs(prev => ({ ...prev, [tabId]: true }))
-    setErrors(prev => ({ ...prev, [activeTabId]: null }))
-    setResponses(prev => ({ ...prev, [activeTabId]: null }))
-    setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))
-    setScriptErrors(prev => ({ ...prev, [activeTabId]: null }))
+    setErrors(prev => ({ ...prev, [tabId]: null }))
+    setResponses(prev => ({ ...prev, [tabId]: null }))
+    setScriptLogs(prev => ({ ...prev, [tabId]: [] }))
+    setScriptErrors(prev => ({ ...prev, [tabId]: null }))
 
     let scriptResult = null
     try {
-      scriptResult = await runPreRequestScript(activeRequest, activeTab?.envId)
-    } catch (e) {
+      scriptResult = await runPreRequestScript(currentTab.request, currentTab.envId)
+    } catch (e: any) {
       console.error('Pre-request script failed, but continuing request:', e)
+      setScriptErrors(prev => ({ ...prev, [tabId]: `Pre-request Error: ${e.message}` }))
     }
 
-    const effectiveEnvIdForUrl = activeTab?.envId || activeEnvId
-    const updatedEnv = scriptResult?.environments.find(e => e.id === effectiveEnvIdForUrl) || environments.find(e => e.id === effectiveEnvIdForUrl)
-    const url = interpolate(activeRequest.url, updatedEnv, scriptResult?.collections)
+    const latestEnvs = environmentsRef.current
+    const latestCollections = collectionsRef.current
+    const effectiveEnvId = currentTab.envId || activeEnvIdRef.current
+    const updatedEnv = latestEnvs.find(e => e.id === effectiveEnvId)
+    
+    const interpolateLocal = (text: string) => {
+      return interpolate(text, updatedEnv, scriptResult?.collections || latestCollections, tabId)
+    }
+
+    const url = interpolateLocal(currentTab.request.url)
     let statusCode: number | undefined
 
-    if (activeRequest.type === 'GRPC') {
+    if (currentTab.request.type === 'GRPC') {
       try {
         if (!window.ultraRpc) throw new Error('Electron IPC not available. Run the app in Electron.')
 
         const headers: Record<string, string> = {}
-        activeRequest.headers.filter(h => h.enabled && h.key).forEach(h => {
-          headers[interpolate(h.key, updatedEnv, scriptResult?.collections)] = interpolate(h.value, updatedEnv, scriptResult?.collections)
+        currentTab.request.headers.filter(h => h.enabled && h.key).forEach(h => {
+          headers[interpolateLocal(h.key)] = interpolateLocal(h.value)
         })
 
-        if (!activeRequest.grpcService) {
+        if (!currentTab.request.grpcService) {
           throw new Error('Select a service first. Use the "Discover Services" button below to find available services via reflection.')
         }
-        if (!activeRequest.grpcMethod) {
+        if (!currentTab.request.grpcMethod) {
           throw new Error('Enter a method name to call.')
         }
 
-        const effectiveEnvId = activeTab?.envId || activeEnvId
-        const currentEnv = scriptResult?.environments.find(e => e.id === effectiveEnvId) || environments.find(e => e.id === effectiveEnvId)
-        const isInsecure = currentEnv?.sslVerification === false
+        const isInsecure = updatedEnv?.sslVerification === false
 
         const result = await window.ultraRpc.grpcCall({
           host: url, insecure: isInsecure, headers,
-          service: activeRequest.grpcService, method: activeRequest.grpcMethod,
-          payload: interpolate(activeRequest.grpcPayload || '{}', updatedEnv, scriptResult?.collections),
-          timeoutMs: activeRequest.timeoutMs,
-          protoPath: activeRequest.protoPath
+          service: currentTab.request.grpcService, method: currentTab.request.grpcMethod,
+          payload: interpolateLocal(currentTab.request.grpcPayload || '{}'),
+          timeoutMs: currentTab.request.timeoutMs,
+          protoPath: currentTab.request.protoPath
         })
         if (result.success && result.data) {
           statusCode = result.data.status
           setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-          await runPostResponseScript(activeRequest, result.data, tabId, activeTab?.envId, scriptResult?.environments)
+          await runPostResponseScript(currentTab.request, result.data, tabId, currentTab.envId, scriptResult?.environments)
         } else {
           throw new Error(result.error || 'gRPC call failed')
         }
@@ -1438,42 +1512,40 @@ const App: React.FC = () => {
     } else {
       try {
         const headers: Record<string, string> = {}
-        activeRequest.headers.filter(h => h.enabled && h.key).forEach(h => {
-          headers[interpolate(h.key)] = interpolate(h.value)
+        currentTab.request.headers.filter(p => p.enabled && p.key).forEach(h => {
+          headers[interpolateLocal(h.key)] = interpolateLocal(h.value)
         })
 
-        const enabledParams = activeRequest.params.filter(p => p.enabled && p.key)
+        const enabledParams = currentTab.request.params.filter(p => p.enabled && p.key)
         let fullUrl = url
         if (enabledParams.length > 0) {
           const searchParams = new URLSearchParams()
-          enabledParams.forEach(p => searchParams.append(interpolate(p.key, updatedEnv, scriptResult?.collections), interpolate(p.value, updatedEnv, scriptResult?.collections)))
+          enabledParams.forEach(p => searchParams.append(interpolateLocal(p.key), interpolateLocal(p.value)))
           fullUrl += (fullUrl.includes('?') ? '&' : '?') + searchParams.toString()
         }
 
-        const effectiveEnvId = activeTab?.envId || activeEnvId
-        const currentEnv = scriptResult?.environments.find(e => e.id === effectiveEnvId) || environments.find(e => e.id === effectiveEnvId)
-        const isInsecure = currentEnv?.sslVerification === false
+        const isInsecure = updatedEnv?.sslVerification === false
 
         if (window.ultraRpc) {
           const result = await window.ultraRpc.sendRestRequest({
-            method: activeRequest.method, url: fullUrl, headers,
-            body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body, updatedEnv, scriptResult?.collections) : undefined,
+            method: currentTab.request.method, url: fullUrl, headers,
+            body: ['POST', 'PUT', 'PATCH'].includes(currentTab.request.method) ? interpolateLocal(currentTab.request.body || '') : undefined,
             insecure: isInsecure,
-            protocol: currentEnv?.protocol,
-            timeoutMs: activeRequest.timeoutMs
+            protocol: updatedEnv?.protocol,
+            timeoutMs: currentTab.request.timeoutMs
           })
           if (result.success && result.data) {
             statusCode = result.data.status
             setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-            await runPostResponseScript(activeRequest, result.data, tabId, activeTab?.envId, scriptResult?.environments)
+            await runPostResponseScript(currentTab.request, result.data, tabId, currentTab.envId, scriptResult?.environments)
           } else {
             throw new Error(result.error || 'Request failed')
           }
         } else {
           const start = Date.now()
           const resp = await fetch(fullUrl, {
-            method: activeRequest.method, headers,
-            body: ['POST', 'PUT', 'PATCH'].includes(activeRequest.method) ? interpolate(activeRequest.body, updatedEnv, scriptResult?.collections) : undefined,
+            method: currentTab.request.method, headers,
+            body: ['POST', 'PUT', 'PATCH'].includes(currentTab.request.method) ? interpolateLocal(currentTab.request.body || '') : undefined,
           })
           const body = await resp.text()
           const time = Date.now() - start
@@ -1485,7 +1557,7 @@ const App: React.FC = () => {
             ...prev,
             [tabId]: respData,
           }))
-          await runPostResponseScript(activeRequest, respData, tabId, activeTab?.envId, scriptResult?.environments)
+          await runPostResponseScript(currentTab.request, respData, tabId, currentTab.envId, scriptResult?.environments)
         }
       } catch (err: any) {
         setErrors(prev => ({ ...prev, [tabId]: err.message }))
@@ -1493,7 +1565,7 @@ const App: React.FC = () => {
     }
 
     // Record in history
-    addToHistory(activeRequest, statusCode)
+    addToHistory(currentTab.request, statusCode)
     setLoadingTabs(prev => ({ ...prev, [tabId]: false }))
   }
 

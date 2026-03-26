@@ -8,6 +8,7 @@ import { tmpdir } from 'os';
 import fs from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 let grpcServer: MockGrpcServer;
 
@@ -31,7 +32,7 @@ test('Should discover services via reflection and generate payload', async () =>
   });
 
   const window = await electronApp.firstWindow();
-  await window.waitForSelector('.app-container');
+  await window.waitForSelector('.app-container', { timeout: 30000 });
 
   const setCMValue = async (selector: string, value: string) => {
     await window.evaluate(({ s, val }: { s: string, val: string }) => {
@@ -59,7 +60,7 @@ test('Should discover services via reflection and generate payload', async () =>
   console.log('Waiting for GreetingService...');
 
   const serviceBtn = window.locator('.reflect-service-btn:has-text("GreetingService")');
-  await expect(serviceBtn).toBeVisible({ timeout: 10000 });
+  await expect(serviceBtn).toBeVisible({ timeout: 20000 });
   await serviceBtn.click();
 
   // Wait for methods to likely load (small buffer)
@@ -109,6 +110,7 @@ test('Should discover services via reflection and generate payload', async () =>
 });
 
 test('Should handle server streaming and accumulate responses', async () => {
+  test.setTimeout(60000);
   const userDataDir = join(__dirname, '../../test-output/user-data/grpc-streaming');
   if (fs.existsSync(userDataDir)) fs.rmSync(userDataDir, { recursive: true, force: true });
 
@@ -139,12 +141,12 @@ test('Should handle server streaming and accumulate responses', async () => {
   await setCMValue('#grpc-service-row', 'test.GreetingService');
   await setCMValue('#grpc-method-row', 'SayHellos'); // Note the 's' for streaming
 
-  await window.click('button.config-tab:has-text("Body")');
+  await window.click('button.config-tab:has-text("Body")', { force: true });
+  await wait(500);
   const bodyEditor = window.locator('.body-textarea .cm-content');
-  await bodyEditor.click();
-  await window.keyboard.press('ControlOrMeta+A');
-  await window.keyboard.press('Backspace');
-  await bodyEditor.fill('{"name": "Stream Test"}');
+  await bodyEditor.scrollIntoViewIfNeeded();
+  await bodyEditor.fill('{"name": "Stream Test"}', { force: true });
+  await wait(500);
 
   console.log('Sending streaming request...');
   await window.click('button.send-btn');

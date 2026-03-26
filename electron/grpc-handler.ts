@@ -1,9 +1,11 @@
 import { ipcMain } from 'electron'
 import * as grpc from '@grpc/grpc-js'
 import * as protoLoader from '@grpc/proto-loader'
-import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import fs from 'fs'
+
+const logPath = path.join(os.tmpdir(), 'ultrarpc-grpc-backend.log')
 
 // protobufjs is kept external to avoid bundling issues in ESM.
 // We use a lazy initializer to ensure globalThis.require is available (initialized in main.ts).
@@ -405,6 +407,11 @@ export function registerGrpcHandlers() {
       const client = createReflectionClient(args.host, args.insecure)
 
       return await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          client.close()
+          resolve({ success: false, error: 'Reflection timeout (5s)' })
+        }, 5000)
+
         const call = client.ServerReflectionInfo(metadata)
         const services: string[] = []
 
@@ -417,10 +424,12 @@ export function registerGrpcHandlers() {
         })
 
         call.on('error', (err: GrpcError) => {
+          clearTimeout(timeout)
           resolve({ success: false, error: err.message || 'Reflection failed' })
         })
 
         call.on('end', () => {
+          clearTimeout(timeout)
           resolve({ success: true, services })
         })
 
@@ -516,6 +525,11 @@ export function registerGrpcHandlers() {
       const client = createReflectionClient(args.host, args.insecure)
 
       return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          client.close()
+          resolve({ success: false, error: 'Method discovery timeout (5s)' })
+        }, 5000)
+
         const call = client.ServerReflectionInfo(metadata)
         const descriptorBuffers: Buffer[] = []
 
@@ -526,15 +540,18 @@ export function registerGrpcHandlers() {
             }
           }
           if (response.error_response) {
+            clearTimeout(timeout)
             resolve({ success: false, error: response.error_response.error_message })
           }
         })
 
           call.on('error', (err: GrpcError) => {
+          clearTimeout(timeout)
           resolve({ success: false, error: err.message || 'Describe failed' })
         })
 
         call.on('end', () => {
+          clearTimeout(timeout)
           try {
             // Parse file descriptors using protobufjs
             const protobuf = getProtobuf()
@@ -684,8 +701,32 @@ export function registerGrpcHandlers() {
               responseHeaders = metadataToObject(m)
             })
             const responses: any[] = []
-            call.on('data', (response: any) => responses.push(response))
+            const backendLog = (msg: string) => {
+              try { 
+                fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`) 
+              } catch {}
+            }
+            backendLog(`Starting streaming call for ${req.service}/${req.method}`)
+
+            let timeout: any
+            const cleanup = () => {
+              if (timeout) clearTimeout(timeout)
+              client.close()
+            }
+
+            timeout = setTimeout(() => {
+              backendLog(`Streaming call TIMEOUT (30s)`)
+              resolve({ success: false, error: 'gRPC stream timeout (30s)' })
+              cleanup()
+            }, 30000)
+
+            call.on('data', (response: any) => {
+              backendLog(`Data received. Total: ${responses.length + 1}`)
+              responses.push(response)
+            })
             call.on('error', (err: GrpcError) => {
+              cleanup()
+              backendLog(`Streaming error: ${err.message}`)
               const time = Date.now() - start
               const errorMsg = formatGrpcError(err)
               resolve({ 
@@ -703,24 +744,35 @@ export function registerGrpcHandlers() {
               })
             })
             call.on('status', (status: grpc.StatusObject) => {
+              backendLog(`Streaming status: code=${status.code} details=${status.details}`)
               responseTrailers = metadataToObject(status.metadata)
             })
             call.on('end', () => {
+              cleanup()
+              backendLog(`Streaming ended. Count=${responses.length}`)
               const time = Date.now() - start
-              const body = JSON.stringify(responses, null, 2)
-              resolve({ 
-                success: true, 
-                data: { 
-                  type: 'GRPC',
-                  status: 0, 
-                  statusText: 'OK (Stream Finished)', 
-                  headers: responseHeaders, 
-                  trailers: responseTrailers,
-                  body, 
-                  time, 
-                  size: Buffer.byteLength(body, 'utf-8') 
-                } 
-              })
+              try {
+                const body = JSON.stringify(responses, null, 2)
+                resolve({ 
+                  success: true, 
+                  data: { 
+                    type: 'GRPC',
+                    status: 0, 
+                    statusText: 'OK (Stream Finished)', 
+                    headers: responseHeaders, 
+                    trailers: responseTrailers,
+                    body, 
+                    time, 
+                    size: Buffer.byteLength(body, 'utf-8') 
+                  } 
+                })
+              } catch (err: any) {
+                backendLog(`Error stringifying: ${err.message}`)
+                resolve({
+                  success: false,
+                  error: `Failed to serialize streaming responses: ${err.message}`
+                })
+              }
             })
           } else {
             const call = methodFn.call(client, payload, metadata, callOptions, (err: GrpcError | null, responseBody: unknown) => {
@@ -782,6 +834,11 @@ export function registerGrpcHandlers() {
       const reflClient = createReflectionClient(req.host, req.insecure)
 
       const descriptorBuffers: Buffer[] = await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reflClient.close()
+          reject(new Error('Reflection timeout (10s)'))
+        }, 10000)
+
         const call = reflClient.ServerReflectionInfo(metadata)
         const bufs: Buffer[] = []
 
@@ -792,11 +849,18 @@ export function registerGrpcHandlers() {
             }
           }
           if (response.error_response) {
+            clearTimeout(timeout)
             reject(new Error(response.error_response.error_message))
           }
         })
-        call.on('error', (err: GrpcError) => reject(err))
-        call.on('end', () => resolve(bufs))
+        call.on('error', (err: GrpcError) => {
+          clearTimeout(timeout)
+          reject(err)
+        })
+        call.on('end', () => {
+          clearTimeout(timeout)
+          resolve(bufs)
+        })
         call.write({ file_containing_symbol: req.service })
         call.end()
       })

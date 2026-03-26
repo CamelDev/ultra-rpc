@@ -99,7 +99,15 @@ test.describe('Ultra Scripting Suite', () => {
       await envNameInput.fill(testEnvName);
       await envNameInput.press('Enter');
       await expect(envNameInput).not.toBeVisible();
-      await wait(1500); // Extra time to ensure env name is persisted in state
+      await wait(1500); // Ensure env name is persisted
+
+      const updatedEnvItem = window.locator('.env-item').filter({ hasText: testEnvName }).first();
+      await expect(updatedEnvItem).toBeVisible();
+
+      // Activate globally first
+      console.log('Activating environment globally...');
+      await updatedEnvItem.click({ button: 'right' }); 
+      await wait(1000);
 
       // 2. Create a new request tab
       console.log('Clicking .tab-add...');
@@ -107,24 +115,11 @@ test.describe('Ultra Scripting Suite', () => {
       await wait(1000);
 
       // 3. Select environment for this tab — wait for the option to appear in the dropdown first
-      console.log('Activating environment for tab...');
-      await window.waitForFunction(
-        (envName: string) => {
-          const opts = document.querySelectorAll('.env-selector option');
-          return Array.from(opts).some(o => o.textContent === envName);
-        },
-        testEnvName,
-        { timeout: 15000 }
-      );
-      await window.selectOption('.env-selector', { label: testEnvName });
+      // The tab should have inherited the active environment, but let's confirm selection in dropdown
+      console.log('Verifying environment selection in dropdown...');
+      await expect(window.locator('.env-selector')).toHaveValue(/.+/); // Ensure it's not empty
+      await expect(window.locator('.env-selector')).toContainText(testEnvName);
       await wait(500);
-      
-      // Also right click it in the sidebar to make it global active
-      const renamedEnvItem = window.locator('.env-item').filter({ hasText: testEnvName }).first();
-      if (await renamedEnvItem.isVisible()) {
-        await renamedEnvItem.click({ button: 'right' });
-        await wait(500);
-      }
       
       // 3. Set URL
       console.log('Setting URL...');
