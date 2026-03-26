@@ -219,7 +219,7 @@ function createWindow() {
         sandbox: false,
       },
       titleBarStyle: 'hidden',
-      icon: join(process.env.VITE_PUBLIC!, 'icon.png'),
+      icon: join(process.env.VITE_PUBLIC!, process.platform === 'win32' ? 'icon-win.png' : 'icon.png'),
       titleBarOverlay: {
         color: '#18181b',
         symbolColor: '#fafafa',

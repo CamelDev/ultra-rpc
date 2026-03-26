@@ -23,6 +23,7 @@ export default defineConfig({
                 'protobufjs',
                 'protobufjs/ext/descriptor',
                 /^protobufjs\//,
+                'yaml',
               ],
             },
           },
