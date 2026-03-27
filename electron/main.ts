@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, Menu, nativeTheme } from 'electron'
 import fs from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -123,6 +123,29 @@ try {
     registerStorageHandlers()
     registerVaultHandlers()
 
+    // Theme Management
+    ipcMain.handle('theme:set-source', (_, source: 'light' | 'dark' | 'system') => {
+      nativeTheme.themeSource = source
+      return nativeTheme.shouldUseDarkColors
+    })
+
+    ipcMain.handle('theme:get-should-use-dark', () => {
+      return nativeTheme.shouldUseDarkColors
+    })
+
+    nativeTheme.on('updated', () => {
+      if (win) {
+        const isDark = nativeTheme.shouldUseDarkColors
+        win.webContents.send('theme:updated', isDark)
+        
+        // Update window appearance
+        win.setTitleBarOverlay({
+          color: isDark ? '#18181b' : '#f4f4f5',
+          symbolColor: isDark ? '#fafafa' : '#09090b',
+        })
+      }
+    })
+
     // Utils
     ipcMain.handle('app:openExternal', async (_, url: string) => {
       await shell.openExternal(url)
@@ -205,6 +228,8 @@ function createWindow() {
     const windowState = loadWindowState()
     console.log('>>> WINDOW STATE LOADED:', windowState)
 
+    const isDark = nativeTheme.shouldUseDarkColors
+
     win = new BrowserWindow({
       width: windowState.width,
       height: windowState.height,
@@ -221,11 +246,11 @@ function createWindow() {
       titleBarStyle: 'hidden',
       icon: join(process.env.VITE_PUBLIC!, process.platform === 'win32' ? 'icon-win.png' : 'icon.png'),
       titleBarOverlay: {
-        color: '#18181b',
-        symbolColor: '#fafafa',
+        color: isDark ? '#18181b' : '#f4f4f5',
+        symbolColor: isDark ? '#fafafa' : '#09090b',
         height: 40,
       },
-      backgroundColor: '#09090b',
+      backgroundColor: isDark ? '#09090b' : '#ffffff',
     })
 
     // Save state on resize and move

@@ -115,6 +115,11 @@ export interface UltraRpcApi {
   confirmClose: () => Promise<void>
   onRequestClose: (callback: () => void) => () => void
   debugLog: (msg: string) => void
+
+  // Theme
+  setThemeSource: (source: 'light' | 'dark' | 'system') => Promise<boolean>
+  getShouldUseDark: () => Promise<boolean>
+  onThemeUpdated: (callback: (isDark: boolean) => void) => () => void
 }
 
 declare global {

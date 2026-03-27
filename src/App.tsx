@@ -162,7 +162,9 @@ const App: React.FC = () => {
   const [vaultAvailable, setVaultAvailable] = useState(true)
 
   // ===== Settings & Theme =====
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [theme, setTheme] = useState<'dark' | 'light' | 'auto'>('dark')
+  const [systemThemeSync, setSystemThemeSync] = useState<'dark' | 'light'>('dark')
+  const resolvedTheme = theme === 'auto' ? systemThemeSync : theme
 
   const preRequestValidation = useScriptValidation()
   const postResponseValidation = useScriptValidation()
@@ -398,10 +400,32 @@ const App: React.FC = () => {
 
   // Apply theme to body
   useEffect(() => {
-    if (theme === 'light') {
+    if (resolvedTheme === 'light') {
       document.body.classList.add('light-theme')
     } else {
       document.body.classList.remove('light-theme')
+    }
+  }, [resolvedTheme])
+
+  // Theme Sync from Electron
+  useEffect(() => {
+    if (!window.ultraRpc) return
+    
+    // Initial sync
+    window.ultraRpc.getShouldUseDark().then(isDark => {
+      setSystemThemeSync(isDark ? 'dark' : 'light')
+    })
+
+    const unsubscribe = window.ultraRpc.onThemeUpdated((isDark) => {
+      setSystemThemeSync(isDark ? 'dark' : 'light')
+    })
+    return unsubscribe
+  }, [])
+
+  // Push theme source to Electron
+  useEffect(() => {
+    if (window.ultraRpc) {
+      window.ultraRpc.setThemeSource(theme === 'auto' ? 'system' : theme)
     }
   }, [theme])
 
@@ -1696,6 +1720,16 @@ const App: React.FC = () => {
                   >
                     Midnight
                   </button>
+                  <button 
+                    className={`theme-toggle-btn ${theme === 'auto' ? 'active' : ''}`}
+                    onClick={() => {
+                      setTheme('auto')
+                      if (window.ultraRpc) window.ultraRpc.saveSettings({ theme: 'auto' })
+                      setShowSettingsPopup(false)
+                    }}
+                  >
+                    System
+                  </button>
                 </div>
               </div>
               <div className="settings-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
@@ -1912,7 +1946,7 @@ const App: React.FC = () => {
                   activeEnv={activeEnv}
                   collectionVariables={activeRequestCollection?.variables}
                   vaultEntries={activeVaultEntries}
-                  theme={theme}
+                  theme={resolvedTheme}
                 />
                 <button 
                   className="btn-ghost save-btn" 
@@ -1995,7 +2029,7 @@ const App: React.FC = () => {
                           activeEnv={activeEnv}
                           collectionVariables={activeRequestCollection?.variables}
                           vaultEntries={activeVaultEntries}
-                          theme={theme}
+                          theme={resolvedTheme}
                         />
                       </div>
                       <div className="grpc-field-row" id="grpc-method-row">
@@ -2010,7 +2044,7 @@ const App: React.FC = () => {
                             activeEnv={activeEnv}
                             collectionVariables={activeRequestCollection?.variables}
                             vaultEntries={activeVaultEntries}
-                            theme={theme}
+                            theme={resolvedTheme}
                           />
                           <button 
                             type="button"
@@ -2038,7 +2072,7 @@ const App: React.FC = () => {
                             activeEnv={activeEnv}
                             collectionVariables={activeRequestCollection?.variables}
                             vaultEntries={activeVaultEntries}
-                            theme={theme}
+                            theme={resolvedTheme}
                           />
                           <button 
                             type="button"
@@ -2113,7 +2147,7 @@ const App: React.FC = () => {
                               activeEnv={activeEnv}
                               collectionVariables={activeRequestCollection?.variables}
                               vaultEntries={activeVaultEntries}
-                              theme={theme}
+                              theme={resolvedTheme}
                             />
                           </div>
                         </div>
@@ -2163,7 +2197,7 @@ const App: React.FC = () => {
                         activeEnv={activeEnv}
                         collectionVariables={activeRequestCollection?.variables}
                         vaultEntries={activeVaultEntries}
-                        theme={theme}
+                        theme={resolvedTheme}
                       />
                   )}
                   {activeConfigTab === 'headers' && (
@@ -2175,7 +2209,7 @@ const App: React.FC = () => {
                         activeEnv={activeEnv}
                         collectionVariables={activeRequestCollection?.variables}
                         vaultEntries={activeVaultEntries}
-                        theme={theme}
+                        theme={resolvedTheme}
                       />
                   )}
                   {activeConfigTab === 'body' && (
@@ -2243,7 +2277,7 @@ const App: React.FC = () => {
                               updateActiveRequest({ body: val })
                             }
                           }}
-                          theme={theme}
+                          theme={resolvedTheme}
                         />
                       )}
                     </div>
@@ -2332,7 +2366,7 @@ const App: React.FC = () => {
                             wrapLines={wrapLines}
                             collectionVariables={activeRequestCollection?.variables}
                             vaultEntries={activeVaultEntries}
-                            theme={theme}
+                            theme={resolvedTheme}
                           />
                       </div>
                       
@@ -2415,7 +2449,7 @@ const App: React.FC = () => {
                             wrapLines={wrapLines}
                             collectionVariables={activeRequestCollection?.variables}
                             vaultEntries={activeVaultEntries}
-                            theme={theme}
+                            theme={resolvedTheme}
                           />
                       </div>
                       
@@ -2470,7 +2504,7 @@ const App: React.FC = () => {
               error={errors[activeTabId] || null}
               scriptError={scriptErrors[activeTabId] || null}
               loading={loadingTabs[activeTabId] || false}
-              theme={theme}
+              theme={resolvedTheme}
             />
           </div>
         </section>
@@ -2493,6 +2527,7 @@ const App: React.FC = () => {
         initialWidth={libraryModalWidth}
         initialHeight={libraryModalHeight}
         onResize={handleLibraryModalResize}
+        theme={resolvedTheme}
       />
 
 
@@ -2530,7 +2565,7 @@ const App: React.FC = () => {
                 valuePlaceholder="Current Value"
                 activeEnv={activeEnv}
                 vaultEntries={activeVaultEntries}
-                theme={theme}
+                theme={resolvedTheme}
               />
             </div>
             

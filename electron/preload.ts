@@ -86,4 +86,15 @@ contextBridge.exposeInMainWorld('ultraRpc', {
       ipcRenderer.removeListener('app:request-close', listener)
     }
   },
+
+  // ===== Theme =====
+  setThemeSource: (source: 'light' | 'dark' | 'system') => ipcRenderer.invoke('theme:set-source', source),
+  getShouldUseDark: () => ipcRenderer.invoke('theme:get-should-use-dark'),
+  onThemeUpdated: (callback: (isDark: boolean) => void) => {
+    const listener = (_: any, isDark: boolean) => callback(isDark)
+    ipcRenderer.on('theme:updated', listener)
+    return () => {
+      ipcRenderer.removeListener('theme:updated', listener)
+    }
+  },
 })

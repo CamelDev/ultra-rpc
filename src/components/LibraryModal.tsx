@@ -14,6 +14,7 @@ interface LibraryModalProps {
   initialWidth?: number
   initialHeight?: number
   onResize?: (width: number, height: number) => void
+  theme?: 'dark' | 'light'
 }
 
 function basename(filePath: string): string {
@@ -45,7 +46,8 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
   onSave,
   initialWidth = 1100,
   initialHeight = 760,
-  onResize
+  onResize,
+  theme = 'dark'
 }) => {
   const [localLibs, setLocalLibs] = useState<Library[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -416,6 +418,7 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
                   onChange={handleEditorChange}
                   language="javascript"
                   onKeyDown={handleKeyDown}
+                  theme={theme}
                 />
               </div>
             ) : (
