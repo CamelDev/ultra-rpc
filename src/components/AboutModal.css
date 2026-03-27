@@ -1,7 +1,6 @@
 .about-modal {
   max-width: 480px !important;
-  background: rgba(24, 24, 27, 0.8) !important;
-  border: 1px solid var(--glass-border) !important;
+  border-radius: 24px !important; /* Slightly more rounded for premium feel */
   overflow: visible !important;
 }
 
@@ -90,7 +89,7 @@
 }
 
 .info-card {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-tertiary);
   padding: 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -136,7 +135,8 @@
 
 .about-footer {
   justify-content: space-between !important;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
 }
 
 .made-with {
