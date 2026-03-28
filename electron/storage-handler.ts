@@ -380,18 +380,20 @@ export function registerStorageHandlers() {
 
           if (entry.isDirectory()) {
             let folderId = entry.name
+            let folderName = entry.name
             const subMetaPath = path.join(fullPath, '_meta.json')
             if (fs.existsSync(subMetaPath)) {
               try {
                 const subMeta = JSON.parse(fs.readFileSync(subMetaPath, 'utf-8'))
                 if (subMeta.id) folderId = subMeta.id
+                if (subMeta.name) folderName = subMeta.name
               } catch { /* */ }
             } else {
               folderId = Math.random().toString(36).substring(2, 11)
               fs.writeFileSync(subMetaPath, JSON.stringify({ id: folderId, name: entry.name }, null, 2))
             }
             childrenList.push({
-              id: folderId, name: entry.name, type: 'folder', children: buildTree(fullPath)
+              id: folderId, name: folderName, type: 'folder', children: buildTree(fullPath)
             })
           } else if (entry.name.endsWith('.json')) {
             try {
@@ -840,12 +842,12 @@ export function registerStorageHandlers() {
 
       // Update _meta.json
       const metaPath = path.join(newDir, '_meta.json')
-      let meta: any = { id: newSlug }
+      let meta: any = { id: newSlug, name: trimmedName }
       if (fs.existsSync(metaPath)) {
         try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
       }
       meta.id = newSlug
-      delete meta.name // Only directory name is valid for the collection name
+      meta.name = trimmedName
       if (isExternal || meta.path) {
         meta.path = newDir
       }
@@ -1796,8 +1798,41 @@ export function registerStorageHandlers() {
 
   ipcMain.handle('storage:readFileContents', async (_event, filePath: string) => {
     try {
+      if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' }
       const content = fs.readFileSync(filePath, 'utf-8')
       return { success: true, content }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:deleteJsFile', async (_event, filePath: string) => {
+    try {
+      if (fs.existsSync(filePath)) {
+        await shell.trashItem(filePath)
+      }
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('storage:renameJsFile', async (_event, { oldPath, newName }: { oldPath: string, newName: string }) => {
+    try {
+      if (!fs.existsSync(oldPath)) return { success: false, error: 'Original file not found' }
+      
+      const dir = path.dirname(oldPath)
+      let finalName = newName.trim()
+      if (!finalName.endsWith('.js')) finalName += '.js'
+      
+      const newPath = path.join(dir, finalName)
+      
+      if (fs.existsSync(newPath) && newPath.toLowerCase() !== oldPath.toLowerCase()) {
+        return { success: false, error: 'A file with this name already exists' }
+      }
+      
+      fs.renameSync(oldPath, newPath)
+      return { success: true, newPath }
     } catch (err: any) {
       return { success: false, error: err.message }
     }

@@ -198,3 +198,37 @@
 .btn-ghost.val-error {
   color: var(--danger) !important;
 }
+
+.lib-rename-input {
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+.lib-rename-input.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-muted);
+}
+
+.lib-rename-error-tip {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--danger);
+  color: white;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  z-index: 1000;
+  margin-top: 4px;
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+}
+

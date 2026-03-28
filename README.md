@@ -106,7 +106,7 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 
 ### 📁 Collections & Variables
 - **File-based storage** — each collection is a folder, each request is a `.json` file
-- **Native Recursive Folders** — support for deeply nested folder structures with drag-and-drop reordering and context menu management (Rename/Delete/New Folder).
+- **Native Recursive Folders** — support for deeply nested folder structures with drag-and-drop reordering and context menu management (Rename/Delete/New Folder). **Note**: Renaming a folder physically moves the directory on your disk and must follow standard OS-level filename rules (no forbidden characters like `/`, `\`, `:`, etc.).
 - **Collection-Level Variables** — define variables scoped specifically to a collection
 - **Hierarchical Resolution** — Variables are resolved with priority: `Vault > Collection > Environment`
 - **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging", with automatic inheritance for new tabs. This selection is **session-only** and does not trigger unsaved change warnings.
@@ -170,6 +170,7 @@ ultra.sendRequest({
 Manage reusable JavaScript scripts that can be shared across all your API requests.
 - **Project-Wide Utilities**: Register helper functions on `ultra.lib` to use them in any pre-request or post-response script.
 - **File-Based**: Scripts reside as independent `.js` files on your disk. You can create new ones or link existing logic from your local file system.
+- **Renaming Scripts**: You can rename scripts directly in the UI. **Note**: Renames must follow standard OS-level filename rules (no forbidden characters like `/`, `\`, `:`, etc.) as they physically move the file on your disk.
 - **Selective Loading**: Use the checkboxes in the library to enable or disable specific scripts as needed.
 - **Real-Time Execution**: Every time you send a request, your enabled library scripts are executed before your main script, populating the `ultra.lib` object.
 - **Example**:

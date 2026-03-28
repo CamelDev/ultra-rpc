@@ -104,6 +104,8 @@ export interface UltraRpcApi {
   readFileContents: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>
   writeFileContents: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
   saveFileAs: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  renameJsFile: (args: { oldPath: string; newName: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
+  deleteJsFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
 
   // Tree State
   getTreeOpenState: () => Promise<Record<string, true>>
@@ -120,6 +122,9 @@ export interface UltraRpcApi {
   setThemeSource: (source: 'light' | 'dark' | 'system') => Promise<boolean>
   getShouldUseDark: () => Promise<boolean>
   onThemeUpdated: (callback: (isDark: boolean) => void) => () => void
+  
+  // Formatting
+  formatCode: (args: { code: string; language: string }) => Promise<{ success: boolean; formatted?: string; error?: string }>
 }
 
 declare global {

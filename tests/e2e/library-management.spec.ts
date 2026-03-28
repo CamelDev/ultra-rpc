@@ -108,15 +108,37 @@ test.describe('Library Management Suite', () => {
     await window.click('button.btn-primary:has-text("Save")');
 
     // Verify it was written to disk
-    const onDisk = readFileSync(linkedScriptPath, 'utf-8');
-    expect(onDisk).toBe('ultra.lib.updated = () => "updated"');
+    expect(readFileSync(linkedScriptPath, 'utf-8')).toBe('ultra.lib.updated = () => "updated"');
 
-    // 4. Delete
+    // 4. Rename
+    console.log('Renaming script...');
+    // Click the rename button for the linked script (it's the last one)
+    await window.locator('button[title="Rename script"]').last().click({ force: true });
+    
+    // The input should now be visible
+    const renameInput = window.locator('input.lib-rename-input');
+    await expect(renameInput).toBeVisible({ timeout: 15000 });
+    await renameInput.fill('renamed-lib');
+    await renameInput.press('Enter');
+    
+    // Verify UI updated
+    const renamedItem = window.locator('.library-item', { hasText: 'renamed-lib.js' });
+    await expect(renamedItem).toBeVisible();
+    
+    // Verify file renamed on disk
+    const renamedPath = join(userDataDir, 'renamed-lib.js');
+    expect(existsSync(renamedPath)).toBe(true);
+    expect(existsSync(linkedScriptPath)).toBe(false);
+
+    // 5. Delete
     // Handle confirmation dialog
     window.on('dialog', (dialog: any) => dialog.accept());
-    console.log('Deleting linked script...');
-    await linkedItem.locator('.lib-item-btn.danger').click();
-    await expect(linkedItem).not.toBeVisible();
+    console.log('Deleting script...');
+    await renamedItem.locator('.lib-item-btn.danger').click();
+    await expect(renamedItem).not.toBeVisible();
+
+    // Verify it was removed from disk
+    expect(existsSync(renamedPath)).toBe(false);
 
     // Close modal
     await window.click('button:has-text("Close")');

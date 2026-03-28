@@ -24,6 +24,7 @@ export default defineConfig({
                 'protobufjs/ext/descriptor',
                 /^protobufjs\//,
                 'yaml',
+                'prettier',
               ],
             },
           },

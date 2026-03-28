@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   readFileContents: (filePath: string) => ipcRenderer.invoke('storage:readFileContents', filePath),
   writeFileContents: (filePath: string, content: string) => ipcRenderer.invoke('storage:writeFileContents', filePath, content),
   saveFileAs: (content: string) => ipcRenderer.invoke('storage:saveFileAs', content),
+  renameJsFile: (args: { oldPath: string; newName: string }) => ipcRenderer.invoke('storage:renameJsFile', args),
+  deleteJsFile: (filePath: string) => ipcRenderer.invoke('storage:deleteJsFile', filePath),
 
   // ===== Tree Open State =====
   getTreeOpenState: () => ipcRenderer.invoke('tree:getOpenState'),
@@ -97,4 +99,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
       ipcRenderer.removeListener('theme:updated', listener)
     }
   },
+
+  // ===== Formatting =====
+  formatCode: (args: { code: string; language: string }) => ipcRenderer.invoke('code:format', args),
 })

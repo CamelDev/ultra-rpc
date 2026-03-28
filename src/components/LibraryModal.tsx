@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import Editor from './Editor'
+import Editor, { type EditorHandle } from './Editor'
 import type { Library } from '../types'
-import { AlertTriangle, Plus, Link, Save, Trash2, FilePlus, FolderSearch, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Plus, Link, Save, Trash2, FilePlus, FolderSearch, ShieldCheck, Pencil, Code } from 'lucide-react'
 import { useScriptValidation } from '../hooks/useScriptValidation'
 import ValidationBanner from './ValidationBanner'
 import './LibraryModal.css'
@@ -51,11 +51,15 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
 }) => {
   const [localLibs, setLocalLibs] = useState<Library[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [nameInput, setNameInput] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
   const [fileContents, setFileContents] = useState<Record<string, string>>({})
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set())
   const [collisions, setCollisions] = useState<Record<string, string[]>>({})
   
   const { validationStatus, validationError, validate, resetValidation } = useScriptValidation()
+  const editorRef = useRef<EditorHandle>(null)
 
   // Resizing state
   const [size, setSize] = useState({ width: initialWidth, height: initialHeight })
@@ -252,10 +256,16 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     onSave(updated)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const lib = localLibs.find(l => l.id === id)
     if (lib) {
-      if (!confirm(`Are you sure you want to remove "${lib.name}" from your library?\n\nThis will not delete the file from your disk.`)) return
+      if (!confirm(`Are you sure you want to DELETE "${lib.name}"?\n\nThis will permanently remove the file from your disk.`)) return
+      
+      const res = await window.ultraRpc?.deleteJsFile(lib.filePath)
+      if (res && !res.success) {
+        alert(res.error || 'Failed to delete file from disk')
+        return
+      }
     }
     const next = localLibs.filter(l => l.id !== id)
     setLocalLibs(next)
@@ -263,6 +273,35 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     setDirtyIds(prev => { const s = new Set(prev); s.delete(id); return s })
     if (selectedId === id) setSelectedId(next[0]?.id || null)
     onSave(next)
+  }
+
+  const handleRename = async (id: string, newName: string) => {
+    const lib = localLibs.find(l => l.id === id)
+    if (!lib) return
+
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === lib.name) {
+      setEditingId(null)
+      setRenameError(null)
+      return
+    }
+
+    const res = await window.ultraRpc?.renameJsFile({ oldPath: lib.filePath, newName: trimmed })
+    if (res?.success && res.newPath) {
+      const updated = localLibs.map(l => l.id === id ? { 
+        ...l, 
+        name: basename(res.newPath!), 
+        filePath: res.newPath! 
+      } : l)
+      
+      // Update fileContents cache key if needed (though we use ID, so it's mostly about the meta)
+      setLocalLibs(updated)
+      setEditingId(null)
+      setRenameError(null)
+      onSave(updated)
+    } else {
+      setRenameError(res?.error || 'Failed to rename file')
+    }
   }
 
   const handleShowInFolder = (filePath: string) => {
@@ -320,6 +359,14 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
           >
             <ShieldCheck size={14} /> Validate
           </button>
+          <button
+            className="btn-ghost"
+            onClick={() => editorRef.current?.format()}
+            disabled={!selectedId}
+            title="Prettify code (Shift+Alt+F)"
+          >
+            <Code size={14} /> Format
+          </button>
           <div style={{ width: '8px' }} />
           <button
             className="btn-primary"
@@ -359,29 +406,77 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
                   title={lib.enabled ? 'Enabled' : 'Disabled'}
                 />
                 <div className="library-item-content">
-                  <div className="library-item-name">
-                    {dirtyIds.has(lib.id) ? '● ' : ''}{lib.name}
-                  </div>
-                  <div className="library-item-path">
-                    {lib.filePath}
-                  </div>
+                  {editingId === lib.id ? (
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <input
+                        className={`lib-rename-input ${renameError ? 'error' : ''}`}
+                        autoFocus
+                        value={nameInput}
+                        onChange={e => { setNameInput(e.target.value); setRenameError(null) }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRename(lib.id, nameInput);
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEditingId(null);
+                            setRenameError(null);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!renameError) handleRename(lib.id, nameInput)
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                      {renameError && <div className="lib-rename-error-tip">{renameError}</div>}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="library-item-name">
+                        {dirtyIds.has(lib.id) ? '● ' : ''}{lib.name}
+                      </div>
+                      <div className="library-item-path">
+                        {lib.filePath}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <button
-                  className="lib-item-btn"
-                  style={{ opacity: selectedId === lib.id ? 1 : 0.5 }}
-                  onClick={e => { e.stopPropagation(); handleShowInFolder(lib.filePath) }}
-                  title={navigator.userAgent.includes('Mac') ? 'Reveal in Finder' : 'Show in Explorer'}
-                >
-                  <FolderSearch size={14} />
-                </button>
-                <button
-                  className="lib-item-btn danger"
-                  style={{ opacity: selectedId === lib.id ? 1 : 0.5 }}
-                  onClick={e => { e.stopPropagation(); handleDelete(lib.id) }}
-                  title="Remove from library"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {!editingId && (
+                  <>
+                    <button
+                      className="lib-item-btn"
+                      style={{ opacity: selectedId === lib.id ? 1 : 0.5 }}
+                      onClick={e => { 
+                        e.stopPropagation(); 
+                        setEditingId(lib.id); 
+                        setNameInput(lib.name.replace(/\.js$/, '')); 
+                        setRenameError(null);
+                      }}
+                      title="Rename script"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      className="lib-item-btn"
+                      style={{ opacity: selectedId === lib.id ? 1 : 0.5 }}
+                      onClick={e => { e.stopPropagation(); handleShowInFolder(lib.filePath) }}
+                      title={navigator.userAgent.includes('Mac') ? 'Reveal in Finder' : 'Show in Explorer'}
+                    >
+                      <FolderSearch size={14} />
+                    </button>
+                    <button
+                      className="lib-item-btn danger"
+                      style={{ opacity: selectedId === lib.id ? 1 : 0.5 }}
+                      onClick={e => { e.stopPropagation(); handleDelete(lib.id) }}
+                      title="Remove from library"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -414,6 +509,7 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
             {selectedLib ? (
               <div className="library-editor" style={{ flex: 1, overflow: 'hidden' }}>
                 <Editor
+                  ref={editorRef}
                   value={fileContents[selectedId!] ?? ''}
                   onChange={handleEditorChange}
                   language="javascript"

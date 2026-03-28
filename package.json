@@ -2,7 +2,7 @@
   "name": "ultrarpc",
   "productName": "UltraRPC",
   "private": true,
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "A lightweight API client for REST and gRPC — like Postman, but with native gRPC support, server reflection, and file-based collections.",
   "author": "UltraRPC",
   "main": "dist-electron/main.js",
@@ -55,7 +55,6 @@
     }
   },
   "dependencies": {
-    "yaml": "^2.8.0",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-javascript": "^6.2.5",
@@ -72,9 +71,11 @@
     "core-js": "^3.48.0",
     "framer-motion": "^12.35.2",
     "lucide-react": "^0.577.0",
+    "prettier": "^3.8.1",
     "react": "^19.2.0",
     "react-arborist": "^3.4.3",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "yaml": "^2.8.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

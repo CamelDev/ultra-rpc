@@ -131,6 +131,7 @@ interface Props {
 
 export interface EditorHandle {
   openSearch: () => void
+  format: () => Promise<void>
 }
 
 const Editor = forwardRef<EditorHandle, Props>(function Editor({
@@ -156,6 +157,9 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   useImperativeHandle(ref, () => ({
     openSearch: () => {
       if (viewRef.current) openSearchPanel(viewRef.current)
+    },
+    format: async () => {
+      await handleFormat()
     }
   }))
   const [tooltip, setTooltip] = useState<{ visible: boolean, x: number, y: number, text: string }>({
@@ -260,6 +264,17 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (tooltipTimeoutId.current) clearTimeout(tooltipTimeoutId.current)
     setTooltip(prev => ({ ...prev, visible: false }))
   }, [])
+  
+  const handleFormat = useCallback(async () => {
+    if (!viewRef.current || readOnly) return
+    const code = viewRef.current.state.doc.toString()
+    const res = await window.ultraRpc.formatCode({ code, language })
+    if (res.success && res.formatted && res.formatted !== code) {
+      viewRef.current.dispatch({
+        changes: { from: 0, to: viewRef.current.state.doc.length, insert: res.formatted }
+      })
+    }
+  }, [language, readOnly])
 
   // Memoize extensions to avoid re-creating the editor too often
   const getExtensions = useCallback(() => {
@@ -270,7 +285,8 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
         ...defaultKeymap, 
         ...historyKeymap, 
         ...(enableSearch && !singleLine ? searchKeymap : []),
-        ...(!singleLine ? [indentWithTab] : [])
+        ...(!singleLine ? [indentWithTab] : []),
+        ...(!singleLine ? [{ key: 'Shift-Alt-f', run: () => { handleFormat(); return true } }] : [])
       ]),
       ...(enableSearch && !singleLine ? [search({ top: true })] : []),
       variablePlugin,

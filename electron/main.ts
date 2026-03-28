@@ -7,6 +7,7 @@ import { registerRestHandlers } from './rest-handler'
 import { registerGrpcHandlers } from './grpc-handler'
 import { registerStorageHandlers } from './storage-handler'
 import { registerVaultHandlers } from './vault-handler'
+import { registerFormatHandlers } from './format-handler'
 
 process.on('uncaughtException', (err) => {
   try {
@@ -122,6 +123,7 @@ try {
     registerGrpcHandlers()
     registerStorageHandlers()
     registerVaultHandlers()
+    registerFormatHandlers()
 
     // Theme Management
     ipcMain.handle('theme:set-source', (_, source: 'light' | 'dark' | 'system') => {
@@ -138,11 +140,13 @@ try {
         const isDark = nativeTheme.shouldUseDarkColors
         win.webContents.send('theme:updated', isDark)
         
-        // Update window appearance
-        win.setTitleBarOverlay({
-          color: isDark ? '#18181b' : '#f4f4f5',
-          symbolColor: isDark ? '#fafafa' : '#09090b',
-        })
+        // Update window appearance (Windows only for title bar overlay)
+        if (process.platform === 'win32' && (win as any).setTitleBarOverlay) {
+          (win as any).setTitleBarOverlay({
+            color: isDark ? '#18181b' : '#f4f4f5',
+            symbolColor: isDark ? '#fafafa' : '#09090b',
+          })
+        }
       }
     })
 

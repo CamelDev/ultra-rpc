@@ -3,7 +3,7 @@ import {
   Plus, Send, Save, Settings, Globe, Braces, X, Loader2, 
   Info, FolderOpen, 
   Search, 
-  WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder
+  WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder, Code
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import { useScriptValidation } from './hooks/useScriptValidation'
@@ -170,6 +170,8 @@ const App: React.FC = () => {
   const postResponseValidation = useScriptValidation()
   const [wrapLines, setWrapLines] = useState(true)
   const bodyEditorRef = useRef<EditorHandle>(null)
+  const preRequestEditorRef = useRef<EditorHandle>(null)
+  const postResponseEditorRef = useRef<EditorHandle>(null)
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
 
   // ===== Helpers for Nested Collections =====
@@ -437,10 +439,78 @@ const App: React.FC = () => {
       if (res.warnings && res.warnings.length > 0) {
         res.warnings.forEach(w => addToast({ type: 'warning', message: w }))
       }
+    }
+  }, [addToast, setCollections])
+
+  const handleMoveCollection = useCallback(async (collectionId: string, currentPath?: string) => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.moveCollection({ collectionId, currentPath })
+    if (res.success) {
+      addToast({ type: 'success', message: 'Collection moved successfully' })
+      setCollections(prev => prev.filter(c => c.id !== collectionId)) // Optimistic update
+      // Reload to get the full updated structure and ensure consistency
+      loadCollections()
+    } else if (res.error !== 'Cancelled') {
+      addToast({ type: 'error', message: res.error || 'Failed to move collection' })
+    }
+  }, [loadCollections, setCollections])
+
+  const handleCloneCollection = useCallback(async (collectionId: string) => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.cloneCollection({ collectionId })
+    if (res.success) {
+      addToast({ type: 'success', message: 'Collection cloned successfully' })
+      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
     } else {
-      addToast({ type: 'error', message: res.error || 'Failed to load collections' })
+      addToast({ type: 'error', message: res.error || 'Failed to clone collection' })
     }
   }, [setCollections])
+
+  const handleCloneRequest = useCallback(async (collectionId: string, requestId: string) => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.cloneRequest({ collectionId, requestId })
+    if (res.success) {
+      addToast({ type: 'success', message: 'Request cloned successfully' })
+      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
+    } else {
+      addToast({ type: 'error', message: res.error || 'Failed to clone request' })
+    }
+  }, [setCollections])
+
+  const handleImportEnvironments = useCallback((envs: Environment[], vaultEntries?: Record<string, { key: string; value: string }[]>) => {
+    setEnvironments(prev => {
+      const merged = [...prev, ...envs]
+      if (window.ultraRpc) window.ultraRpc.saveEnvironments(merged)
+      return merged
+    })
+    if (vaultEntries && window.ultraRpc) {
+      for (const [envId, entries] of Object.entries(vaultEntries)) {
+        const vaultItems = entries.map((e: { key: string; value: string }) => ({
+          id: Math.random().toString(36).substring(2, 11),
+          key: e.key,
+          value: e.value,
+        }))
+        setVaults(prev => ({ ...prev, [envId]: vaultItems }))
+        window.ultraRpc.saveVault({ envId, entries: vaultItems })
+      }
+    }
+  }, [setEnvironments])
+
+  const handleRenameRequest = useCallback((reqId: string, newName: string) => {
+    setTabs(prev => prev.map(t => t.id === reqId ? { ...t, request: { ...t.request, name: newName }, isDirty: false } : t))
+  }, [setTabs])
+
+  const handleDeleteRequest = useCallback((collId: string, reqId: string, name: string) => {
+    setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })
+  }, [])
+
+  const handleDeleteFolder = useCallback((collId: string, folderId: string, folderName: string) => {
+    setConfirmDelete({ type: 'folder', id: folderId, name: folderName, collectionId: collId })
+  }, [])
+
+  const handleDeleteCollection = useCallback((id: string, name: string) => {
+    setConfirmDelete({ type: 'collection', id, name })
+  }, [])
 
   useEffect(() => {
     if (window.ultraRpc) {
@@ -465,40 +535,7 @@ const App: React.FC = () => {
     }
   }, [loadCollections, setEnvironments, setLibraries])
 
-  const handleMoveCollection = async (collectionId: string, currentPath?: string) => {
-    if (!window.ultraRpc) return
-    const res = await window.ultraRpc.moveCollection({ collectionId, currentPath })
-    if (res.success) {
-      addToast({ type: 'success', message: 'Collection moved successfully' })
-      setCollections(prev => prev.filter(c => c.id !== collectionId)) // Optimistic update
-      // Reload to get the full updated structure and ensure consistency
-      loadCollections()
-    } else if (res.error !== 'Cancelled') {
-      addToast({ type: 'error', message: res.error || 'Failed to move collection' })
-    }
-  }
 
-  const handleCloneCollection = async (collectionId: string) => {
-    if (!window.ultraRpc) return
-    const res = await window.ultraRpc.cloneCollection({ collectionId })
-    if (res.success) {
-      addToast({ type: 'success', message: 'Collection cloned successfully' })
-      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
-    } else {
-      addToast({ type: 'error', message: res.error || 'Failed to clone collection' })
-    }
-  }
-
-  const handleCloneRequest = async (collectionId: string, requestId: string) => {
-    if (!window.ultraRpc) return
-    const res = await window.ultraRpc.cloneRequest({ collectionId, requestId })
-    if (res.success) {
-      addToast({ type: 'success', message: 'Request cloned successfully' })
-      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
-    } else {
-      addToast({ type: 'error', message: res.error || 'Failed to clone request' })
-    }
-  }
 
   const loadHistory = useCallback(async () => {
     if (!window.ultraRpc) return
@@ -527,24 +564,7 @@ const App: React.FC = () => {
     if (window.ultraRpc) window.ultraRpc.saveEnvironments(envs)
   }, [setEnvironments])
 
-  const handleImportEnvironments = useCallback((envs: Environment[], vaultEntries?: Record<string, { key: string; value: string }[]>) => {
-    setEnvironments(prev => {
-      const merged = [...prev, ...envs]
-      if (window.ultraRpc) window.ultraRpc.saveEnvironments(merged)
-      return merged
-    })
-    if (vaultEntries && window.ultraRpc) {
-      for (const [envId, entries] of Object.entries(vaultEntries)) {
-        const vaultItems = entries.map((e: { key: string; value: string }) => ({
-          id: Math.random().toString(36).substring(2, 11),
-          key: e.key,
-          value: e.value,
-        }))
-        setVaults(prev => ({ ...prev, [envId]: vaultItems }))
-        window.ultraRpc.saveVault({ envId, entries: vaultItems })
-      }
-    }
-  }, [setEnvironments])
+
 
   const handleVaultChange = useCallback(async (envId: string, entries: VaultEntry[]) => {
     setVaults(prev => ({ ...prev, [envId]: entries }))
@@ -653,35 +673,37 @@ const App: React.FC = () => {
     setActiveTabId(newReq.id)
   }
 
-   const openRequestTab = (request: RequestConfig, fromHistory: boolean) => {
-     const latestTabs = tabsRef.current
-     if (fromHistory) {
-       // Historical snapshots shouldn't overwrite the active collection model. Give them a new ID.
-       const newReq = { ...request, id: Math.random().toString(36).substring(2, 11) }
-       const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false, envId: (request as any).envId || activeEnvIdRef.current }
-       setTabs(prev => [...prev, newTab])
-       setActiveTabId(newReq.id)
-     } else {
-       // From Collection
-       const existingTab = latestTabs.find(t => t.id === request.id)
-       if (existingTab) {
-         // Tab exactly matching this collection request is already open, just switch to it.
-         setActiveTabId(request.id)
-       } else {
-         // It's not open, so open it, preserving its unique ID so saves overwrite it.
-         const owningCollection = findCollectionByRequestId(request.id)
-         const newTab: Tab = { 
-           id: request.id, 
-           request: { ...request }, 
-           owningCollectionId: owningCollection?.id, 
-           isDirty: false,
-           envId: (request as any).envId || activeEnvIdRef.current
-         }
-         setTabs(prev => [...prev, newTab])
-         setActiveTabId(request.id)
-       }
-     }
-   }
+  const openRequestTab = useCallback((request: RequestConfig, fromHistory: boolean) => {
+    const latestTabs = tabsRef.current
+    if (fromHistory) {
+      // Historical snapshots shouldn't overwrite the active collection model. Give them a new ID.
+      const newReq = { ...request, id: Math.random().toString(36).substring(2, 11) }
+      const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false, envId: (request as any).envId || activeEnvIdRef.current }
+      setTabs(prev => [...prev, newTab])
+      setActiveTabId(newReq.id)
+    } else {
+      // From Collection
+      const existingTab = latestTabs.find(t => t.id === request.id)
+      if (existingTab) {
+        // Tab exactly matching this collection request is already open, just switch to it.
+        setActiveTabId(request.id)
+      } else {
+        // It's not open, so open it, preserving its unique ID so saves overwrite it.
+        const owningCollection = findCollectionByRequestId(request.id)
+        const newTab: Tab = { 
+          id: request.id, 
+          request: { ...request }, 
+          owningCollectionId: owningCollection?.id, 
+          isDirty: false,
+          envId: (request as any).envId || activeEnvIdRef.current
+        }
+        setTabs(prev => [...prev, newTab])
+        setActiveTabId(request.id)
+      }
+    }
+  }, [setTabs, setActiveTabId, findCollectionByRequestId])
+
+  const handleOpenRequestFromCollection = useCallback((req: RequestConfig) => openRequestTab(req, false), [openRequestTab])
  
    const removeTab = (e: React.MouseEvent, id: string) => {
      e.stopPropagation()
@@ -907,60 +929,13 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSaveActiveRequest, handleSaveAll])
 
-  const handleRenameRequest = (reqId: string, newName: string) => {
-    setTabs(prev => prev.map(t => 
-      t.request.id === reqId 
-        ? { ...t, request: { ...t.request, name: newName }, isDirty: true } 
-        : t
-    ))
-  }
 
-  const handleFormatJson = useCallback(() => {
-    if (!activeRequest) return
-    const currentBody = activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')
-    if (!currentBody.trim()) return
 
-    try {
-      // 1. Identify unquoted {{var}} and temporarily quote them to make JSON valid
-      let inString = false
-      let intermediate = ''
-      for (let i = 0; i < currentBody.length; i++) {
-        const char = currentBody[i]
-        // Handle escaped quotes
-        if (char === '"' && (i === 0 || currentBody[i - 1] !== '\\')) {
-          inString = !inString
-        }
-
-        // If we find {{ while not in a string, it's an unquoted variable
-        if (!inString && currentBody.slice(i, i + 2) === '{{') {
-          const end = currentBody.indexOf('}}', i)
-          if (end !== -1) {
-            const varContent = currentBody.slice(i, end + 2)
-            intermediate += `"___ULTRA_UNQUOTED___${varContent}"`
-            i = end + 1
-            continue
-          }
-        }
-        intermediate += char
-      }
-
-      // 2. Parse and format
-      const parsed = JSON.parse(intermediate)
-      const formatted = JSON.stringify(parsed, null, 2)
-
-      // 3. Restore unquoted variables by removing the placeholder prefix and its surrounding quotes
-      const final = formatted.replace(/"___ULTRA_UNQUOTED___(\{\{.*?\}\})"/g, '$1')
-
-      if (activeRequest.type === 'GRPC') {
-        updateActiveRequest({ grpcPayload: final })
-      } else {
-        updateActiveRequest({ body: final })
-      }
-      addToast({ type: 'success', message: 'JSON Formatted' })
-    } catch (e: any) {
-      addToast({ type: 'error', message: `Invalid JSON: ${e.message}` })
+  const handleFormatJson = useCallback(async () => {
+    if (bodyEditorRef.current) {
+      await bodyEditorRef.current.format()
     }
-  }, [activeRequest, updateActiveRequest])
+  }, [])
 
   const runPreRequestScript = async (request: RequestConfig, tabEnvId: string | null | undefined): Promise<{ environments: Environment[], collections: Collection[] } | null> => {
     if (!request.preRequestScript || !request.preRequestScript.trim()) return null
@@ -1820,12 +1795,12 @@ const App: React.FC = () => {
           <CollectionPanel
             collections={collections}
             onRefresh={loadCollections}
-            onOpenRequest={(req) => openRequestTab(req, false)}
+            onOpenRequest={handleOpenRequestFromCollection}
             onRenameRequest={handleRenameRequest}
             onEditVariables={setEditingCollection}
-            onDeleteRequest={(collId, reqId, name) => setConfirmDelete({ type: 'request', id: reqId, name, collectionId: collId })}
-            onDeleteFolder={(collId, folderId, folderName) => setConfirmDelete({ type: 'folder', id: folderId, name: folderName, collectionId: collId })}
-            onDeleteCollection={(id, name) => setConfirmDelete({ type: 'collection', id, name })}
+            onDeleteRequest={handleDeleteRequest}
+            onDeleteFolder={handleDeleteFolder}
+            onDeleteCollection={handleDeleteCollection}
             onMoveCollection={handleMoveCollection}
             onCloneCollection={handleCloneCollection}
             onCloneRequest={handleCloneRequest}
@@ -2233,16 +2208,14 @@ const App: React.FC = () => {
                           >
                             <Search size={14} /> Search
                           </button>
-                          {(activeRequest.bodyType === 'json' || activeRequest.type === 'GRPC') && (
                             <button 
                               className="btn-ghost"
                               style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
                               onClick={handleFormatJson}
-                              title="Standardize JSON indentation"
+                              title="Standardize JSON indentation (Shift+Alt+F)"
                             >
-                              <AlignLeft size={14} /> Format
+                              <Code size={14} /> Format
                             </button>
-                          )}
                           <button 
                             className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
                             style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -2334,6 +2307,14 @@ const App: React.FC = () => {
                               <ShieldCheck size={14} /> Validate
                             </button>
                             <button 
+                              className="btn-ghost"
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => preRequestEditorRef.current?.format()}
+                              title="Prettify script (Shift+Alt+F)"
+                            >
+                              <AlignLeft size={14} /> Format
+                            </button>
+                            <button 
                               className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
                               style={{ padding: '4px 8px', fontSize: '11px' }}
                               onClick={() => setWrapLines(!wrapLines)}
@@ -2353,6 +2334,7 @@ const App: React.FC = () => {
 
                       <div style={{ flex: 1, minHeight: '150px' }}>
                         <InterpolatedInput
+                            ref={preRequestEditorRef}
                             multiline
                             className="script-editor"
                             placeholder="// code here...&#10;ultra.env.set('timestamp', Date.now().toString());"
@@ -2417,6 +2399,14 @@ const App: React.FC = () => {
                               <ShieldCheck size={14} /> Validate
                             </button>
                             <button 
+                              className="btn-ghost"
+                              style={{ padding: '4px 8px', fontSize: '11px' }}
+                              onClick={() => postResponseEditorRef.current?.format()}
+                              title="Prettify script (Shift+Alt+F)"
+                            >
+                              <Code size={14} /> Format
+                            </button>
+                            <button 
                               className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
                               style={{ padding: '4px 8px', fontSize: '11px' }}
                               onClick={() => setWrapLines(!wrapLines)}
@@ -2436,6 +2426,7 @@ const App: React.FC = () => {
 
                       <div style={{ flex: 1, minHeight: '150px' }}>
                         <InterpolatedInput
+                            ref={postResponseEditorRef}
                             multiline
                             className="script-editor"
                             placeholder="// code here...&#10;if (ultra.response.body.token) {&#10;  ultra.setCollectionVariable('auth_token', ultra.response.body.token);&#10;}"

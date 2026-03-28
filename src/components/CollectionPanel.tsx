@@ -214,11 +214,12 @@ interface InlineRenameInputProps {
   error: string | null
   onConfirm: (val: string) => void
   onCancel: () => void
-  onChange?: () => void
+  onBlur?: () => void
+  onChange?: (val: string) => void
 }
 
 const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
-  initialValue, error, onConfirm, onCancel, onChange
+  initialValue, error, onConfirm, onCancel, onBlur, onChange
 }) => {
   const [val, setVal] = useState(initialValue)
 
@@ -227,15 +228,25 @@ const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
       <input
         className={`coll-rename-input${error ? ' coll-rename-input--error' : ''}`}
         value={val}
-        onChange={e => { setVal(e.target.value); if (onChange) onChange() }}
+        onChange={e => { setVal(e.target.value); if (onChange) onChange(e.target.value) }}
         onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter') onConfirm(val)
-          if (e.key === 'Escape') onCancel()
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            e.stopPropagation()
+            onConfirm(val)
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            e.stopPropagation()
+            onCancel()
+          }
         }}
         onKeyUp={e => e.stopPropagation()}
         onKeyPress={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
+        onBlur={() => {
+          if (onBlur) onBlur()
+        }}
         autoFocus
         style={{ width: '100%' }}
       />
@@ -355,6 +366,7 @@ const CollectionPanel: React.FC<Props> = ({
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
+  const nameInputRef = useRef('')
   const [renameError, setRenameError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showFolderModal, setShowFolderModal] = useState(false)
@@ -532,7 +544,7 @@ const CollectionPanel: React.FC<Props> = ({
     setFolderParentId(null);
   };
 
-  const handleRename = async (node: NodeApi<TreeDataItem> | { id: string, name: string }, newValue?: string, dismissOnBlur = true) => {
+  const handleRename = useCallback(async (node: NodeApi<TreeDataItem> | { id: string, name: string }, newValue?: string, dismissOnBlur = true) => {
     let freshName: string;
     let targetNode: any;
 
@@ -542,16 +554,23 @@ const CollectionPanel: React.FC<Props> = ({
       freshName = node.name.trim();
       setEditingId(node.id);
       setNameInput(node.name);
+      nameInputRef.current = node.name;
       return; 
     } else if ('data' in node) {
       targetNode = node;
-      freshName = (newValue ?? nameInput).trim();
+      freshName = (newValue ?? nameInputRef.current).trim();
     } else {
       return;
     }
 
     if (!freshName || !window.ultraRpc) {
       if (dismissOnBlur) { setEditingId(null); setRenameError(null) }
+      return
+    }
+
+    if (freshName === (node as any).name || (newValue && newValue === nameInput)) {
+      setEditingId(null)
+      setRenameError(null)
       return
     }
 
@@ -584,7 +603,7 @@ const CollectionPanel: React.FC<Props> = ({
 
     setEditingId(null)
     onRefresh()
-  }
+  }, [treeRef, getCollectionIdOfNode, onRenameRequest, onRefresh])
 
   const importCollection = async () => {
     if (window.ultraRpc) {
@@ -694,7 +713,14 @@ const CollectionPanel: React.FC<Props> = ({
                 error={renameError}
                 onConfirm={(val) => handleRename(node, val)}
                 onCancel={() => { setEditingId(null); setRenameError(null) }}
-                onChange={() => setRenameError(null)}
+                onBlur={() => {
+                  // If there is an error, dont dismiss on blur, let user fix it or Escape
+                  if (!renameError) handleRename(node, undefined, true) 
+                }}
+                onChange={(val) => { 
+                  nameInputRef.current = val;
+                  if (renameError) setRenameError(null);
+                }}
               />
             ) : (
               <span className="tree-node-name">
