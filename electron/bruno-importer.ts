@@ -13,8 +13,8 @@ const uid = () => Math.random().toString(36).substring(2, 11)
 
 function convertBrunoScript(code: string): string {
   return code
-    .replace(/\bbru\.setVar\s*\(/g, 'ultra.variables.set(')
-    .replace(/\bbru\.getVar\s*\(/g, 'ultra.variables.get(')
+    .replace(/\bbru\.setVar\s*\(/g, 'ultra.context.set(')
+    .replace(/\bbru\.getVar\s*\(/g, 'ultra.context.get(')
     .replace(/\bres\.getBody\s*\(\s*\)/g, 'ultra.response.body')
     .replace(/\bres\.getStatus\s*\(\s*\)/g, 'ultra.response.status')
     .replace(/\breq\.setHeader\s*\(([^,]+),\s*([^)]+)\)/g, 'ultra.request.headers[$1] = $2')

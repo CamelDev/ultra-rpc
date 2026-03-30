@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { 
-  Plus, Send, Save, Settings, Globe, Braces, X, Loader2, 
-  Info, FolderOpen, 
-  Search, 
-  WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder, Code
+import {
+  Plus, Send, Save, Settings, Globe, Braces, X, Loader2,
+  Info, FolderOpen,
+  Search,
+  WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder, Code,
+  GitBranch
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import { useScriptValidation } from './hooks/useScriptValidation'
@@ -18,6 +19,9 @@ import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
 import AboutModal from './components/AboutModal'
 import LibraryModal from './components/LibraryModal'
+import { FlowCanvas } from './components/FlowCanvas'
+import FlowPanel from './components/FlowPanel'
+import type { FlowDefinition } from './types/flow'
 import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem, VaultEntry, Library } from './types'
 import { createEmptyRequest } from './lib/helpers'
 import pkg from '../package.json'
@@ -43,14 +47,15 @@ const App: React.FC = () => {
         console.error('Failed to restore tabs:', e)
       }
     }
-    return [{ id: '1', request: createEmptyRequest(), isDirty: false }]
+    const newReq = createEmptyRequest()
+    return [{ id: newReq.id, type: 'request', request: newReq, isDirty: false }]
   })
   const tabsRef = useRef<Tab[]>(tabs)
   const setTabs = useCallback((updater: React.SetStateAction<Tab[]>) => {
-    const next = typeof updater === 'function' 
-      ? (updater as any)(tabsRef.current) 
+    const next = typeof updater === 'function'
+      ? (updater as any)(tabsRef.current)
       : updater
-    
+
     tabsRef.current = next
     setTabsState(next)
   }, [])
@@ -64,7 +69,7 @@ const App: React.FC = () => {
         if (Array.isArray(parsed) && parsed.some((t: any) => t.id === savedId)) {
           return savedId
         }
-      } catch {}
+      } catch { }
     }
     // Fallback to first tab if active id not found or invalid
     const saved = localStorage.getItem('ultraRpcTabs')
@@ -72,9 +77,9 @@ const App: React.FC = () => {
       try {
         const parsed = JSON.parse(saved)
         if (Array.isArray(parsed) && parsed.length > 0) return parsed[0].id
-      } catch {}
+      } catch { }
     }
-    return '1'
+    return tabsRef.current[0].id // Fallback to the ID of the initial tab created above
   })
   const activeTabIdRef = useRef<string>(activeTabId)
   const setActiveTabId = useCallback((id: string) => {
@@ -94,10 +99,11 @@ const App: React.FC = () => {
   // ===== UI state =====
   const [showEnvPanel, setShowEnvPanel] = useState(false)
   const [showHistoryPanel, setShowHistoryPanel] = useState(() => localStorage.getItem('ultraRpcShowHistory') === 'true')
+  const [showFlowPanel, setShowFlowPanel] = useState(() => localStorage.getItem('ultraRpcShowFlowPanel') === 'true')
   const [showSaveMenu, setShowSaveMenu] = useState(false)
   const [saveModalRequestName, setSaveModalRequestName] = useState('')
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder' | 'environment', id: string, name: string, collectionId?: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'collection' | 'request' | 'folder' | 'environment' | 'flow', id: string, name: string, collectionId?: string } | null>(null)
   const [deleteCollectionFiles, setDeleteCollectionFiles] = useState(false)
   const [showSettingsPopup, setShowSettingsPopup] = useState(false)
   const [showAboutModal, setShowAboutModal] = useState(false)
@@ -149,6 +155,8 @@ const App: React.FC = () => {
     }
   }, [])
   const [showLibraryModal, setShowLibraryModal] = useState(false)
+  const [initialLibraryId, setInitialLibraryId] = useState<string | null>(null)
+  const [libraryMethodMap, setLibraryMethodMap] = useState<Record<string, string>>({})
 
   const [activeEnvId, setActiveEnvIdState] = useState<string | null>(null)
   const activeEnvIdRef = useRef<string | null>(null)
@@ -173,6 +181,12 @@ const App: React.FC = () => {
   const preRequestEditorRef = useRef<EditorHandle>(null)
   const postResponseEditorRef = useRef<EditorHandle>(null)
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
+  
+  const [showSaveFlowModal, setShowSaveFlowModal] = useState(false)
+  const [saveFlowModalName, setSaveFlowModalName] = useState('New Flow')
+  const [saveFlowModalPath, setSaveFlowModalPath] = useState('')
+  const [flowToClone, setFlowToClone] = useState<FlowDefinition | null>(null)
+  const [flows, setFlows] = useState<{ flow: FlowDefinition; collectionId?: string; collectionName?: string; path: string }[]>([])
 
   // ===== Helpers for Nested Collections =====
   const getAllRequests = useCallback((collection: Collection): RequestConfig[] => {
@@ -298,6 +312,34 @@ const App: React.FC = () => {
     localStorage.setItem('ultraRpcSidebarWidth', sidebarWidth.toString())
   }, [sidebarWidth])
 
+  useEffect(() => {
+    const scanLibraries = async () => {
+      const map: Record<string, string> = {}
+      for (const lib of libraries) {
+        if (!lib.enabled) continue
+        const res = await window.ultraRpc?.readFileContents(lib.filePath)
+        if (res?.success && res.content) {
+          // Match assignments: ultra.lib.methodName = ...
+          const regex = /ultra\.lib\.([a-zA-Z0-9_]+)\s*=/g
+          let match
+          while ((match = regex.exec(res.content)) !== null) {
+            map[match[1]] = lib.id
+          }
+        }
+      }
+      setLibraryMethodMap(map)
+    }
+    scanLibraries()
+  }, [libraries])
+
+  const handleFollowDefinition = useCallback((methodName: string) => {
+    const libId = libraryMethodMap[methodName]
+    if (libId) {
+      setInitialLibraryId(libId)
+      setShowLibraryModal(true)
+    }
+  }, [libraryMethodMap])
+
   const resetLayout = () => {
     localStorage.removeItem('ultraRpcSidebarWidth')
     localStorage.removeItem('ultraRpcRequestHeight')
@@ -341,7 +383,7 @@ const App: React.FC = () => {
 
     const unsubscribe = window.ultraRpc.onRequestClose(() => {
       const hasDirtyTabs = tabsRef.current.some((t: Tab) => t.isDirty)
-      
+
       if (hasDirtyTabs) {
         const confirm = window.confirm(
           'You have unsaved changes in your tabs.\nAre you sure you want to exit? Unsaved progress will be lost.'
@@ -350,7 +392,7 @@ const App: React.FC = () => {
           const isNewAndUnsaved = (t: Tab) => {
             if (!t.isDirty) return false
             if (t.owningCollectionId) return false
-            
+
             let found = false
             for (const coll of collectionsRef.current) {
               const traverse = (children: any[]) => {
@@ -371,20 +413,18 @@ const App: React.FC = () => {
 
           const tabsToKeep = tabsRef.current.filter((t: Tab) => !isNewAndUnsaved(t))
           if (tabsToKeep.length === 0) {
-            const emptyId = Math.random().toString(36).substring(2, 11)
+            const emptyReq = createEmptyRequest()
             tabsToKeep.push({
-              id: emptyId,
-              request: {
-                id: emptyId, name: '', type: 'REST', method: 'GET', url: '',
-                params: [], headers: [], body: '', bodyType: 'none'
-              },
+              id: emptyReq.id,
+              type: 'request',
+              request: emptyReq,
               isDirty: false
             })
           }
-          
+
           localStorage.setItem('ultraRpcTabs', JSON.stringify(tabsToKeep))
           if (!tabsToKeep.some((t: Tab) => t.id === localStorage.getItem('ultraRpcActiveTabId'))) {
-             localStorage.setItem('ultraRpcActiveTabId', tabsToKeep[tabsToKeep.length - 1].id)
+            localStorage.setItem('ultraRpcActiveTabId', tabsToKeep[tabsToKeep.length - 1].id)
           }
 
           window.ultraRpc.confirmClose()
@@ -412,7 +452,7 @@ const App: React.FC = () => {
   // Theme Sync from Electron
   useEffect(() => {
     if (!window.ultraRpc) return
-    
+
     // Initial sync
     window.ultraRpc.getShouldUseDark().then(isDark => {
       setSystemThemeSync(isDark ? 'dark' : 'light')
@@ -431,6 +471,14 @@ const App: React.FC = () => {
     }
   }, [theme])
 
+  const loadFlows = useCallback(async () => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.listFlows()
+    if (res.success && res.flows) {
+      setFlows(res.flows)
+    }
+  }, [])
+
   const loadCollections = useCallback(async () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.listCollections()
@@ -439,8 +487,9 @@ const App: React.FC = () => {
       if (res.warnings && res.warnings.length > 0) {
         res.warnings.forEach(w => addToast({ type: 'warning', message: w }))
       }
+      loadFlows()
     }
-  }, [addToast, setCollections])
+  }, [addToast, setCollections, loadFlows])
 
   const handleMoveCollection = useCallback(async (collectionId: string, currentPath?: string) => {
     if (!window.ultraRpc) return
@@ -497,7 +546,11 @@ const App: React.FC = () => {
   }, [setEnvironments])
 
   const handleRenameRequest = useCallback((reqId: string, newName: string) => {
-    setTabs(prev => prev.map(t => t.id === reqId ? { ...t, request: { ...t.request, name: newName }, isDirty: false } : t))
+    setTabs(prev => prev.map(t =>
+      t.type === 'request' && t.id === reqId
+        ? { ...t, request: { ...t.request, name: newName }, isDirty: false }
+        : t
+    ))
   }, [setTabs])
 
   const handleDeleteRequest = useCallback((collId: string, reqId: string, name: string) => {
@@ -515,6 +568,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (window.ultraRpc) {
       loadCollections()
+      loadFlows()
       window.ultraRpc.getEnvironments().then(async res => {
         if (res.success && res.environments) {
           setEnvironments(res.environments)
@@ -550,9 +604,9 @@ const App: React.FC = () => {
     await window.ultraRpc.saveSettings({ ...current, [key]: value })
   }, [])
 
-   const handleSaveCollectionVariables = useCallback(async (id: string, variables: any[]) => {
+  const handleSaveContextVariables = useCallback(async (id: string, variables: any[]) => {
     if (!window.ultraRpc) return
-    const res = await window.ultraRpc.saveCollectionVariables({ collectionId: id, variables })
+    const res = await window.ultraRpc.saveContextVariables({ collectionId: id, variables })
     if (res.success) {
       setCollections(prev => prev.map(c => c.id === id ? { ...c, variables } : c))
     }
@@ -597,16 +651,17 @@ const App: React.FC = () => {
 
   // ===== Helpers =====
   const activeTab = tabs.find(t => t.id === activeTabId)
-  const activeRequest = activeTab?.request
+  const activeRequest = activeTab?.type === 'request' ? activeTab.request! : createEmptyRequest()
   const activeEnv = environments.find(e => e.id === (activeTab?.envId || activeEnvId))
   const activeVaultEntries = vaults[(activeTab?.envId || activeEnvId) ?? ''] || []
-  const activeRequestCollection = activeTab ? findCollectionByRequestId(activeTab.request.id) : null
+  const activeRequestTab = activeTab?.type === 'request' ? activeTab : null
+  const activeRequestCollection = activeRequestTab ? findCollectionByRequestId(activeRequestTab.request.id) : null
 
   const activeConfigTab = activeRequest?.activeConfigTab || 'params'
   const setActiveConfigTab = (tab: RequestTab) => {
     setTabs(prev =>
       prev.map(t =>
-        t.id === activeTabId ? { ...t, request: { ...t.request, activeConfigTab: tab } } : t
+        t.id === activeTabId && t.type === 'request' ? { ...t, request: { ...t.request!, activeConfigTab: tab } } : t
       )
     )
   }
@@ -614,13 +669,13 @@ const App: React.FC = () => {
   const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
     setTabs(prev => {
       return prev.map(t => {
-        if (t.id !== activeTabIdRef.current) return t
-        
+        if (t.id !== activeTabIdRef.current || t.type !== 'request') return t
+
         const skipDirtyKeys = ['activeConfigTab']
         const hasChanged = Object.entries(partial).some(([key, val]) => {
           const current = (t.request as any)[key]
           const isSkipped = skipDirtyKeys.includes(key)
-          
+
           let changed = false
           if (typeof val === 'object' && val !== null) {
             if (Array.isArray(val) && val.length === 0 && (current === undefined || current === null || current === '')) {
@@ -638,10 +693,10 @@ const App: React.FC = () => {
           return changed
         })
 
-        return { 
-          ...t, 
-          request: { ...t.request, ...partial }, 
-          isDirty: t.isDirty || hasChanged 
+        return {
+          ...t,
+          request: { ...t.request!, ...partial },
+          isDirty: t.isDirty || hasChanged
         }
       })
     })
@@ -649,7 +704,7 @@ const App: React.FC = () => {
 
   const updateTabEnv = useCallback((envId: string | null) => {
     setTabs(prev => {
-      return prev.map(t => 
+      return prev.map(t =>
         t.id === activeTabIdRef.current ? { ...t, envId } : t
       )
     })
@@ -668,7 +723,7 @@ const App: React.FC = () => {
 
   const addEmptyTab = () => {
     const newReq = createEmptyRequest()
-    const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false, envId: activeEnvId }
+    const newTab: Tab = { id: newReq.id, type: 'request', request: newReq, isDirty: false, envId: activeEnvId }
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newReq.id)
   }
@@ -678,7 +733,7 @@ const App: React.FC = () => {
     if (fromHistory) {
       // Historical snapshots shouldn't overwrite the active collection model. Give them a new ID.
       const newReq = { ...request, id: Math.random().toString(36).substring(2, 11) }
-      const newTab: Tab = { id: newReq.id, request: newReq, isDirty: false, envId: (request as any).envId || activeEnvIdRef.current }
+      const newTab: Tab = { id: newReq.id, type: 'request', request: newReq, isDirty: false, envId: (request as any).envId || activeEnvIdRef.current }
       setTabs(prev => [...prev, newTab])
       setActiveTabId(newReq.id)
     } else {
@@ -690,10 +745,11 @@ const App: React.FC = () => {
       } else {
         // It's not open, so open it, preserving its unique ID so saves overwrite it.
         const owningCollection = findCollectionByRequestId(request.id)
-        const newTab: Tab = { 
-          id: request.id, 
-          request: { ...request }, 
-          owningCollectionId: owningCollection?.id, 
+        const newTab: Tab = {
+          id: request.id,
+          type: 'request',
+          request: { ...request },
+          owningCollectionId: owningCollection?.id,
           isDirty: false,
           envId: (request as any).envId || activeEnvIdRef.current
         }
@@ -704,59 +760,83 @@ const App: React.FC = () => {
   }, [setTabs, setActiveTabId, findCollectionByRequestId])
 
   const handleOpenRequestFromCollection = useCallback((req: RequestConfig) => openRequestTab(req, false), [openRequestTab])
- 
-   const removeTab = (e: React.MouseEvent, id: string) => {
-     e.stopPropagation()
-     const latestTabs = tabsRef.current
-     const tabToClose = latestTabs.find(t => t.id === id)
-     if (tabToClose?.isDirty) {
-       if (!window.confirm(`This request has unsaved changes.\nAre you sure you want to close it?`)) {
-         return
-       }
-     }
- 
-     const newTabs = latestTabs.filter(t => t.id !== id)
-     if (newTabs.length === 0) {
-       const newReq = createEmptyRequest()
-       setTabs([{ id: newReq.id, request: newReq, isDirty: false }])
-       setActiveTabId(newReq.id)
-     } else {
-       setTabs(newTabs)
-       if (activeTabIdRef.current === id) setActiveTabId(newTabs[newTabs.length - 1].id)
-     }
-   }
+
+  const handleJumpToRequest = useCallback((requestId: string) => {
+    let foundRequest: RequestConfig | null = null
+    const find = (items: any[]) => {
+      for (const item of items) {
+        if (item.type === 'request' && item.request && item.request.id === requestId) {
+          foundRequest = item.request
+          return true
+        }
+        if (item.type === 'folder' && item.children && find(item.children)) return true
+      }
+      return false
+    }
+    collectionsRef.current.forEach(c => find(c.children || []))
+    
+    if (foundRequest) {
+      openRequestTab(foundRequest, false)
+    } else {
+      addToast({ type: 'error', message: 'Original request not found' })
+    }
+  }, [openRequestTab, addToast])
+
+
+  const removeTab = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    const latestTabs = tabsRef.current
+    const tabToClose = latestTabs.find(t => t.id === id)
+    if (tabToClose?.isDirty) {
+      if (!window.confirm(`This request has unsaved changes.\nAre you sure you want to close it?`)) {
+        return
+      }
+    }
+
+    const newTabs = latestTabs.filter(t => t.id !== id)
+    if (newTabs.length === 0) {
+      const newReq = createEmptyRequest()
+      setTabs([{ id: newReq.id, type: 'request', request: newReq, isDirty: false }])
+      setActiveTabId(newReq.id)
+    } else {
+      setTabs(newTabs)
+      if (activeTabIdRef.current === id) setActiveTabId(newTabs[newTabs.length - 1].id)
+    }
+  }
 
   const interpolate = (
-    str: string, 
-    envOverride?: Environment, 
+    str: string,
+    envOverride?: Environment,
     collectionsOverride?: Collection[],
     tabIdOverride?: string
   ): string => {
     if (!str) return str
-    
+
     const targetTabId = tabIdOverride || activeTabId
     const currentTabs = tabsRef.current
     const targetTab = currentTabs.find(t => t.id === targetTabId)
+
+    if (targetTab?.type === 'flow') return str // Flows don't interpolate variables
 
     // Find collection associated with the target request
     const currentCollections = collectionsOverride || collectionsRef.current
     const activeColl = targetTab ? currentCollections.find(c => {
       const traverse = (children: CollectionItem[]): boolean => {
         for (const item of children) {
-          if (item.type === 'request' && item.request?.id === targetTab.request.id) return true
+          if (item.type === 'request' && item.request?.id === targetTab.request?.id) return true
           if (item.type === 'folder' && item.children && traverse(item.children)) return true
         }
         return false
       }
       return traverse(c.children)
     }) : null
-    
+
     // Resolve environment: override first, then tab-level, then global active
     const requestEnvId = targetTab?.envId
     const effectiveEnvId = requestEnvId !== undefined ? requestEnvId : activeEnvIdRef.current
     const latestEnvs = environmentsRef.current
     const currentEnv = envOverride || latestEnvs.find(e => e.id === effectiveEnvId)
-    
+
     const result = str.replace(/\{\{([\w.-]+)\}\}/g, (_, varName) => {
       // 0. Vault (highest precedence — secrets override everything)
       if (currentEnv) {
@@ -779,7 +859,7 @@ const App: React.FC = () => {
 
       return `{{${varName}}}`
     })
-    
+
     console.log(`[interpolate] IN="${str}" OUT="${result}" (env=${currentEnv?.name} numVars=${currentEnv?.variables.length})`)
     return result
   }
@@ -806,14 +886,15 @@ const App: React.FC = () => {
     const tabId = activeTabIdRef.current
     const latestTabs = tabsRef.current
     const currentTab = latestTabs.find(t => t.id === tabId)
-    const requestToSave = currentTab?.request
 
-    if (!requestToSave || !window.ultraRpc) return
+    if (!currentTab || currentTab.type !== 'request' || !currentTab.request || !window.ultraRpc) return
+    const requestToSave = currentTab.request
+
     const res = await window.ultraRpc.saveRequest({ collectionId, request: requestToSave })
-    
+
     if (res.success) {
       // Clear dirty flag on active tab and remember the collection
-      setTabs(prev => prev.map(t => 
+      setTabs(prev => prev.map(t =>
         t.id === tabId ? { ...t, isDirty: false, owningCollectionId: collectionId } : t
       ))
       window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
@@ -827,10 +908,41 @@ const App: React.FC = () => {
     const tabId = activeTabIdRef.current
     const latestTabs = tabsRef.current
     const currentTab = latestTabs.find(t => t.id === tabId)
-    const requestToSave = currentTab?.request
 
-    if (!requestToSave) return
-    
+    if (!currentTab) return
+
+    if (currentTab.type === 'flow' && currentTab.flow) {
+      const colId = currentTab.owningCollectionId || findCollectionByFlowId(currentTab.flow.id)?.id
+      
+      if (colId) {
+        const res = await window.ultraRpc.saveFlow({ collectionId: colId, flow: currentTab.flow })
+        if (res.success) {
+          setTabs(prev => prev.map(t => t.id === tabId ? { ...t, isDirty: false, owningCollectionId: colId } : t))
+          addToast({ type: 'success', message: 'Flow Saved' })
+        } else {
+          addToast({ type: 'error', message: res.error || 'Failed to save flow' })
+        }
+      } else if (currentTab.path) {
+        const res = await window.ultraRpc.saveFlowStandalone({ path: currentTab.path, flow: currentTab.flow })
+        if (res.success) {
+          setTabs(prev => prev.map(t => t.id === tabId ? { ...t, isDirty: false } : t))
+          addToast({ type: 'success', message: 'Flow Saved' })
+        } else {
+          addToast({ type: 'error', message: res.error || 'Failed to save flow' })
+        }
+      } else {
+        // Unsaved new flow - show the save modal
+        setSaveFlowModalName(currentTab.flow.name || 'New Flow')
+        setSaveFlowModalPath('')
+        setFlowToClone(null)
+        setShowSaveFlowModal(true)
+      }
+      return
+    }
+
+    if (currentTab.type !== 'request' || !currentTab.request) return
+    const requestToSave = currentTab.request
+
     let targetCollectionId = currentTab?.owningCollectionId
     if (!targetCollectionId) {
       const owningCollection = findCollectionByRequestId(requestToSave.id)
@@ -847,9 +959,9 @@ const App: React.FC = () => {
         if (result.success && result.id) {
           // Immediately save to this new collection
           await window.ultraRpc.saveRequest({ collectionId: result.id, request: requestToSave })
-          
+
           // Clear dirty flag on active tab
-          setTabs(prev => prev.map(t => 
+          setTabs(prev => prev.map(t =>
             t.id === tabId ? { ...t, isDirty: false, owningCollectionId: result.id! } : t
           ))
 
@@ -864,41 +976,264 @@ const App: React.FC = () => {
     }
   }, [saveToCollection, loadCollections, findCollectionByRequestId])
 
+  const findCollectionIdByItemId = (itemId: string) => {
+    const coll = collections.find(c => {
+      if (c.id === itemId) return true
+      const traverse = (items: any[]): boolean => {
+        for (const item of items) {
+          if (item.id === itemId) return true
+          if (item.type === 'folder' && item.children && traverse(item.children)) return true
+        }
+        return false
+      }
+      return traverse(c.children || [])
+    })
+    return coll?.id
+  }
+
+  const findCollectionByFlowId = (flowId: string) => {
+    const currentCollections = collectionsRef.current || collections
+    return currentCollections.find(c => {
+      const traverse = (items: any[]): boolean => {
+        for (const item of items) {
+          if (item.type === 'flow' && item.flow?.id === flowId) return true
+          if (item.type === 'folder' && item.children && traverse(item.children)) return true
+        }
+        return false
+      }
+      return traverse(c.children || [])
+    })
+  }
+
+  const handleOpenFlowTab = useCallback((flow: FlowDefinition, path?: string) => {
+    const latestTabs = tabsRef.current
+    const existingTab = latestTabs.find(t => t.type === 'flow' && t.id === flow.id)
+    if (existingTab) {
+      setActiveTabId(flow.id)
+    } else {
+      const owningColl = findCollectionByFlowId(flow.id)
+      const newTab: Tab = {
+        id: flow.id,
+        type: 'flow',
+        flow: { ...flow },
+        owningCollectionId: owningColl?.id,
+        path: path,
+        isDirty: false,
+        envId: activeEnvIdRef.current
+      }
+      setTabs(prev => [...prev, newTab])
+      setActiveTabId(flow.id)
+    }
+  }, [setTabs, setActiveTabId])
+
+  const handleNewFlow = async (parentId?: string) => {
+    setSaveFlowModalName('New Flow')
+    
+    // Resolve path if parentId is provided
+    if (parentId) {
+      const res = await window.ultraRpc.getCollectionPath({ collectionId: findCollectionIdByItemId(parentId) || parentId })
+      if (res.success && res.path) {
+        setSaveFlowModalPath(res.path)
+      }
+    } else if (collectionsRef.current.length > 0) {
+      const res = await window.ultraRpc.getCollectionPath({ collectionId: collectionsRef.current[0].id })
+      if (res.success && res.path) setSaveFlowModalPath(res.path)
+    } else {
+      setSaveFlowModalPath('')
+    }
+    
+    setShowSaveFlowModal(true)
+  }
+
+  const confirmCreateFlow = async () => {
+    if (!window.ultraRpc || !saveFlowModalPath) {
+      addToast({ type: 'warning', message: 'Please select a destination folder.' })
+      return
+    }
+
+    const newFlow: FlowDefinition = {
+      id: Math.random().toString(36).substring(2, 11),
+      name: saveFlowModalName.trim() || 'New Flow',
+      steps: [],
+      settings: {
+        timeout: 30000,
+        onFailure: 'stop',
+        repeat: 0
+      },
+      variables: {}
+    }
+    
+    // If cloning, use the original template's steps and settings
+    const flowData: FlowDefinition = flowToClone ? {
+      ...newFlow,
+      steps: JSON.parse(JSON.stringify(flowToClone.steps)), // deep copy to avoid reference sharing
+      settings: { ...flowToClone.settings },
+      variables: { ...flowToClone.variables }
+    } : newFlow
+
+    const res = await window.ultraRpc.saveFlowToPath({
+      folderPath: saveFlowModalPath,
+      flow: flowData
+    })
+
+    if (res.success) {
+      setShowSaveFlowModal(false)
+      setFlowToClone(null)
+      loadCollections()
+      loadFlows()
+      handleOpenFlowTab(flowData, res.path)
+    } else {
+      addToast({ type: 'error', message: res.error || 'Failed to create flow' })
+    }
+  }
+
+  const handleDeleteFlow = async (collectionId: string, flowId: string, path?: string) => {
+    if (!confirm('Are you sure you want to delete this flow?')) return
+    const res = await window.ultraRpc.deleteFlow({ collectionId, flowId, path })
+    if (res.success) {
+      loadCollections()
+      loadFlows()
+      addToast({ type: 'success', message: 'Flow Deleted' })
+    } else {
+      addToast({ type: 'error', message: res.error || 'Failed to delete flow' })
+    }
+  }
+
+  const handleRenameFlow = async (collectionId: string | undefined, flowId: string, newName: string, path?: string) => {
+    console.log("Renaming flow...", collectionId, flowId, newName);
+    const res = await window.ultraRpc.renameFlow({ collectionId, flowId, newName, path });
+    console.log("Rename result:", res);
+    if (res.success && res.newId) {
+      loadCollections()
+      loadFlows()
+      setTabs(prev => prev.map(t => 
+        t.type === 'flow' && t.id === flowId 
+          ? { ...t, id: res.newId!, flow: { ...t.flow, id: res.newId!, name: newName } } 
+          : t
+      ))
+      if (activeTabId === flowId) setActiveTabId(res.newId)
+    } else {
+      addToast({ type: 'error', message: res.error || 'Failed to rename flow' })
+    }
+  }
+
+  const handleMoveFlow = async (flowId: string, currentPath: string) => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.pickFolder()
+    if (res.success && res.path) {
+      const moveRes = await window.ultraRpc.moveFlow({ flowId, currentPath, targetFolderPath: res.path })
+      if (moveRes.success) {
+        addToast({ type: 'success', message: 'Flow moved successfully' })
+        loadCollections()
+        loadFlows()
+      } else {
+        addToast({ type: 'error', message: moveRes.error || 'Failed to move flow' })
+      }
+    }
+  }
+
+  const handleCloneFlow = useCallback((flow: FlowDefinition, path: string) => {
+    // Priority check: Use the latest tab state if it's open
+    const latestTabs = tabsRef.current
+    const tabState = latestTabs.find(t => t.type === 'flow' && t.id === flow.id)
+    const activeFlow = (tabState && tabState.type === 'flow') ? tabState.flow : flow
+
+    setSaveFlowModalName(`${activeFlow.name} Copy`)
+    const dir = path.replace(/[\\/][^\\/]+$/, '')
+    setSaveFlowModalPath(dir)
+    setFlowToClone(activeFlow)
+    setShowSaveFlowModal(true)
+  }, [setSaveFlowModalName, setSaveFlowModalPath, setFlowToClone, setShowSaveFlowModal])
+
+  const handleReorderFlows = async (newFlows: { flow: FlowDefinition; path: string }[]) => {
+    setFlows(newFlows as any)
+    if (window.ultraRpc) {
+      const order = newFlows.map(f => f.path)
+      await window.ultraRpc.saveFlowOrder({ order })
+    }
+  }
+
+  // Autosave dirty flows with a 1-second debounce
+  useEffect(() => {
+    const dirtyFlows = tabs.filter(t => t.type === 'flow' && t.isDirty)
+    if (dirtyFlows.length === 0) return
+
+    const timer = setTimeout(async () => {
+      for (const tab of dirtyFlows) {
+        if (tab.type !== 'flow' || !tab.flow) continue
+        const colId = tab.owningCollectionId || findCollectionByFlowId?.(tab.flow.id)?.id
+        if (colId) {
+          const res = await window.ultraRpc.saveFlow({ collectionId: colId, flow: tab.flow })
+          if (res.success) {
+            setTabs(prev => prev.map(t => (t.id === tab.id && t.type === 'flow') ? { ...t, isDirty: false } : t))
+          }
+        } else if (tab.path) {
+          const res = await window.ultraRpc.saveFlowStandalone({ path: tab.path, flow: tab.flow })
+          if (res.success) {
+            setTabs(prev => prev.map(t => (t.id === tab.id && t.type === 'flow') ? { ...t, isDirty: false } : t))
+          }
+        }
+      }
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [tabs, findCollectionByFlowId, setTabs])
+
+  const handleOpenFlowFile = async () => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.openFlowFile()
+    if (res.success && res.flow) {
+      handleOpenFlowTab(res.flow, res.path)
+      loadFlows()
+    } else if (res.error) {
+      addToast({ type: 'error', message: res.error })
+    }
+  }
+
   const handleSaveAll = useCallback(async () => {
     if (!window.ultraRpc) return
-    
+
     const latestTabs = tabsRef.current
-    const dirtyTabsWithCollection = latestTabs.filter(t => t.isDirty)
-      .map(t => ({ tab: t, collectionId: t.owningCollectionId || findCollectionByRequestId(t.id)?.id }))
-      .filter(x => !!x.collectionId) as { tab: Tab, collectionId: string }[]
-    
-    if (dirtyTabsWithCollection.length === 0) return
+    const dirtyTabs = latestTabs.filter(t => t.isDirty)
+
+    if (dirtyTabs.length === 0) return
 
     const savedIds: string[] = []
 
-    for (const item of dirtyTabsWithCollection) {
-      const res = await window.ultraRpc.saveRequest({ collectionId: item.collectionId, request: item.tab.request })
-      if (res.success) {
-        savedIds.push(item.tab.id)
-      } else {
-        addToast({ type: 'error', message: `Failed to save ${item.tab.request.name || 'Untitled'}: ${res.error}` })
+    for (const t of dirtyTabs) {
+      if (t.type === 'request' && t.request) {
+        const collectionId = t.owningCollectionId || findCollectionByRequestId(t.id)?.id
+        if (collectionId) {
+          const res = await window.ultraRpc.saveRequest({ collectionId, request: t.request })
+          if (res.success) savedIds.push(t.id)
+          else addToast({ type: 'error', message: `Failed to save ${t.request.name || 'Untitled'}: ${res.error}` })
+        }
+      } else if (t.type === 'flow' && t.flow) {
+        const colId = t.owningCollectionId || findCollectionByFlowId(t.flow.id)?.id
+        if (colId) {
+          const res = await window.ultraRpc.saveFlow({ collectionId: colId, flow: t.flow })
+          if (res.success) savedIds.push(t.id)
+          else addToast({ type: 'error', message: `Failed to save flow ${t.flow.name}: ${res.error}` })
+        } else if (t.path) {
+          const res = await window.ultraRpc.saveFlowStandalone({ path: t.path, flow: t.flow })
+          if (res.success) savedIds.push(t.id)
+          else addToast({ type: 'error', message: `Failed to save flow ${t.flow.name}: ${res.error}` })
+        }
       }
     }
 
-    // Clear dirty flags for successfully saved tabs
     if (savedIds.length > 0) {
       setTabs(prev => prev.map(t => {
-        const savedItem = dirtyTabsWithCollection.find(st => st.tab.id === t.id && savedIds.includes(t.id))
-        if (savedItem) {
-          return { ...t, isDirty: false, owningCollectionId: savedItem.collectionId }
+        if (savedIds.includes(t.id)) {
+          return { ...t, isDirty: false }
         }
         return t
       }))
-      window.ultraRpc.listCollections().then(res => { if (res.success && res.collections) setCollections(res.collections) })
+      loadCollections()
     }
 
     if (savedIds.length > 0) {
-      addToast({ type: 'success', message: `Saved ${savedIds.length} request(s)` })
+      addToast({ type: 'success', message: `Saved ${savedIds.length} item(s)` })
     }
   }, [tabs, findCollectionByRequestId, loadCollections])
 
@@ -931,6 +1266,7 @@ const App: React.FC = () => {
 
 
 
+
   const handleFormatJson = useCallback(async () => {
     if (bodyEditorRef.current) {
       await bodyEditorRef.current.format()
@@ -943,7 +1279,7 @@ const App: React.FC = () => {
     // We need to work with local copies to avoid race conditions with React state updates
     let currentEnvs = [...environmentsRef.current]
     let currentCollections = [...collectionsRef.current]
-    
+
     // Find parent collection using the ref-based collections
     const parentCollection = currentCollections.find(c => {
       const traverse = (children: CollectionItem[]): boolean => {
@@ -955,9 +1291,9 @@ const App: React.FC = () => {
       }
       return traverse(c.children)
     })
-    
+
     const tabId = activeTabIdRef.current
-    
+
     const mockConsole = {
       log: (...args: any[]) => {
         const timestamp = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -1031,7 +1367,7 @@ const App: React.FC = () => {
           }
         },
 
-        collection: {
+        context: {
           get: (varName: string) => {
             let currentParent: Collection | undefined = undefined
             for (const col of currentCollections) {
@@ -1059,20 +1395,20 @@ const App: React.FC = () => {
                   vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
                 }
                 activeOperations++
-                handleSaveCollectionVariables(c.id, vars).then(() => {
-                   mockConsole.log(`Set collection variable: ${key}`)
+                handleSaveContextVariables(c.id, vars).then(() => {
+                  mockConsole.log(`Set context variable: ${key}`)
                 }).catch(err => {
-                   mockConsole.error(`Failed to save variable ${key}: ${err.message}`)
+                  mockConsole.error(`Failed to save variable ${key}: ${err.message}`)
                 }).finally(() => {
-                   activeOperations--
-                   checkDone()
+                  activeOperations--
+                  checkDone()
                 })
                 return { ...c, variables: vars }
               }
               return c
             })
             setCollections(currentCollections)
-            mockConsole.log(`Set collection variable: ${key}`)
+            mockConsole.log(`Set context variable: ${key}`)
           },
           all: () => {
             let currentParent: Collection | undefined = undefined
@@ -1109,7 +1445,7 @@ const App: React.FC = () => {
             headers: isObj ? (reqInput.header || reqInput.headers || {}) : {},
             body: isObj ? (reqInput.body?.raw || reqInput.body || undefined) : undefined
           }
-          
+
           window.ultraRpc.sendRestRequest(adaptedReq as any).then(res => {
             if (res.success && res.data) {
               const ultraRes = {
@@ -1135,11 +1471,6 @@ const App: React.FC = () => {
             checkDone()
           })
         },
-        // Top-level Variable Aliases
-        setEnvironmentVariable: (k: string, v: string) => ultra.env.set(k, v),
-        getEnvironmentVariable: (k: string) => ultra.env.get(k),
-        setCollectionVariable: (k: string, v: string) => ultra.collection.set(k, v),
-        getCollectionVariable: (k: string) => ultra.collection.get(k),
 
         lib: {} as Record<string, any>
       }
@@ -1177,7 +1508,7 @@ const App: React.FC = () => {
       const script = new Function('ultra', 'console', request.preRequestScript)
       script(ultra, mockConsole)
       checkDone()
-      
+
       // Safety timeout to prevent hanging forever if activeOperations somehow fails to reach 0
       let timer: any
       await Promise.race([
@@ -1187,11 +1518,11 @@ const App: React.FC = () => {
         })
       ])
       if (timer) clearTimeout(timer)
-      
+
       return { environments: currentEnvs, collections: currentCollections }
     } catch (err: any) {
       mockConsole.error(`Pre-request Runtime Error: ${err.message}`)
-      setScriptErrors(prev => ({ ...prev, [activeTabId]: `Pre-request Script Error: ${err.message}` }))
+      setScriptErrors(prev => ({ ...prev, [tabId]: `Pre-request Script Error: ${err.message}` }))
       return null // Continue request even if pre-script fails
     }
   }
@@ -1228,7 +1559,7 @@ const App: React.FC = () => {
       try {
         bodyObj = JSON.parse(response.body)
       } catch { /* stay as string */ }
-      
+
       const ultra = {
         response: { ...response, body: bodyObj },
         env: {
@@ -1282,7 +1613,7 @@ const App: React.FC = () => {
           }
         },
 
-        collection: {
+        context: {
           get: (varName: string) => {
             const target = currentCollections.find(c => c.id === parentCollection?.id)
             if (!target?.variables) return undefined
@@ -1294,26 +1625,26 @@ const App: React.FC = () => {
               return
             }
             currentCollections = currentCollections.map(c => {
-               if (c.id === parentCollection.id) {
-                 const vars = [...(c.variables || [])]
-                 const idx = vars.findIndex(v => v.key === varName)
-                 if (idx >= 0) {
-                   vars[idx] = { ...vars[idx], value: String(value) }
-                 } else {
-                   vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
-                 }
-                 activeOperations++
-                 handleSaveCollectionVariables(c.id, vars).then(() => {
-                    mockConsole.log(`Set collection variable: ${varName}`)
-                 }).catch(err => {
-                    mockConsole.error(`Failed to save variable ${varName}: ${err.message}`)
-                 }).finally(() => {
-                    activeOperations--
-                    checkDone()
-                 })
-                 return { ...c, variables: vars }
-               }
-               return c
+              if (c.id === parentCollection.id) {
+                const vars = [...(c.variables || [])]
+                const idx = vars.findIndex(v => v.key === varName)
+                if (idx >= 0) {
+                  vars[idx] = { ...vars[idx], value: String(value) }
+                } else {
+                  vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
+                }
+                activeOperations++
+                handleSaveContextVariables(c.id, vars).then(() => {
+                  mockConsole.log(`Set context variable: ${varName}`)
+                }).catch(err => {
+                  mockConsole.error(`Failed to save variable ${varName}: ${err.message}`)
+                }).finally(() => {
+                  activeOperations--
+                  checkDone()
+                })
+                return { ...c, variables: vars }
+              }
+              return c
             })
             setCollections(currentCollections)
           },
@@ -1325,19 +1656,6 @@ const App: React.FC = () => {
             return vars
           }
         },
-        test: (name: string, fn: () => void) => {
-          try {
-            fn()
-            mockConsole.log(`TEST PASS: ${name}`)
-          } catch (err: any) {
-            mockConsole.error(`TEST FAIL: ${name} -> ${err.message}`)
-          }
-        },
-        expect: (val: any) => ({
-          toBe: (expected: any) => { if (val !== expected) throw new Error(`Expected ${expected} but got ${val}`) },
-          toInclude: (str: string) => { if (!String(val).includes(str)) throw new Error(`Expected "${val}" to include "${str}"`) },
-          toBeTruthy: () => { if (!val) throw new Error(`Expected value to be truthy but got ${val}`) },
-        }),
         sendRequest: (reqInput: any, cb: (err: any, res?: any) => void) => {
           activeOperations++
           if (!window.ultraRpc) {
@@ -1353,7 +1671,7 @@ const App: React.FC = () => {
             headers: isObj ? (reqInput.header || reqInput.headers || {}) : {},
             body: isObj ? (reqInput.body?.raw || reqInput.body || undefined) : undefined
           }
-          
+
           window.ultraRpc.sendRestRequest(adaptedReq as any).then(res => {
             if (res.success && res.data) {
               const ultraRes = {
@@ -1379,11 +1697,6 @@ const App: React.FC = () => {
             checkDone()
           })
         },
-        // Top-level Variable Aliases
-        setEnvironmentVariable: (k: string, v: string) => ultra.env.set(k, v),
-        getEnvironmentVariable: (k: string) => ultra.env.get(k),
-        setCollectionVariable: (k: string, v: string) => ultra.collection.set(k, v),
-        getCollectionVariable: (k: string) => ultra.collection.get(k),
 
         lib: {} as Record<string, any>
       }
@@ -1423,7 +1736,7 @@ const App: React.FC = () => {
       script(ultra, mockConsole)
       checkDone()
 
-      
+
       // Safety timeout to prevent hanging forever if activeOperations somehow fails to reach 0
       let timer: any
       await Promise.race([
@@ -1444,8 +1757,8 @@ const App: React.FC = () => {
     const tabId = activeTabIdRef.current
     const latestTabs = tabsRef.current
     const currentTab = latestTabs.find(t => t.id === tabId)
-    
-    if (!currentTab || !tabId) return
+
+    if (!currentTab || currentTab.type !== 'request' || !currentTab.request || !tabId) return
 
     setLoadingTabs(prev => ({ ...prev, [tabId]: true }))
     setErrors(prev => ({ ...prev, [tabId]: null }))
@@ -1465,7 +1778,7 @@ const App: React.FC = () => {
     const latestCollections = collectionsRef.current
     const effectiveEnvId = currentTab.envId || activeEnvIdRef.current
     const updatedEnv = latestEnvs.find(e => e.id === effectiveEnvId)
-    
+
     const interpolateLocal = (text: string) => {
       return interpolate(text, updatedEnv, scriptResult?.collections || latestCollections, tabId)
     }
@@ -1599,7 +1912,7 @@ const App: React.FC = () => {
     }
   }, [activeRequest?.type, activeConfigTab])
 
-  if (!activeRequest) return null
+  if (!activeTab) return null
 
   return (
     <div className="app-container">
@@ -1613,9 +1926,9 @@ const App: React.FC = () => {
         </div>
 
         <div style={{ padding: '12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', position: 'relative' }}>
-          <button 
+          <button
             className="btn-ghost"
-            style={{ padding: '6px' }} 
+            style={{ padding: '6px' }}
             onClick={() => setShowAboutModal(true)}
             data-tooltip="About UltraRPC"
             data-tooltip-pos="right"
@@ -1623,9 +1936,9 @@ const App: React.FC = () => {
             <Info size={18} />
           </button>
 
-          <button 
+          <button
             className={`btn-ghost ${showSettingsPopup ? 'env-toggle-active' : ''}`}
-            style={{ padding: '6px' }} 
+            style={{ padding: '6px' }}
             onClick={() => setShowSettingsPopup(!showSettingsPopup)}
             data-tooltip="Settings"
             data-tooltip-pos="right"
@@ -1646,7 +1959,7 @@ const App: React.FC = () => {
           >
             <Hourglass size={18} />
           </button>
-          
+
           <button
             className={`btn-ghost ${showEnvPanel ? 'env-toggle-active' : ''}`}
             style={{ padding: '6px' }}
@@ -1666,7 +1979,21 @@ const App: React.FC = () => {
           >
             <Braces size={18} />
           </button>
-          
+
+          <button
+            className={`btn-ghost ${showFlowPanel ? 'env-toggle-active' : ''}`}
+            style={{ padding: '6px' }}
+            onClick={() => {
+              const next = !showFlowPanel;
+              setShowFlowPanel(next);
+              localStorage.setItem('ultraRpcShowFlowPanel', next.toString());
+            }}
+            data-tooltip="Flow Runner"
+            data-tooltip-pos="right"
+          >
+            <GitBranch size={18} />
+          </button>
+
 
 
           {showSettingsPopup && (
@@ -1675,7 +2002,7 @@ const App: React.FC = () => {
               <div className="settings-row">
                 <span className="settings-label">Theme</span>
                 <div className="theme-toggle-group">
-                  <button 
+                  <button
                     className={`theme-toggle-btn ${theme === 'light' ? 'active' : ''}`}
                     onClick={() => {
                       setTheme('light')
@@ -1685,7 +2012,7 @@ const App: React.FC = () => {
                   >
                     Daylight
                   </button>
-                  <button 
+                  <button
                     className={`theme-toggle-btn ${theme === 'dark' ? 'active' : ''}`}
                     onClick={() => {
                       setTheme('dark')
@@ -1695,7 +2022,7 @@ const App: React.FC = () => {
                   >
                     Midnight
                   </button>
-                  <button 
+                  <button
                     className={`theme-toggle-btn ${theme === 'auto' ? 'active' : ''}`}
                     onClick={() => {
                       setTheme('auto')
@@ -1711,7 +2038,7 @@ const App: React.FC = () => {
                 <span className="settings-label">Layout</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '11px', color: threeColumnLayout ? 'var(--text-secondary)' : 'var(--accent)', fontWeight: 600 }}>Vertical</span>
-                  <button 
+                  <button
                     className="layout-toggle"
                     onClick={() => {
                       const newValue = !threeColumnLayout
@@ -1747,8 +2074,8 @@ const App: React.FC = () => {
               </div>
               <div className="settings-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
                 <span className="settings-label">Interface</span>
-                <button 
-                  className="btn-ghost" 
+                <button
+                  className="btn-ghost"
                   style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}
                   onClick={resetLayout}
                 >
@@ -1763,17 +2090,17 @@ const App: React.FC = () => {
         {showEnvPanel && (
           <div className="sidebar-env-container">
             <div className="sidebar-env-content no-scrollbar">
-                <EnvironmentPanel 
-                  environments={environments}
-                  activeEnvId={(activeTab?.envId || activeEnvId)}
-                  onSetActive={applyEnvToAllTabs}
-                  onChange={handleEnvChange}
-                  onDeleteRequest={(id, name) => setConfirmDelete({ type: 'environment', id, name })}
-                  onApplyToAllTabs={applyEnvToAllTabs}
-                  vaults={vaults}
-                  onVaultChange={handleVaultChange}
-                  vaultAvailable={vaultAvailable}
-                />
+              <EnvironmentPanel
+                environments={environments}
+                activeEnvId={(activeTab?.envId || activeEnvId)}
+                onSetActive={applyEnvToAllTabs}
+                onChange={handleEnvChange}
+                onDeleteRequest={(id, name) => setConfirmDelete({ type: 'environment', id, name })}
+                onApplyToAllTabs={applyEnvToAllTabs}
+                vaults={vaults}
+                onVaultChange={handleVaultChange}
+                vaultAvailable={vaultAvailable}
+              />
             </div>
           </div>
         )}
@@ -1805,12 +2132,30 @@ const App: React.FC = () => {
             onCloneCollection={handleCloneCollection}
             onCloneRequest={handleCloneRequest}
             onImportEnvironments={handleImportEnvironments}
+            onOpenFlow={handleOpenFlowTab}
+            onNewFlow={handleNewFlow}
+            onRenameFlow={handleRenameFlow}
           />
+
+          {showFlowPanel && (
+            <FlowPanel
+              collections={collections}
+              flows={flows}
+              onOpenFlow={handleOpenFlowTab}
+              onNewFlow={handleNewFlow}
+              onDeleteFlow={handleDeleteFlow}
+              onRenameFlow={handleRenameFlow}
+              onOpenFile={handleOpenFlowFile}
+              onMoveFlow={handleMoveFlow}
+              onCloneFlow={handleCloneFlow}
+              onReorderFlows={handleReorderFlows}
+            />
+          )}
         </nav>
 
       </aside>
 
-      <div 
+      <div
         className={`sidebar-resizer ${isResizing ? 'resizing' : ''}`}
         onMouseDown={(e) => { e.preventDefault(); setIsResizing(true) }}
       />
@@ -1819,10 +2164,10 @@ const App: React.FC = () => {
       <main className="main-content">
         {/* Tab bar */}
         <header className="title-bar" style={{ padding: '0', background: 'var(--bg-secondary)' }}>
-          <Reorder.Group 
-            axis="x" 
-            values={tabs} 
-            onReorder={setTabs} 
+          <Reorder.Group
+            axis="x"
+            values={tabs}
+            onReorder={setTabs}
             className="tab-bar no-scrollbar"
             as="div"
           >
@@ -1836,18 +2181,27 @@ const App: React.FC = () => {
                 data-dirty={tab.isDirty ? 'true' : 'false'}
                 as="div"
               >
-                <span className="tab-method" style={{ color: methodColor(tab.request.type === 'GRPC' ? 'GRPC' : tab.request.method) }}>
-                  {tab.request.type === 'GRPC' ? 'gRPC' : tab.request.method}
+                <span className="tab-method" style={{
+                  color: methodColor(tab.type === 'flow' ? 'POST' : (tab.request?.type === 'GRPC' ? 'GRPC' : tab.request?.method || 'GET')),
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  {tab.type === 'flow' ? (
+                    <><GitBranch size={12} /> FLOW</>
+                  ) : (
+                    tab.request?.type === 'GRPC' ? 'gRPC' : tab.request?.method
+                  )}
                 </span>
-                
-                <span 
-                  className="tab-title" 
+
+                <span
+                  className="tab-title"
                   style={{ color: tab.isDirty ? 'var(--danger)' : 'var(--text-primary)' }}
                 >
-                  {tab.request.name || tab.request.url || 'Untitled'}
+                  {tab.type === 'flow' ? (tab.flow?.name || 'New Flow') : (tab.request?.name || tab.request?.url || 'Untitled')}
                   {tab.isDirty ? '*' : ''}
                 </span>
-                
+
                 <button className="tab-close" onClick={(e) => removeTab(e, tab.id)}>
                   <X size={12} />
                 </button>
@@ -1864,9 +2218,12 @@ const App: React.FC = () => {
 
         {/* Content */}
         <section className={`request-section ${threeColumnLayout ? 'three-column' : ''}`}>
-          <div 
-            className="request-top-pane" 
-            style={threeColumnLayout ? { width: `${requestPanelWidth}px`, height: '100%' } : { height: `${requestPanelHeight}px` }}
+          <div
+            className={`request-top-pane ${activeTab?.type === 'flow' ? 'flow-pane' : ''}`}
+            style={threeColumnLayout 
+              ? { width: activeTab?.type === 'flow' ? '100%' : `${requestPanelWidth}px`, height: '100%' } 
+              : { height: activeTab?.type === 'flow' ? '100%' : `${requestPanelHeight}px` }
+            }
           >
             <motion.div
               key={activeTabId}
@@ -1875,629 +2232,660 @@ const App: React.FC = () => {
               transition={{ duration: 0.15 }}
               className="request-container"
             >
-              {/* ==== Address Bar ==== */}
-              <div className="address-bar glass">
-                {activeRequest.type === 'GRPC' ? (
-                  <div className="address-type-badge grpc-badge">gRPC</div>
-                ) : (
-                  <select
-                    className="method-select"
-                    value={activeRequest.method}
-                    onChange={(e) => updateActiveRequest({ method: e.target.value as any })}
-                    style={{ color: methodColor(activeRequest.method) }}
-                  >
-                    <option value="GET">GET</option>
-                    <option value="POST">POST</option>
-                    <option value="PUT">PUT</option>
-                    <option value="DELETE">DELETE</option>
-                    <option value="PATCH">PATCH</option>
-                  </select>
-                )}
-
-                {(() => {
-                  const isTypeLocked = !!activeRequestCollection || !!responses[activeTabId];
-                  if (isTypeLocked) return null;
-
-                  return (
-                    <div className="address-type-toggle">
-                      <button
-                        className={`type-btn ${activeRequest.type === 'REST' ? 'type-btn-active' : ''}`}
-                        onClick={() => updateActiveRequest({ type: 'REST' })}
-                      >REST</button>
-                      <button
-                        className={`type-btn ${activeRequest.type === 'GRPC' ? 'type-btn-active' : ''}`}
-                        onClick={() => updateActiveRequest({ type: 'GRPC' })}
-                      >gRPC</button>
-                    </div>
-                  );
-                })()}
-
-                <InterpolatedInput
-                  className="address-input"
-                  placeholder={activeRequest.type === 'GRPC' ? 'host:port (e.g. api.example.com:443)' : 'https://api.example.com/endpoint'}
-                  value={activeRequest.url}
-                  onChange={(val) => updateActiveRequest({ url: val })}
-                  onKeyDown={(e) => e.key === 'Enter' && sendRequest()}
-                  activeEnv={activeEnv}
-                  collectionVariables={activeRequestCollection?.variables}
-                  vaultEntries={activeVaultEntries}
-                  theme={resolvedTheme}
-                />
-                <button 
-                  className="btn-ghost save-btn" 
-                  onClick={handleSaveActiveRequest}
-                  title="Save Request (Auto-saves to Collection if already exists)"
-                  style={{ 
-                    padding: '0 12px', 
-                    color: activeTab?.isDirty ? 'var(--danger)' : 'var(--text-secondary)' 
+              {activeTab?.type === 'flow' && activeTab.flow ? (
+                <FlowCanvas
+                  flow={activeTab.flow}
+                  onUpdate={(updates) => {
+                    setTabs(prev => prev.map(t =>
+                      t.id === activeTab.id && t.type === 'flow'
+                        ? { ...t, flow: { ...t.flow, ...updates }, isDirty: true }
+                        : t
+                    ))
                   }}
-                >
-                  <Save size={14} />
-                </button>
-                <button className="btn-primary send-btn" onClick={sendRequest} disabled={loadingTabs[activeTabId]}>
-                  {loadingTabs[activeTabId] ? (
-                    <><Loader2 size={14} className="spin" /> Sending</>
-                  ) : (
-                    <><Send size={14} /> Send</>
-                  )}
-                </button>
-
-              </div>
-
-              {/* Collection label and active env selector */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div className="header-field-group">
-                  <span className="header-field-label">Collection</span>
-                  {activeRequestCollection ? (
-                    <div className="collection-label-wrapper" title={`Part of collection: ${activeRequestCollection.name}`}>
-                      <Folder size={12} className="collection-label-icon" />
-                      <span className="collection-label-text">{activeRequestCollection.name}</span>
-                    </div>
-                  ) : (
-                    <div className="collection-label-wrapper unassigned">
-                      <span className="collection-label-text">Save to assign to the collection</span>
-                    </div>
-                  )}
-                </div>
-
-                {environments.length > 0 && (
-                  <div className="header-field-group" style={{ marginLeft: '8px' }}>
-                    <span className="header-field-label">Environment</span>
-                    <div className="env-selector-wrapper">
-                      <Globe size={12} className="env-selector-icon" />
+                  collections={collections}
+                  environments={environments}
+                  libraries={libraries}
+                  activeEnvId={activeEnvId}
+                  onFollowDefinition={handleFollowDefinition}
+                  onOpenRequest={handleJumpToRequest}
+                />
+              ) : activeTab?.type === 'request' && activeTab.request ? (
+                <div className="request-container">
+                  {/* ==== Address Bar ==== */}
+                  <div className="address-bar glass">
+                    {activeRequest.type === 'GRPC' ? (
+                      <div className="address-type-badge grpc-badge">gRPC</div>
+                    ) : (
                       <select
-                        className="env-selector"
-                        value={activeTab?.envId !== undefined ? (activeTab?.envId || '') : (activeEnvId || '')}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const newId = val === '' ? null : val;
-                          updateTabEnv(newId);
-                        }}
+                        className="method-select"
+                        value={activeRequest.method}
+                        onChange={(e) => updateActiveRequest({ method: e.target.value as any })}
+                        style={{ color: methodColor(activeRequest.method) }}
                       >
-                        <option value="">No Environment</option>
-                        {environments.map(env => (
-                          <option key={env.id} value={env.id}>{env.name}</option>
-                        ))}
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                        <option value="PATCH">PATCH</option>
                       </select>
-                      {activeRequest.type === 'GRPC' && activeEnv?.protocol === 'http1' && (
-                        <div className="env-selector-warning" data-tooltip="gRPC strictly requires HTTP/2. Using an HTTP/1.1 environment will likely cause failures.">
-                          <AlertTriangle size={14} color="#ef4444" />
+                    )}
+
+                    {(() => {
+                      const isTypeLocked = !!activeRequestCollection || !!responses[activeTabId];
+                      if (isTypeLocked) return null;
+
+                      return (
+                        <div className="address-type-toggle">
+                          <button
+                            className={`type-btn ${activeRequest.type === 'REST' ? 'type-btn-active' : ''}`}
+                            onClick={() => updateActiveRequest({ type: 'REST' })}
+                          >REST</button>
+                          <button
+                            className={`type-btn ${activeRequest.type === 'GRPC' ? 'type-btn-active' : ''}`}
+                            onClick={() => updateActiveRequest({ type: 'GRPC' })}
+                          >gRPC</button>
+                        </div>
+                      );
+                    })()}
+
+                    <InterpolatedInput
+                      className="address-input"
+                      placeholder={activeRequest.type === 'GRPC' ? 'host:port (e.g. api.example.com:443)' : 'https://api.example.com/endpoint'}
+                      value={activeRequest.url}
+                      onChange={(val) => updateActiveRequest({ url: val })}
+                      onKeyDown={(e) => e.key === 'Enter' && sendRequest()}
+                      activeEnv={activeEnv}
+                      contextVariables={activeRequestCollection?.variables}
+                      vaultEntries={activeVaultEntries}
+                      theme={resolvedTheme}
+                    />
+                    <button
+                      className="btn-ghost save-btn"
+                      onClick={handleSaveActiveRequest}
+                      title="Save Request (Auto-saves to Collection if already exists)"
+                      style={{
+                        padding: '0 12px',
+                        color: activeTab?.isDirty ? 'var(--danger)' : 'var(--text-secondary)'
+                      }}
+                    >
+                      <Save size={14} />
+                    </button>
+                    <button className="btn-primary send-btn" onClick={sendRequest} disabled={loadingTabs[activeTabId]}>
+                      {loadingTabs[activeTabId] ? (
+                        <><Loader2 size={14} className="spin" /> Sending</>
+                      ) : (
+                        <><Send size={14} /> Send</>
+                      )}
+                    </button>
+
+                  </div>
+
+                  {/* Collection label and active env selector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div className="header-field-group">
+                      <span className="header-field-label">Collection</span>
+                      {activeRequestCollection ? (
+                        <div className="collection-label-wrapper" title={`Part of collection: ${activeRequestCollection.name}`}>
+                          <Folder size={12} className="collection-label-icon" />
+                          <span className="collection-label-text">{activeRequestCollection.name}</span>
+                        </div>
+                      ) : (
+                        <div className="collection-label-wrapper unassigned">
+                          <span className="collection-label-text">Save to assign to the collection</span>
                         </div>
                       )}
                     </div>
+
+                    {environments.length > 0 && (
+                      <div className="header-field-group" style={{ marginLeft: '8px' }}>
+                        <span className="header-field-label">Environment</span>
+                        <div className="env-selector-wrapper">
+                          <Globe size={12} className="env-selector-icon" />
+                          <select
+                            className="env-selector"
+                            value={activeTab?.envId !== undefined ? (activeTab?.envId || '') : (activeEnvId || '')}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const newId = val === '' ? null : val;
+                              updateTabEnv(newId);
+                            }}
+                          >
+                            <option value="">No Environment</option>
+                            {environments.map(env => (
+                              <option key={env.id} value={env.id}>{env.name}</option>
+                            ))}
+                          </select>
+                          {activeRequest.type === 'GRPC' && activeEnv?.protocol === 'http1' && (
+                            <div className="env-selector-warning" data-tooltip="gRPC strictly requires HTTP/2. Using an HTTP/1.1 environment will likely cause failures.">
+                              <AlertTriangle size={14} color="#ef4444" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* gRPC-specific fields at the top of the request pane (fixed) */}
-              {activeRequest.type === 'GRPC' && (
-                (() => {
-                  return (
-                    <div className="grpc-fields" style={{ padding: '4px 16px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
-                      <div className="grpc-field-row" id="grpc-service-row">
-                        <label className="grpc-label">Service</label>
-                        <InterpolatedInput
-                          className="grpc-input"
-                          placeholder="Use Discover below, or type e.g. mypackage.MyService"
-                          value={activeRequest.grpcService || ''}
-                          onChange={(val) => updateActiveRequest({ grpcService: val })}
-                          activeEnv={activeEnv}
-                          collectionVariables={activeRequestCollection?.variables}
-                          vaultEntries={activeVaultEntries}
-                          theme={resolvedTheme}
-                        />
-                      </div>
-                      <div className="grpc-field-row" id="grpc-method-row">
-                        <label className="grpc-label">Method</label>
-                        <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                          <InterpolatedInput
-                            className="grpc-input"
-                            style={{ flex: 1 }}
-                            placeholder="e.g. GetUser"
-                            value={activeRequest.grpcMethod || ''}
-                            onChange={(val) => updateActiveRequest({ grpcMethod: val })}
-                            activeEnv={activeEnv}
-                            collectionVariables={activeRequestCollection?.variables}
-                            vaultEntries={activeVaultEntries}
-                            theme={resolvedTheme}
-                          />
-                          <button 
-                            type="button"
-                            className="btn-primary"
-                            onClick={() => {
-                              setGrpcDiscoveryUrl(activeRequest.url)
-                              setShowGrpcDiscovery(true)
-                            }}
-                            style={{ padding: '0 12px', whiteSpace: 'nowrap' }}
-                            title="Discover Services"
-                          >
-                            <Search size={14} style={{ marginRight: '6px' }} /> Discover
-                          </button>
-                        </div>
-                      </div>
-                      <div className="grpc-field-row" id="grpc-proto-row">
-                        <label className="grpc-label">Proto Path</label>
-                        <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                          <InterpolatedInput
-                            className="grpc-input"
-                            style={{ flex: 1 }}
-                            placeholder="Optional: /path/to/service.proto"
-                            value={activeRequest.protoPath || ''}
-                            onChange={(val) => updateActiveRequest({ protoPath: val })}
-                            activeEnv={activeEnv}
-                            collectionVariables={activeRequestCollection?.variables}
-                            vaultEntries={activeVaultEntries}
-                            theme={resolvedTheme}
-                          />
-                          <button 
-                            type="button"
-                            className="btn-ghost"
-                            onClick={async (e) => {
-                              e.preventDefault()
-                              if (!window.ultraRpc) return
-                              const res = await window.ultraRpc.pickFile()
-                              console.log("pickFile app result:", res)
-                              if (res.success && res.path) {
-                                updateActiveRequest({ protoPath: res.path })
-                              }
-                            }}
-                            style={{ padding: '0 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}
-                            title="Pick Proto File"
-                          >
-                            <FolderOpen size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()
-              )}
-
-              {/* ==== Config Tabs ==== */}
-              <div className="config-tabs">
-                {configTabs.map(ct => (
-                  <button
-                    key={ct.key}
-                    className={`config-tab ${activeConfigTab === ct.key ? 'config-tab-active' : ''}`}
-                    onClick={() => setActiveConfigTab(ct.key)}
-                  >
-                    {ct.label}
-                    {ct.key === 'params' && activeRequest.params.filter(p => p.key).length > 0 && (
-                      <span className="config-tab-badge">{activeRequest.params.filter(p => p.key).length}</span>
-                    )}
-                    {ct.key === 'headers' && activeRequest.headers.filter(h => h.key).length > 0 && (
-                      <span className="config-tab-badge">{activeRequest.headers.filter(h => h.key).length}</span>
-                    )}
-                    {ct.key === 'pre-request' && activeRequest.preRequestScript && (
-                      <span className="config-tab-badge-dot" />
-                    )}
-                    {ct.key === 'post-response' && activeRequest.postResponseScript && (
-                      <span className="config-tab-badge-dot" />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* ==== Scrollable Config Content ==== */}
-                <div className="request-pane-content" style={{ display: 'flex', flexDirection: 'column' }}>
-                  {/* gRPC discovery in a modal */}
-                  {activeRequest.type === 'GRPC' && showGrpcDiscovery && (
-                    <div className="modal-overlay" onClick={() => setShowGrpcDiscovery(false)}>
-                      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '800px', height: '85vh', display: 'flex', flexDirection: 'column' }}>
-                        <div className="modal-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
-                          <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3>gRPC Service Discovery</h3>
-                            <button className="btn-ghost" onClick={() => setShowGrpcDiscovery(false)} style={{ padding: '4px' }}>
-                              <X size={20} />
-                            </button>
-                          </div>
-                          <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Host</label>
-                            <InterpolatedInput 
-                              className="address-input" 
-                              style={{ flex: 1 }}
-                              value={grpcDiscoveryUrl}
-                              onChange={(val) => setGrpcDiscoveryUrl(val)}
-                              placeholder="host:port (e.g. api.example.com:443)"
+                  {/* gRPC-specific fields at the top of the request pane (fixed) */}
+                  {activeRequest.type === 'GRPC' && (
+                    (() => {
+                      return (
+                        <div className="grpc-fields" style={{ padding: '4px 16px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+                          <div className="grpc-field-row" id="grpc-service-row">
+                            <label className="grpc-label">Service</label>
+                            <InterpolatedInput
+                              className="grpc-input"
+                              placeholder="Use Discover below, or type e.g. mypackage.MyService"
+                              value={activeRequest.grpcService || ''}
+                              onChange={(val) => updateActiveRequest({ grpcService: val })}
                               activeEnv={activeEnv}
-                              collectionVariables={activeRequestCollection?.variables}
+                              contextVariables={activeRequestCollection?.variables}
                               vaultEntries={activeVaultEntries}
                               theme={resolvedTheme}
                             />
                           </div>
+                          <div className="grpc-field-row" id="grpc-method-row">
+                            <label className="grpc-label">Method</label>
+                            <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                              <InterpolatedInput
+                                className="grpc-input"
+                                style={{ flex: 1 }}
+                                placeholder="e.g. GetUser"
+                                value={activeRequest.grpcMethod || ''}
+                                onChange={(val) => updateActiveRequest({ grpcMethod: val })}
+                                activeEnv={activeEnv}
+                                contextVariables={activeRequestCollection?.variables}
+                                vaultEntries={activeVaultEntries}
+                                theme={resolvedTheme}
+                              />
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={() => {
+                                  setGrpcDiscoveryUrl(activeRequest.url)
+                                  setShowGrpcDiscovery(true)
+                                }}
+                                style={{ padding: '0 12px', whiteSpace: 'nowrap' }}
+                                title="Discover Services"
+                              >
+                                <Search size={14} style={{ marginRight: '6px' }} /> Discover
+                              </button>
+                            </div>
+                          </div>
+                          <div className="grpc-field-row" id="grpc-proto-row">
+                            <label className="grpc-label">Proto Path</label>
+                            <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                              <InterpolatedInput
+                                className="grpc-input"
+                                style={{ flex: 1 }}
+                                placeholder="Optional: /path/to/service.proto"
+                                value={activeRequest.protoPath || ''}
+                                onChange={(val) => updateActiveRequest({ protoPath: val })}
+                                activeEnv={activeEnv}
+                                contextVariables={activeRequestCollection?.variables}
+                                vaultEntries={activeVaultEntries}
+                                theme={resolvedTheme}
+                              />
+                              <button
+                                type="button"
+                                className="btn-ghost"
+                                onClick={async (e) => {
+                                  e.preventDefault()
+                                  if (!window.ultraRpc) return
+                                  const res = await window.ultraRpc.pickFile()
+                                  console.log("pickFile app result:", res)
+                                  if (res.success && res.path) {
+                                    updateActiveRequest({ protoPath: res.path })
+                                  }
+                                }}
+                                style={{ padding: '0 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}
+                                title="Pick Proto File"
+                              >
+                                <FolderOpen size={14} />
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-                          <GrpcReflectionPanel
-                            host={interpolate(grpcDiscoveryUrl)}
-                            insecure={(() => {
-                              const effectiveEnvId = activeTab?.envId || activeEnvId
-                              const currentEnv = environments.find(e => e.id === effectiveEnvId)
-                              return currentEnv?.sslVerification === false
-                            })()}
-                            headers={(() => {
-                              const h: Record<string, string> = {}
-                              activeRequest.headers.filter(hdr => hdr.enabled && hdr.key).forEach(hdr => {
-                                h[interpolate(hdr.key)] = interpolate(hdr.value)
-                              })
-                              return h
-                            })()}
-                            protoPath={interpolate(activeRequest.protoPath || '')}
-                            grpcReflection={activeRequest.grpcReflection !== false}
-                            onSelectService={(svc) => updateActiveRequest({ grpcService: svc })}
-                            onSelectMethod={(svc, method, sampleBody) => {
-                              updateActiveRequest({
-                                url: grpcDiscoveryUrl,
-                                grpcService: svc,
-                                grpcMethod: method,
-                                grpcPayload: sampleBody || '{}',
-                                bodyType: 'json',
-                              })
-                              setActiveConfigTab('body')
-                              setShowGrpcDiscovery(false)
-                            }}
-                            onProtoPathChange={(path) => updateActiveRequest({ protoPath: path })}
-                            onGrpcReflectionChange={(useReflection) => updateActiveRequest({ grpcReflection: useReflection })}
-                          />
+                      );
+                    })()
+                  )}
+
+                  {/* ==== Config Tabs ==== */}
+                  <div className="config-tabs">
+                    {configTabs.map(ct => (
+                      <button
+                        key={ct.key}
+                        className={`config-tab ${activeConfigTab === ct.key ? 'config-tab-active' : ''}`}
+                        onClick={() => setActiveConfigTab(ct.key)}
+                      >
+                        {ct.label}
+                        {ct.key === 'params' && activeRequest.params.filter(p => p.key).length > 0 && (
+                          <span className="config-tab-badge">{activeRequest.params.filter(p => p.key).length}</span>
+                        )}
+                        {ct.key === 'headers' && activeRequest.headers.filter(h => h.key).length > 0 && (
+                          <span className="config-tab-badge">{activeRequest.headers.filter(h => h.key).length}</span>
+                        )}
+                        {ct.key === 'pre-request' && activeRequest.preRequestScript && (
+                          <span className="config-tab-badge-dot" />
+                        )}
+                        {ct.key === 'post-response' && activeRequest.postResponseScript && (
+                          <span className="config-tab-badge-dot" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ==== Scrollable Config Content ==== */}
+                  <div className="request-pane-content" style={{ display: 'flex', flexDirection: 'column' }}>
+                    {/* gRPC discovery in a modal */}
+                    {activeRequest.type === 'GRPC' && showGrpcDiscovery && (
+                      <div className="modal-overlay" onClick={() => setShowGrpcDiscovery(false)}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '800px', height: '85vh', display: 'flex', flexDirection: 'column' }}>
+                          <div className="modal-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
+                            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <h3>gRPC Service Discovery</h3>
+                              <button className="btn-ghost" onClick={() => setShowGrpcDiscovery(false)} style={{ padding: '4px' }}>
+                                <X size={20} />
+                              </button>
+                            </div>
+                            <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <label style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Host</label>
+                              <InterpolatedInput
+                                className="address-input"
+                                style={{ flex: 1 }}
+                                value={grpcDiscoveryUrl}
+                                onChange={(val) => setGrpcDiscoveryUrl(val)}
+                                placeholder="host:port (e.g. api.example.com:443)"
+                                activeEnv={activeEnv}
+                                contextVariables={activeRequestCollection?.variables}
+                                vaultEntries={activeVaultEntries}
+                                theme={resolvedTheme}
+                              />
+                            </div>
+                          </div>
+                          <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                            <GrpcReflectionPanel
+                              host={interpolate(grpcDiscoveryUrl)}
+                              insecure={(() => {
+                                const effectiveEnvId = activeTab?.envId || activeEnvId
+                                const currentEnv = environments.find(e => e.id === effectiveEnvId)
+                                return currentEnv?.sslVerification === false
+                              })()}
+                              headers={(() => {
+                                const h: Record<string, string> = {}
+                                activeRequest.headers.filter(hdr => hdr.enabled && hdr.key).forEach(hdr => {
+                                  h[interpolate(hdr.key)] = interpolate(hdr.value)
+                                })
+                                return h
+                              })()}
+                              protoPath={interpolate(activeRequest.protoPath || '')}
+                              grpcReflection={activeRequest.grpcReflection !== false}
+                              onSelectService={(svc) => updateActiveRequest({ grpcService: svc })}
+                              onSelectMethod={(svc, method, sampleBody) => {
+                                updateActiveRequest({
+                                  url: grpcDiscoveryUrl,
+                                  grpcService: svc,
+                                  grpcMethod: method,
+                                  grpcPayload: sampleBody || '{}',
+                                  bodyType: 'json',
+                                })
+                                setActiveConfigTab('body')
+                                setShowGrpcDiscovery(false)
+                              }}
+                              onProtoPathChange={(path) => updateActiveRequest({ protoPath: path })}
+                              onGrpcReflectionChange={(useReflection) => updateActiveRequest({ grpcReflection: useReflection })}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  <div className="config-content">
-                  {activeConfigTab === 'params' && (
-                      <KeyValueEditor
-                        pairs={activeRequest.params}
-                        onChange={(params) => updateActiveRequest({ params })}
-                        keyPlaceholder="Parameter"
-                        valuePlaceholder="Value"
-                        activeEnv={activeEnv}
-                        collectionVariables={activeRequestCollection?.variables}
-                        vaultEntries={activeVaultEntries}
-                        theme={resolvedTheme}
-                      />
-                  )}
-                  {activeConfigTab === 'headers' && (
-                      <KeyValueEditor
-                        pairs={activeRequest.headers}
-                        onChange={(headers) => updateActiveRequest({ headers })}
-                        keyPlaceholder="Header"
-                        valuePlaceholder="Value"
-                        activeEnv={activeEnv}
-                        collectionVariables={activeRequestCollection?.variables}
-                        vaultEntries={activeVaultEntries}
-                        theme={resolvedTheme}
-                      />
-                  )}
-                  {activeConfigTab === 'body' && (
-                    <div className="body-editor">
-                      <div className="body-type-bar">
-                        {(['json', 'text', 'none'] as const).map(bt => (
-                          <button
-                            key={bt}
-                            className={`body-type-btn ${activeRequest.bodyType === bt ? 'body-type-active' : ''}`}
-                            onClick={() => updateActiveRequest({ bodyType: bt })}
-                          >
-                            {bt.toUpperCase()}
-                          </button>
-                        ))}
-                        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-                          <button
-                            className="btn-ghost"
-                            style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                            onClick={() => bodyEditorRef.current?.openSearch()}
-                            title="Search in editor (⌘F)"
-                          >
-                            <Search size={14} /> Search
-                          </button>
-                            <button 
-                              className="btn-ghost"
-                              style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                              onClick={handleFormatJson}
-                              title="Standardize JSON indentation (Shift+Alt+F)"
-                            >
-                              <Code size={14} /> Format
-                            </button>
-                          <button 
-                            className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
-                            style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                            onClick={() => setWrapLines(!wrapLines)}
-                            title="Toggle Line Wrap"
-                          >
-                            <WrapText size={14} /> Wrap
-                          </button>
-                        </div>
-                      </div>
-                      {activeRequest.bodyType !== 'none' && (
-                        <InterpolatedInput
-                          ref={bodyEditorRef}
-                          className="body-textarea"
-                          multiline
+                    )}
+                    <div className="config-content">
+                      {activeConfigTab === 'params' && (
+                        <KeyValueEditor
+                          pairs={activeRequest.params}
+                          onChange={(params) => updateActiveRequest({ params })}
+                          keyPlaceholder="Parameter"
+                          valuePlaceholder="Value"
                           activeEnv={activeEnv}
-                          wrapLines={wrapLines}
-                          collectionVariables={activeRequestCollection?.variables}
+                          contextVariables={activeRequestCollection?.variables}
                           vaultEntries={activeVaultEntries}
-                          enableSearch
-                          placeholder={activeRequest.type === 'GRPC'
-                            ? '{\n  "field": "value"\n}'
-                            : activeRequest.bodyType === 'json'
-                            ? '{\n  "key": "value"\n}'
-                            : 'Plain text body...'}
-                          value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')}
-                          highlightJson={activeRequest.bodyType === 'json'}
-                          onChange={(val) => {
-                            if (activeRequest.type === 'GRPC') {
-                              updateActiveRequest({ grpcPayload: val })
-                            } else {
-                              updateActiveRequest({ body: val })
-                            }
-                          }}
                           theme={resolvedTheme}
                         />
                       )}
-                    </div>
-                  )}
-                  {activeConfigTab === 'auth' && (
-                    <div className="options-section" style={{ padding: '16px', color: 'var(--text-secondary)' }}>
-                      <div style={{ marginBottom: '24px' }}>
-                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                          Request Timeout (Deadline)
-                        </label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <input 
-                            type="number" 
-                            min="0"
-                            placeholder="30000 (Default)"
-                            style={{
-                              background: 'var(--bg-tertiary)',
-                              border: '1px solid var(--border)',
-                              color: 'var(--text-primary)',
-                              padding: '6px 10px',
-                              borderRadius: '4px',
-                              width: '120px',
-                              outline: 'none',
-                              fontSize: '13px'
-                            }}
-                            value={activeRequest.timeoutMs || ''}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10)
-                              updateActiveRequest({ timeoutMs: isNaN(val) ? undefined : val })
-                            }}
-                          />
-                          <span style={{ fontSize: '12px' }}>milliseconds</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {activeConfigTab === 'pre-request' && (
-                    <div className="script-section" style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                      <div style={{ marginBottom: '12px' }}>
-                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                          Pre-request Script (JavaScript)
-                        </label>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                            Run code before the request is sent. Access <code>ultra.env</code> or <code>ultra.collection</code> to update variables.
-                          </p>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                            <button 
-                              className={`btn-ghost ${preRequestValidation.validationStatus === 'success' ? 'val-success' : preRequestValidation.validationStatus === 'error' ? 'val-error' : ''}`}
-                              style={{ padding: '4px 8px', fontSize: '11px' }}
-                              onClick={() => preRequestValidation.validate(activeRequest.preRequestScript || '')}
-                              title="Check for syntax errors"
-                            >
-                              <ShieldCheck size={14} /> Validate
-                            </button>
-                            <button 
-                              className="btn-ghost"
-                              style={{ padding: '4px 8px', fontSize: '11px' }}
-                              onClick={() => preRequestEditorRef.current?.format()}
-                              title="Prettify script (Shift+Alt+F)"
-                            >
-                              <AlignLeft size={14} /> Format
-                            </button>
-                            <button 
-                              className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
-                              style={{ padding: '4px 8px', fontSize: '11px' }}
-                              onClick={() => setWrapLines(!wrapLines)}
-                              title="Toggle Line Wrap"
-                            >
-                              <WrapText size={14} />
-                            </button>
+                      {activeConfigTab === 'headers' && (
+                        <KeyValueEditor
+                          pairs={activeRequest.headers}
+                          onChange={(headers) => updateActiveRequest({ headers })}
+                          keyPlaceholder="Header"
+                          valuePlaceholder="Value"
+                          activeEnv={activeEnv}
+                          contextVariables={activeRequestCollection?.variables}
+                          vaultEntries={activeVaultEntries}
+                          theme={resolvedTheme}
+                        />
+                      )}
+                      {activeConfigTab === 'body' && (
+                        <div className="body-editor">
+                          <div className="body-type-bar">
+                            {(['json', 'text', 'none'] as const).map(bt => (
+                              <button
+                                key={bt}
+                                className={`body-type-btn ${activeRequest.bodyType === bt ? 'body-type-active' : ''}`}
+                                onClick={() => updateActiveRequest({ bodyType: bt })}
+                              >
+                                {bt.toUpperCase()}
+                              </button>
+                            ))}
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                              <button
+                                className="btn-ghost"
+                                style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => bodyEditorRef.current?.openSearch()}
+                                title="Search in editor (⌘F)"
+                              >
+                                <Search size={14} /> Search
+                              </button>
+                              <button
+                                className="btn-ghost"
+                                style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={handleFormatJson}
+                                title="Standardize JSON indentation (Shift+Alt+F)"
+                              >
+                                <Code size={14} /> Format
+                              </button>
+                              <button
+                                className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                                style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => setWrapLines(!wrapLines)}
+                                title="Toggle Line Wrap"
+                              >
+                                <WrapText size={14} /> Wrap
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-
-                      <ValidationBanner 
-                        status={preRequestValidation.validationStatus} 
-                        error={preRequestValidation.validationError} 
-                        style={{ borderTop: '1px solid var(--border)', borderBottom: 'none' }}
-                      />
-
-                      <div style={{ flex: 1, minHeight: '150px' }}>
-                        <InterpolatedInput
-                            ref={preRequestEditorRef}
-                            multiline
-                            className="script-editor"
-                            placeholder="// code here...&#10;ultra.env.set('timestamp', Date.now().toString());"
-                            value={activeRequest.preRequestScript || ''}
-                            onChange={val => {
-                              updateActiveRequest({ preRequestScript: val })
-                              preRequestValidation.resetValidation()
-                            }}
-                            activeEnv={activeEnv}
-                            highlightJs={true}
-                            wrapLines={wrapLines}
-                            collectionVariables={activeRequestCollection?.variables}
-                            vaultEntries={activeVaultEntries}
-                            theme={resolvedTheme}
-                          />
-                      </div>
-                      
-                      {/* Console Log Viewer */}
-                      <div className="script-console glass">
-                        <div className="console-header">
-                          <span className="console-title">Console Output</span>
-                          <button 
-                            className="btn-ghost" 
-                            style={{ fontSize: '10px', padding: '2px 8px' }}
-                            onClick={() => setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))}
-                          >
-                            Clear
-                          </button>
-                        </div>
-                        <div className="console-logs">
-                          {(scriptLogs[activeTabId] || []).length === 0 ? (
-                            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No logs yet...</div>
-                          ) : (
-                            scriptLogs[activeTabId].map((log, i) => (
-                              <div key={i} className={`console-log-entry ${log.includes('ERROR') ? 'console-log-entry-error' : ''}`}>
-                                {log}
-                              </div>
-                            ))
+                          {activeRequest.bodyType !== 'none' && (
+                            <InterpolatedInput
+                              ref={bodyEditorRef}
+                              className="body-textarea"
+                              multiline
+                              activeEnv={activeEnv}
+                              wrapLines={wrapLines}
+                              contextVariables={activeRequestCollection?.variables}
+                              vaultEntries={activeVaultEntries}
+                              enableSearch
+                              placeholder={activeRequest.type === 'GRPC'
+                                ? '{\n  "field": "value"\n}'
+                                : activeRequest.bodyType === 'json'
+                                  ? '{\n  "key": "value"\n}'
+                                  : 'Plain text body...'}
+                              value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')}
+                              highlightJson={activeRequest.bodyType === 'json'}
+                              onChange={(val) => {
+                                if (activeRequest.type === 'GRPC') {
+                                  updateActiveRequest({ grpcPayload: val })
+                                } else {
+                                  updateActiveRequest({ body: val })
+                                }
+                              }}
+                              theme={resolvedTheme}
+                            />
                           )}
                         </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeConfigTab === 'post-response' && (
-                    <div className="script-section" style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                      <div style={{ marginBottom: '12px' }}>
-                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                          Post-Response Script (JavaScript)
-                        </label>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                            Run code after a successful response. Access <code>ultra.response</code> and update variables with <code>ultra.setCollectionVariable(key, value)</code>.
-                          </p>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                            <button 
-                              className={`btn-ghost ${postResponseValidation.validationStatus === 'success' ? 'val-success' : postResponseValidation.validationStatus === 'error' ? 'val-error' : ''}`}
-                              style={{ padding: '4px 8px', fontSize: '11px' }}
-                              onClick={() => postResponseValidation.validate(activeRequest.postResponseScript || '')}
-                              title="Check for syntax errors"
-                            >
-                              <ShieldCheck size={14} /> Validate
-                            </button>
-                            <button 
-                              className="btn-ghost"
-                              style={{ padding: '4px 8px', fontSize: '11px' }}
-                              onClick={() => postResponseEditorRef.current?.format()}
-                              title="Prettify script (Shift+Alt+F)"
-                            >
-                              <Code size={14} /> Format
-                            </button>
-                            <button 
-                              className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
-                              style={{ padding: '4px 8px', fontSize: '11px' }}
-                              onClick={() => setWrapLines(!wrapLines)}
-                              title="Toggle Line Wrap"
-                            >
-                              <WrapText size={14} />
-                            </button>
+                      )}
+                      {activeConfigTab === 'auth' && (
+                        <div className="options-section" style={{ padding: '16px', color: 'var(--text-secondary)' }}>
+                          <div style={{ marginBottom: '24px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                              Request Timeout (Deadline)
+                            </label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="30000 (Default)"
+                                style={{
+                                  background: 'var(--bg-tertiary)',
+                                  border: '1px solid var(--border)',
+                                  color: 'var(--text-primary)',
+                                  padding: '6px 10px',
+                                  borderRadius: '4px',
+                                  width: '120px',
+                                  outline: 'none',
+                                  fontSize: '13px'
+                                }}
+                                value={activeRequest.timeoutMs || ''}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10)
+                                  updateActiveRequest({ timeoutMs: isNaN(val) ? undefined : val })
+                                }}
+                              />
+                              <span style={{ fontSize: '12px' }}>milliseconds</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-
-                      <ValidationBanner 
-                        status={postResponseValidation.validationStatus} 
-                        error={postResponseValidation.validationError} 
-                        style={{ borderTop: '1px solid var(--border)', borderBottom: 'none' }}
-                      />
-
-                      <div style={{ flex: 1, minHeight: '150px' }}>
-                        <InterpolatedInput
-                            ref={postResponseEditorRef}
-                            multiline
-                            className="script-editor"
-                            placeholder="// code here...&#10;if (ultra.response.body.token) {&#10;  ultra.setCollectionVariable('auth_token', ultra.response.body.token);&#10;}"
-                            value={activeRequest.postResponseScript || ''}
-                            onChange={val => {
-                              updateActiveRequest({ postResponseScript: val })
-                              postResponseValidation.resetValidation()
-                            }}
-                            activeEnv={activeEnv}
-                            highlightJs={true}
-                            wrapLines={wrapLines}
-                            collectionVariables={activeRequestCollection?.variables}
-                            vaultEntries={activeVaultEntries}
-                            theme={resolvedTheme}
-                          />
-                      </div>
-                      
-                      {/* Console Log Viewer */}
-                      <div className="script-console glass">
-                        <div className="console-header">
-                          <span className="console-title">Console Output</span>
-                          <button 
-                            className="btn-ghost" 
-                            style={{ fontSize: '10px', padding: '2px 8px' }}
-                            onClick={() => setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))}
-                          >
-                            Clear
-                          </button>
-                        </div>
-                        <div className="console-logs">
-                          {(scriptLogs[activeTabId] || []).length === 0 ? (
-                            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No logs yet...</div>
-                          ) : (
-                            scriptLogs[activeTabId].map((log, i) => (
-                              <div key={i} className={`console-log-entry ${log.includes('ERROR') ? 'console-log-entry-error' : ''}`}>
-                                {log}
+                      )}
+                      {activeConfigTab === 'pre-request' && (
+                        <div className="script-section" style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                          <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                              Pre-request Script (JavaScript)
+                            </label>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                Run code before the request is sent. Access <code>ultra.env.get</code> or <code>ultra.context.set</code> to update variables. <strong>Tip:</strong> <code>Cmd/Ctrl + Click</code> on <code>ultra.lib.*</code> methods to Go to Definition.
+                              </p>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                <button
+                                  className={`btn-ghost ${preRequestValidation.validationStatus === 'success' ? 'val-success' : preRequestValidation.validationStatus === 'error' ? 'val-error' : ''}`}
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => preRequestValidation.validate(activeRequest.preRequestScript || '')}
+                                  title="Check for syntax errors"
+                                >
+                                  <ShieldCheck size={14} /> Validate
+                                </button>
+                                <button
+                                  className="btn-ghost"
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => preRequestEditorRef.current?.format()}
+                                  title="Prettify script (Shift+Alt+F)"
+                                >
+                                  <AlignLeft size={14} /> Format
+                                </button>
+                                <button
+                                  className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => setWrapLines(!wrapLines)}
+                                  title="Toggle Line Wrap"
+                                >
+                                  <WrapText size={14} />
+                                </button>
                               </div>
-                            ))
-                          )}
+                            </div>
+                          </div>
+
+                          <ValidationBanner
+                            status={preRequestValidation.validationStatus}
+                            error={preRequestValidation.validationError}
+                            style={{ borderTop: '1px solid var(--border)', borderBottom: 'none' }}
+                          />
+
+                          <div style={{ flex: 1, minHeight: '150px' }}>
+                            <InterpolatedInput
+                              ref={preRequestEditorRef}
+                              multiline
+                              className="script-editor"
+                              placeholder="// code here...&#10;ultra.env.set('timestamp', Date.now().toString());"
+                              value={activeRequest.preRequestScript || ''}
+                              onChange={val => {
+                                updateActiveRequest({ preRequestScript: val })
+                                preRequestValidation.resetValidation()
+                              }}
+                              activeEnv={activeEnv}
+                              highlightJs={true}
+                              wrapLines={wrapLines}
+                              contextVariables={activeRequestCollection?.variables}
+                              vaultEntries={activeVaultEntries}
+                              theme={resolvedTheme}
+                              onFollowDefinition={handleFollowDefinition}
+                            />
+                          </div>
+
+                          {/* Console Log Viewer */}
+                          <div className="script-console glass">
+                            <div className="console-header">
+                              <span className="console-title">Console Output</span>
+                              <button
+                                className="btn-ghost"
+                                style={{ fontSize: '10px', padding: '2px 8px' }}
+                                onClick={() => setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))}
+                              >
+                                Clear
+                              </button>
+                            </div>
+                            <div className="console-logs">
+                              {(scriptLogs[activeTabId] || []).length === 0 ? (
+                                <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No logs yet...</div>
+                              ) : (
+                                scriptLogs[activeTabId].map((log, i) => (
+                                  <div key={i} className={`console-log-entry ${log.includes('ERROR') ? 'console-log-entry-error' : ''}`}>
+                                    {log}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
+
+                      {activeConfigTab === 'post-response' && (
+                        <div className="script-section" style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                          <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                              Post-Response Script (JavaScript)
+                            </label>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                 Run code after a successful response. Access <code>ultra.response</code> and update variables with <code>ultra.context.set(key, value)</code>. <strong>Tip:</strong> <code>Cmd/Ctrl + Click</code> on <code>ultra.lib.*</code> methods to Go to Definition.
+                              </p>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                <button
+                                  className={`btn-ghost ${postResponseValidation.validationStatus === 'success' ? 'val-success' : postResponseValidation.validationStatus === 'error' ? 'val-error' : ''}`}
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => postResponseValidation.validate(activeRequest.postResponseScript || '')}
+                                  title="Check for syntax errors"
+                                >
+                                  <ShieldCheck size={14} /> Validate
+                                </button>
+                                <button
+                                  className="btn-ghost"
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => postResponseEditorRef.current?.format()}
+                                  title="Prettify script (Shift+Alt+F)"
+                                >
+                                  <Code size={14} /> Format
+                                </button>
+                                <button
+                                  className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                  onClick={() => setWrapLines(!wrapLines)}
+                                  title="Toggle Line Wrap"
+                                >
+                                  <WrapText size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <ValidationBanner
+                            status={postResponseValidation.validationStatus}
+                            error={postResponseValidation.validationError}
+                            style={{ borderTop: '1px solid var(--border)', borderBottom: 'none' }}
+                          />
+
+                          <div style={{ flex: 1, minHeight: '150px' }}>
+                            <InterpolatedInput
+                              ref={postResponseEditorRef}
+                              multiline
+                              className="script-editor"
+                              placeholder="// code here...&#10;if (ultra.response.body.token) {&#10;  ultra.context.set('auth_token', ultra.response.body.token);&#10;}"
+                              value={activeRequest.postResponseScript || ''}
+                              onChange={val => {
+                                updateActiveRequest({ postResponseScript: val })
+                                postResponseValidation.resetValidation()
+                              }}
+                              activeEnv={activeEnv}
+                              highlightJs={true}
+                              wrapLines={wrapLines}
+                              contextVariables={activeRequestCollection?.variables}
+                              vaultEntries={activeVaultEntries}
+                              theme={resolvedTheme}
+                              onFollowDefinition={handleFollowDefinition}
+                            />
+                          </div>
+
+                          {/* Console Log Viewer */}
+                          <div className="script-console glass">
+                            <div className="console-header">
+                              <span className="console-title">Console Output</span>
+                              <button
+                                className="btn-ghost"
+                                style={{ fontSize: '10px', padding: '2px 8px' }}
+                                onClick={() => setScriptLogs(prev => ({ ...prev, [activeTabId]: [] }))}
+                              >
+                                Clear
+                              </button>
+                            </div>
+                            <div className="console-logs">
+                              {(scriptLogs[activeTabId] || []).length === 0 ? (
+                                <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No logs yet...</div>
+                              ) : (
+                                scriptLogs[activeTabId].map((log, i) => (
+                                  <div key={i} className={`console-log-entry ${log.includes('ERROR') ? 'console-log-entry-error' : ''}`}>
+                                    {log}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                  </div>
                 </div>
-
-              </div>
+              ) : (
+                <div className="empty-state">
+                  <p>No active tab. Create or open a request.</p>
+                </div>
+              )}
             </motion.div>
           </div>
 
-          {threeColumnLayout ? (
-            <div 
-              className={`v-resizer ${isResizingVertical ? 'resizing' : ''}`}
-              onMouseDown={(e) => { e.preventDefault(); setIsResizingVertical(true) }}
-            />
-          ) : (
-            <div 
-              className={`h-resizer ${isResizingResponse ? 'resizing' : ''}`}
-              onMouseDown={(e) => { e.preventDefault(); setIsResizingResponse(true) }}
-            />
-          )}
+          {(activeTab?.type !== 'flow') && (
+            <>
+              {threeColumnLayout ? (
+                <div
+                  className={`v-resizer ${isResizingVertical ? 'resizing' : ''}`}
+                  onMouseDown={(e) => { e.preventDefault(); setIsResizingVertical(true) }}
+                />
+              ) : (
+                <div
+                  className={`h-resizer ${isResizingResponse ? 'resizing' : ''}`}
+                  onMouseDown={(e) => { e.preventDefault(); setIsResizingResponse(true) }}
+                />
+              )}
 
-          <div className="request-bottom-pane" style={threeColumnLayout ? { flex: 1, height: '100%' } : {}}>
-            <h3 className="section-label">Response</h3>
-            <ResponseViewer 
-              response={responses[activeTabId] || null} 
-              error={errors[activeTabId] || null}
-              scriptError={scriptErrors[activeTabId] || null}
-              loading={loadingTabs[activeTabId] || false}
-              theme={resolvedTheme}
-            />
-          </div>
+              <div className="request-bottom-pane" style={threeColumnLayout ? { flex: 1, height: '100%' } : {}}>
+                <h3 className="section-label">Response</h3>
+                <ResponseViewer
+                  response={responses[activeTabId] || null}
+                  error={errors[activeTabId] || null}
+                  scriptError={scriptErrors[activeTabId] || null}
+                  loading={loadingTabs[activeTabId] || false}
+                  theme={resolvedTheme}
+                />
+              </div>
+            </>
+          )}
         </section>
       </main>
 
@@ -2509,8 +2897,12 @@ const App: React.FC = () => {
 
       <LibraryModal
         isOpen={showLibraryModal}
-        onClose={() => setShowLibraryModal(false)}
+        onClose={() => {
+          setShowLibraryModal(false)
+          setInitialLibraryId(null)
+        }}
         libraries={libraries}
+        initialSelectedId={initialLibraryId}
         onSave={(libs) => {
           setLibraries(libs)
           if (window.ultraRpc) window.ultraRpc.saveLibraries(libs)
@@ -2523,10 +2915,10 @@ const App: React.FC = () => {
 
 
 
-      {/* Collection Variables Modal */}
+      {/* Context Variables Modal */}
       {editingCollection && (
         <div className="modal-overlay" onClick={() => setEditingCollection(null)}>
-          <motion.div 
+          <motion.div
             className="modal-content glass"
             style={{ maxWidth: '1100px' }}
             onClick={e => e.stopPropagation()}
@@ -2534,32 +2926,33 @@ const App: React.FC = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
           >
             <div className="modal-header">
-              <h3>Collection Variables: {editingCollection.name}</h3>
+              <h3>Context Variables: {editingCollection.name}</h3>
               <button className="btn-ghost" onClick={() => setEditingCollection(null)} style={{ padding: '4px' }}>
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="modal-body">
               <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--accent-muted)', borderRadius: '8px', border: '1px solid var(--accent)', color: 'var(--text-primary)', fontSize: '13px', lineHeight: '1.5' }}>
-                <strong>Pro Tip:</strong> Collection variables are scoped to this collection and override environment variables. Use <code>{`{{VARIABLE_NAME}}`}</code> in any request field.
+                <strong>Pro Tip:</strong> Context variables are scoped to this collection and override environment variables. Use <code>{`{{VARIABLE_NAME}}`}</code> in any request field.
               </div>
-              
+
               <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Variable Definitions
               </div>
-              
+
               <KeyValueEditor
                 pairs={collections.find(c => c.id === editingCollection.id)?.variables || []}
-                onChange={(vars) => handleSaveCollectionVariables(editingCollection.id, vars)}
+                onChange={(vars) => handleSaveContextVariables(editingCollection.id, vars)}
                 keyPlaceholder="Variable Name"
                 valuePlaceholder="Current Value"
                 activeEnv={activeEnv}
+                contextVariables={collections.find(c => c.id === editingCollection.id)?.variables || []}
                 vaultEntries={activeVaultEntries}
                 theme={resolvedTheme}
               />
             </div>
-            
+
             <div className="modal-footer">
               <button className="btn-primary" onClick={() => setEditingCollection(null)}>
                 Save & Close
@@ -2569,11 +2962,107 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Save Flow Modal */}
+      {showSaveFlowModal && (
+        <div className="modal-overlay" onClick={() => { setShowSaveFlowModal(false); setFlowToClone(null); }}>
+          <motion.div
+            className="modal-content glass"
+            style={{ maxWidth: '400px' }}
+            onClick={e => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+          >
+            <div className="modal-header">
+              <h3>{flowToClone ? 'Clone Flow' : 'New Flow'}</h3>
+              <button className="btn-ghost" onClick={() => { setShowSaveFlowModal(false); setFlowToClone(null); }} style={{ padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  Flow Name
+                </label>
+                <input
+                  type="text"
+                  className="modal-input"
+                  value={saveFlowModalName}
+                  onChange={(e) => setSaveFlowModalName(e.target.value)}
+                  placeholder="e.g. Auth Flow"
+                  style={{
+                    width: '100%',
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') confirmCreateFlow()
+                    if (e.key === 'Escape') { setShowSaveFlowModal(false); setFlowToClone(null); }
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  Save To Folder
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    className="modal-input"
+                    value={saveFlowModalPath}
+                    readOnly
+                    placeholder="Select folder..."
+                    style={{
+                      flex: 1,
+                      background: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-secondary)',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px'
+                    }}
+                  />
+                  <button 
+                    className="btn secondary" 
+                    onClick={async () => {
+                      const res = await window.ultraRpc.pickFolder()
+                      if (res.success && res.path) setSaveFlowModalPath(res.path)
+                    }}
+                    style={{ padding: '0 12px', height: '34px' }}
+                  >
+                    Browse
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-subtle)', padding: '16px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button className="btn-ghost" onClick={() => { setShowSaveFlowModal(false); setFlowToClone(null); }}>Cancel</button>
+              <button 
+                className="btn-primary" 
+                onClick={confirmCreateFlow}
+                disabled={!saveFlowModalPath}
+              >
+                {flowToClone ? 'Clone Flow' : 'Create Flow'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Save Request Modal */}
       {showSaveMenu && (
         <div className="modal-overlay" onClick={() => setShowSaveMenu(false)}>
-          <motion.div 
-            className="modal-content glass" 
+          <motion.div
+            className="modal-content glass"
             style={{ maxWidth: '400px' }}
             onClick={e => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -2585,13 +3074,13 @@ const App: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="modal-body">
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>
                   Request Name
                 </label>
-                <input 
+                <input
                   type="text"
                   className="modal-input"
                   value={saveModalRequestName}
@@ -2615,7 +3104,7 @@ const App: React.FC = () => {
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                 Select a collection to save this request to:
               </p>
-              
+
               <div className="collection-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 {collections.length === 0 ? (
                   <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
@@ -2623,7 +3112,7 @@ const App: React.FC = () => {
                   </div>
                 ) : (
                   collections.map(c => (
-                    <div 
+                    <div
                       key={c.id}
                       className={`collection-modal-item ${selectedCollectionId === c.id ? 'active' : ''}`}
                       onClick={() => setSelectedCollectionId(c.id)}
@@ -2642,10 +3131,10 @@ const App: React.FC = () => {
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      <div style={{ 
-                        width: '16px', 
-                        height: '16px', 
-                        borderRadius: '50%', 
+                      <div style={{
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
                         border: '2px solid var(--accent)',
                         display: 'flex',
                         alignItems: 'center',
@@ -2664,10 +3153,10 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
-            
+
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-              <button 
-                className="btn-ghost" 
+              <button
+                className="btn-ghost"
                 onClick={() => setShowSaveMenu(false)}
                 style={{ padding: '8px 16px' }}
               >
@@ -2699,8 +3188,8 @@ const App: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
-          <motion.div 
-            className="modal-content glass" 
+          <motion.div
+            className="modal-content glass"
             style={{ maxWidth: '400px' }}
             onClick={e => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -2712,7 +3201,7 @@ const App: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="modal-body">
               <p style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '8px' }}>
                 Are you sure you want to delete this {confirmDelete.type}?
@@ -2725,21 +3214,21 @@ const App: React.FC = () => {
                   <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Info size={12} /> This will remove the collection from the application.
                   </p>
-                  <label 
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '8px', 
-                      fontSize: '13px', 
-                      color: 'var(--danger)', 
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '13px',
+                      color: 'var(--danger)',
                       cursor: 'pointer',
                       userSelect: 'none',
                       padding: '4px 0'
                     }}
                   >
-                    <input 
-                      type="checkbox" 
-                      checked={deleteCollectionFiles} 
+                    <input
+                      type="checkbox"
+                      checked={deleteCollectionFiles}
                       onChange={e => setDeleteCollectionFiles(e.target.checked)}
                       style={{ cursor: 'pointer' }}
                     />
@@ -2753,17 +3242,17 @@ const App: React.FC = () => {
                 </p>
               )}
             </div>
-            
+
             <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-              <button 
-                className="btn-ghost" 
+              <button
+                className="btn-ghost"
                 onClick={() => setConfirmDelete(null)}
                 style={{ padding: '8px 16px' }}
               >
                 Cancel
               </button>
-              <button 
-                className="btn-primary" 
+              <button
+                className="btn-primary"
                 style={{ background: 'var(--danger)', borderColor: 'var(--danger)', padding: '8px 24px' }}
                 onClick={async () => {
                   const rpc = window.ultraRpc
@@ -2774,6 +3263,9 @@ const App: React.FC = () => {
                     tabsToClose = tabs.filter(t => t.owningCollectionId === confirmDelete.id).map(t => t.id)
                   } else if (confirmDelete.type === 'request' && confirmDelete.collectionId && rpc) {
                     await rpc.deleteRequest({ collectionId: confirmDelete.collectionId, requestId: confirmDelete.id })
+                    tabsToClose = [confirmDelete.id]
+                  } else if (confirmDelete.type === 'flow' && confirmDelete.collectionId && rpc) {
+                    await rpc.deleteFlow({ collectionId: confirmDelete.collectionId, flowId: confirmDelete.id })
                     tabsToClose = [confirmDelete.id]
                   } else if (confirmDelete.type === 'folder' && confirmDelete.collectionId && rpc) {
                     await rpc.deleteFolder({ collectionId: confirmDelete.collectionId, folderId: confirmDelete.id })
@@ -2802,7 +3294,7 @@ const App: React.FC = () => {
                       const remaining = prev.filter(t => !tabsToClose.includes(t.id))
                       if (remaining.length === 0) {
                         const newReq = createEmptyRequest()
-                        const newTab = { id: newReq.id, request: newReq }
+                        const newTab: Tab = { id: newReq.id, type: 'request', request: newReq, isDirty: false }
                         setActiveTabId(newTab.id)
                         return [newTab]
                       }

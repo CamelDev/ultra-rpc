@@ -7,7 +7,7 @@ interface Props {
   value: string
   onChange: (value: string) => void
   activeEnv?: Environment | null
-  collectionVariables?: any[]
+  contextVariables?: any[]
   vaultEntries?: any[]
   placeholder?: string
   className?: string
@@ -20,13 +20,14 @@ interface Props {
   theme?: 'dark' | 'light'
   style?: React.CSSProperties
   enableSearch?: boolean
+  onFollowDefinition?: (name: string) => void
 }
 
 const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedInput({
   value,
   onChange,
     activeEnv,
-    collectionVariables,
+    contextVariables,
     vaultEntries,
     placeholder,
     className = '',
@@ -39,6 +40,7 @@ const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedI
     theme = 'dark',
     style,
     enableSearch = false,
+    onFollowDefinition,
   }, ref) {
     const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
     
@@ -54,11 +56,12 @@ const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedI
           singleLine={!multiline}
           wrapLines={wrapLines}
           activeEnv={activeEnv}
-          collectionVariables={collectionVariables}
+          contextVariables={contextVariables}
           vaultEntries={vaultEntries}
           onKeyDown={onKeyDown}
           theme={theme}
           enableSearch={enableSearch}
+          onFollowDefinition={onFollowDefinition}
         />
       </div>
     )

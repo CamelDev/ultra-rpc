@@ -1,7 +1,14 @@
 import { ipcMain, app, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import { VaultEntry } from '../src/types'
+
+// Redefine VaultEntry locally to avoid importing from renderer types, 
+// which improves build stability in the Electron main process.
+export interface VaultEntry {
+  id: string
+  key: string
+  value: string
+}
 
 export const getVaultDir = () => {
   const dir = path.join(app.getPath('userData'), 'vaults')
@@ -12,6 +19,31 @@ export const getVaultDir = () => {
 export const getVaultPath = (envId: string) =>
   path.join(getVaultDir(), `${envId}.vault`)
 
+export async function getDecryptedVaultEntries(envId: string): Promise<VaultEntry[]> {
+  try {
+    if (process.env.MOCK_VAULT_UNAVAILABLE === 'true') {
+      throw new Error('Encryption is not available on this system (MOCK)')
+    }
+    const filePath = getVaultPath(envId)
+    if (!fs.existsSync(filePath)) {
+      return []
+    }
+
+    const encrypted = fs.readFileSync(filePath)
+    
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Encryption is not available on this system')
+    }
+
+    const decrypted = safeStorage.decryptString(encrypted)
+    const entries: VaultEntry[] = JSON.parse(decrypted)
+    return entries
+  } catch (err: any) {
+    console.error('Failed to decrypt vault:', err)
+    return []
+  }
+}
+
 export function registerVaultHandlers() {
   ipcMain.handle('vault:check-availability', () => {
     if (process.env.MOCK_VAULT_UNAVAILABLE === 'true') return false
@@ -20,23 +52,7 @@ export function registerVaultHandlers() {
 
   ipcMain.handle('vault:get', async (_, { envId }: { envId: string }) => {
     try {
-      if (process.env.MOCK_VAULT_UNAVAILABLE === 'true') {
-        throw new Error('Encryption is not available on this system (MOCK)')
-      }
-      const filePath = getVaultPath(envId)
-      if (!fs.existsSync(filePath)) {
-        return { success: true, entries: [] }
-      }
-
-      const encrypted = fs.readFileSync(filePath)
-      
-      if (!safeStorage.isEncryptionAvailable()) {
-        throw new Error('Encryption is not available on this system')
-      }
-
-      const decrypted = safeStorage.decryptString(encrypted)
-      const entries: VaultEntry[] = JSON.parse(decrypted)
-      
+      const entries = await getDecryptedVaultEntries(envId)
       return { success: true, entries }
     } catch (err: any) {
       console.error('Failed to get vault:', err)

@@ -44,22 +44,29 @@ export interface ResponseData {
   size: number // bytes
 }
 
-export interface Tab {
+import type { FlowDefinition } from './flow'
+export type { FlowDefinition } from './flow'
+
+export type Tab = {
   id: string
-  request: RequestConfig
   isDirty?: boolean
   owningCollectionId?: string
   envId?: string | null
-}
+  path?: string
+} & (
+  | { type: 'request', request: RequestConfig }
+  | { type: 'flow', flow: FlowDefinition }
+)
 
 // ===== Collections =====
-export type CollectionItemType = 'folder' | 'request'
+export type CollectionItemType = 'folder' | 'request' | 'flow'
 
 export interface CollectionItem {
   id: string
   name: string
   type: CollectionItemType
   request?: RequestConfig
+  flow?: FlowDefinition
   children?: CollectionItem[]
   isExpanded?: boolean
 }

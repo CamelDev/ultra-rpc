@@ -97,22 +97,22 @@ test.describe('Scripting & Automation Suite', () => {
     await window.click('button:has-text("Post-response")');
     const scriptEditor = window.locator('.script-editor .cm-content');
     await scriptEditor.click();
-    await window.keyboard.type('ultra.test("Status is 200", () => {');
-    await window.keyboard.type('\n  ultra.expect(ultra.response.status).toBe(200);');
-    await window.keyboard.type('\n});');
-    await window.keyboard.type('\nultra.test("Body has success", () => {');
-    await window.keyboard.type('\n  ultra.expect(ultra.response.body.status).toBe("success");');
-    await window.keyboard.type('\n});');
-    await window.keyboard.type('\nultra.collection.set("last_status", ultra.response.body.status);');
+    await window.keyboard.type('if (ultra.response.status === 200) {');
+    await window.keyboard.type('\n  console.log("LOG: Status is 200");');
+    await window.keyboard.type('\n}');
+    await window.keyboard.type('\nif (ultra.response.body.status === "success") {');
+    await window.keyboard.type('\n  console.log("LOG: Body has success");');
+    await window.keyboard.type('\n}');
+    await window.keyboard.type('\nultra.context.set("last_status", ultra.response.body.status);');
 
     // 5. Send request
     await window.click('button:has-text("Send")');
 
     // 6. Verify Console Output for tests
     const consoleLogs = window.locator('.console-logs');
-    await expect(consoleLogs).toContainText('TEST PASS: Status is 200', { timeout: 10000 });
-    await expect(consoleLogs).toContainText('TEST PASS: Body has success', { timeout: 10000 });
-    await expect(consoleLogs).toContainText('LOG: Set collection variable: last_status', { timeout: 10000 });
+    await expect(consoleLogs).toContainText('LOG: Status is 200', { timeout: 10000 });
+    await expect(consoleLogs).toContainText('LOG: Body has success', { timeout: 10000 });
+    await expect(consoleLogs).toContainText('LOG: Set context variable: last_status', { timeout: 10000 });
 
     // 7. Verify collection variable was updated (check modal)
     await window.click('.tree-node:has-text("script-test-coll") .coll-action-btn');

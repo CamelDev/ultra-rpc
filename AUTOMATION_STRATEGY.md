@@ -100,7 +100,7 @@ We intend to use Vitest for fast, isolated testing of individual React component
 ### Verified Scenarios & Results
 
 #### 1. Advanced gRPC Verification
-- **Location**: [`tests/e2e/mock-grpc.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/mock-grpc.spec.ts)
+- **Location**: [`tests/e2e/mock-grpc.spec.ts`](/tests/e2e/mock-grpc.spec.ts)
 - **Scenarios**:
     - **Service Discovery**: Verified that clicking "Discover Services" successfully fetches and expands the service/method list via Server Reflection.
     - **Payload Generation**: Verified that selecting a method automatically populates the JSON editor with a sample request body.
@@ -108,13 +108,13 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Rich Error Decoding**: Verified that decoded `google.rpc.Status` messages and `ErrorInfo` details from the `grpc-status-details-bin` trailer are correctly displayed.
 
 #### 2. REST Method Switching
-- **Location**: [`tests/e2e/mock-rest.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/mock-rest.spec.ts)
+- **Location**: [`tests/e2e/mock-rest.spec.ts`](/tests/e2e/mock-rest.spec.ts)
 - **Scenarios**:
     - **Method Selection**: Verified that picking GET, POST, PUT, DELETE, or PATCH correctly updates the request.
     - **Round-trip Verification**: Confirmed via the local mock server that the exact selected method was received and echoed back.
 
 #### 3. Collection Management Lifecycle
-- **Location**: [`tests/e2e/collection-management.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/collection-management.spec.ts)
+- **Location**: [`tests/e2e/collection-management.spec.ts`](/tests/e2e/collection-management.spec.ts)
 - **Scenarios**:
     - **Renaming/Cloning**: Verified that collections can be renamed and cloned successfully, with unique IDs generated for duplicates.
     - **Folder Creation**: Verified that the new `CreateFolderModal` (replacing `window.prompt`) correctly triggers and saves new folders with sanitized names (allowing hyphens).
@@ -123,7 +123,7 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Postman Import**: Verified that Postman v2.1 collections (with folders, requests, and variables) can be imported and correctly reflected in the application tree.
 
 #### 4. Scripting & Automation
-- **Location**: [`tests/e2e/scripting-automation.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/scripting-automation.spec.ts), [`tests/e2e/scripting-ultra.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/scripting-ultra.spec.ts)
+- **Location**: [`tests/e2e/scripting-automation.spec.ts`](/tests/e2e/scripting-automation.spec.ts), [`tests/e2e/scripting-ultra.spec.ts`](/tests/e2e/scripting-ultra.spec.ts)
 - **Scenarios**:
     - **Pre-request Injection**: Verified that `ultra.env.set` in a pre-request script correctly updates variables used in the URL interpolation of the outgoing request.
     - **Ultra API**: Verified that `ultra.sendRequest` can be used to chain requests and that `ultra.globals` correctly persists across multiple script executions.
@@ -132,7 +132,7 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Console Logging**: Verified that `console.log` output from scripts is captured with timestamps and displayed in the UI.
 
 #### 5. UI & Workspace Sophistication
-- **Location**: [`tests/e2e/workspace-ui.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/workspace-ui.spec.ts), [`tests/e2e/config-tab-persistence.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/config-tab-persistence.spec.ts), [`tests/e2e/json-format.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/json-format.spec.ts)
+- **Location**: [`tests/e2e/workspace-ui.spec.ts`](/tests/e2e/workspace-ui.spec.ts), [`tests/e2e/config-tab-persistence.spec.ts`](/tests/e2e/config-tab-persistence.spec.ts), [`tests/e2e/json-format.spec.ts`](/tests/e2e/json-format.spec.ts)
 - **Scenarios**:
     - **Tab Persistence**: Verified that each tab maintains its own active config section (e.g., Tab A is on "Headers" while Tab B is on "Body") and this state is restored after application restart.
     - **Smart Formatting**: Verified that the JSON "Format" button handles unquoted template variables `{{like_this}}` correctly, preserving the template syntax while beautifying the surrounding JSON.
@@ -140,25 +140,25 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Theme & Layout**: Verified that light/dark theme and two/three-column layout settings are persisted across restarts.
 
 #### 6. Search & Discovery
-- **Location**: [`tests/e2e/collection-search.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/collection-search.spec.ts), [`tests/e2e/grpc-proto-discovery.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/grpc-proto-discovery.spec.ts)
+- **Location**: [`tests/e2e/collection-search.spec.ts`](/tests/e2e/collection-search.spec.ts), [`tests/e2e/grpc-proto-discovery.spec.ts`](/tests/e2e/grpc-proto-discovery.spec.ts)
 - **Scenarios**:
     - **Fuzzy Search**: Verified that the collection tree correctly filters items based on search input (3-char minimum), keeping parent collections visible if their children match.
     - **Proto Import**: Verified that gRPC services can be discovered by selecting a local `.proto` file, and that the selection correctly syncs between the Discovery Modal and the main request view.
 
 #### 7. Environment Propagation
-- **Location**: [`tests/e2e/environment-propagation.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/environment-propagation.spec.ts)
+- **Location**: [`tests/e2e/environment-propagation.spec.ts`](/tests/e2e/environment-propagation.spec.ts)
 - **Scenarios**:
     - **Global Apply**: Verified that "Apply to all tabs" correctly propagates the selected environment to all currently open request tabs.
 
 #### 8. Bruno Collection Import
-- **Location**: [`tests/e2e/bruno-import.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/bruno-import.spec.ts)
+- **Location**: [`tests/e2e/bruno-import.spec.ts`](/tests/e2e/bruno-import.spec.ts)
 - **Scenarios**:
     - **Multi-protocol Import**: Verified that Bruno collections containing both REST and gRPC requests are imported correctly.
     - **Script Conversion**: Verified that Bruno-specific scripting (`bru.*`) is automatically converted to the `ultra.*` API during import.
     - **Vault Integration**: Verified that secrets from Bruno collections are correctly identified and moved to the UltraRPC secret vault.
 
 #### 9. Save Flow Enhancements
-- **Location**: [`tests/e2e/save-modal-name.spec.ts`](file:///Users/kamildabrowski/projects/ultra-rpc/tests/e2e/save-modal-name.spec.ts)
+- **Location**: [`tests/e2e/save-modal-name.spec.ts`](/tests/e2e/save-modal-name.spec.ts)
 - **Scenarios**:
     - **Custom Naming**: Verified that users can rename a request directly within the "Save to Collection" modal before confirming.
 

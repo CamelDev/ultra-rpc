@@ -1,0 +1,80 @@
+.tooltip-portal {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100000;
+  transform: translate(-50%, -50%);
+}
+
+.tooltip-top {
+  transform: translate(-50%, -100%) translateY(-4px);
+}
+
+.tooltip-bottom {
+  transform: translate(-50%, 0) translateY(4px);
+}
+
+.tooltip-left {
+  transform: translate(-100%, -50%) translateX(-4px);
+}
+
+.tooltip-right {
+  transform: translate(0, -50%) translateX(4px);
+}
+
+.fade-in-fast {
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from { 
+    opacity: 0; 
+    transform: translate(-50%, -50%) scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translate(-50%, -50%) scale(1); 
+  }
+}
+
+/* Adjust transform for specific positions in animation */
+.tooltip-top.fade-in-fast {
+  animation: tooltipFadeInTop 0.15s ease-out;
+}
+@keyframes tooltipFadeInTop {
+  from { opacity: 0; transform: translate(-50%, -100%) translateY(0) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -100%) translateY(-4px) scale(1); }
+}
+
+.tooltip-bottom.fade-in-fast {
+  animation: tooltipFadeInBottom 0.15s ease-out;
+}
+@keyframes tooltipFadeInBottom {
+  from { opacity: 0; transform: translate(-50%, 0) translateY(0) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, 0) translateY(4px) scale(1); }
+}
+
+.tooltip-left.fade-in-fast {
+  animation: tooltipFadeInLeft 0.15s ease-out;
+}
+@keyframes tooltipFadeInLeft {
+  from { opacity: 0; transform: translate(-100%, -50%) translateX(0) scale(0.95); }
+  to { opacity: 1; transform: translate(-100%, -50%) translateX(-4px) scale(1); }
+}
+
+.tooltip-right.fade-in-fast {
+  animation: tooltipFadeInRight 0.15s ease-out;
+}
+@keyframes tooltipFadeInRight {
+  from { opacity: 0; transform: translate(0, -50%) translateX(0) scale(0.95); }
+  to { opacity: 1; transform: translate(0, -50%) translateX(4px) scale(1); }
+}

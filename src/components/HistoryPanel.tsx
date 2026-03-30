@@ -1,5 +1,5 @@
-import React from 'react'
 import { Clock, Trash2 } from 'lucide-react'
+import Tooltip from './Tooltip'
 import type { RequestConfig } from '../types'
 import './HistoryPanel.css'
 
@@ -51,9 +51,11 @@ const HistoryPanel: React.FC<Props> = ({ history, onOpenRequest, onClear }) => {
           <Clock size={14} /> History
         </span>
         {history.length > 0 && (
-          <button className="btn-ghost hist-clear" onClick={onClear} data-tooltip="Clear history" data-tooltip-pos="left">
-            <Trash2 size={12} /> Clear
-          </button>
+          <Tooltip text="Clear history" position="left">
+            <button className="btn-ghost hist-clear" onClick={onClear}>
+              <Trash2 size={12} /> Clear
+            </button>
+          </Tooltip>
         )}
       </div>
 

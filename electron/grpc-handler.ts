@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron'
 import * as grpc from '@grpc/grpc-js'
 import * as protoLoader from '@grpc/proto-loader'
-import path from 'path'
-import os from 'os'
-import fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+import * as fs from 'fs'
 
 const logPath = path.join(os.tmpdir(), 'ultrarpc-grpc-backend.log')
 
@@ -17,7 +17,7 @@ function getProtobuf() {
   return protobufInstance
 }
 
-interface GrpcRequest {
+export interface GrpcRequest {
   host: string
   insecure: boolean
   headers: Record<string, string>
@@ -26,6 +26,7 @@ interface GrpcRequest {
   payload: string
   protoPath?: string // Optional: use proto file instead of reflection
   timeoutMs?: number // Optional: deadline timeout in milliseconds
+  abortSignal?: AbortSignal // Optional: for flow engine cancellation
 }
 
 // ===== gRPC Server Reflection v1 =====
@@ -364,6 +365,441 @@ function parseMapsToArrays(type: any, payload: any): any {
   return result
 }
 
+export interface GrpcResponseData {
+  type: 'GRPC';
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  trailers?: Record<string, string>;
+  body: string;
+  time: number;
+  size: number;
+}
+
+export interface GrpcCallResponse {
+  success: boolean;
+  error?: string;
+  data?: GrpcResponseData;
+  time?: number;
+}
+
+export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse> {
+  const start = Date.now()
+  const protobuf = getProtobuf()
+  try {
+    const metadata = new grpc.Metadata()
+    for (const [key, value] of Object.entries(req.headers || {})) {
+      if (key && value) metadata.add(key, value)
+    }
+
+    const isSecure = req.host.startsWith('https://') || req.host.endsWith(':443') || req.host.includes(':443/');
+    const cleanHost = req.host.replace(/^https?:\/\//, '').split('/')[0];
+
+    if (req.insecure) {
+      console.log(`[gRPC Backend] Request has insecure=true`)
+    } else {
+      console.log(`[gRPC Backend] Request has insecure=false`)
+    }
+    
+    let credentials: grpc.ChannelCredentials
+    if (isSecure && req.insecure) {
+      console.log(`[gRPC Backend] Using SSL with hostname & trust verification bypass (insecure=true)`)
+      // HTTPS host with SSL verification disabled: use SSL but skip hostname/cert check
+      credentials = grpc.credentials.createSsl(
+        null, null, null,
+          { 
+            checkServerIdentity: () => undefined,
+            rejectUnauthorized: false, // Bypass trust verification for self-signed certs
+            // @ts-expect-error - passing to underlying tls socket
+            'grpc.ssl_target_name_override': cleanHost,
+            'grpc.default_authority': cleanHost
+          }
+      )
+    } else if (isSecure) {
+      // HTTPS host or secure port: full SSL verification
+      credentials = grpc.credentials.createSsl()
+    } else {
+      // Plain HTTP host: no TLS at all
+      credentials = grpc.credentials.createInsecure()
+    }
+
+    const callOptions: grpc.CallOptions = {}
+    const timeout = req.timeoutMs && req.timeoutMs > 0 ? req.timeoutMs : 60000
+    callOptions.deadline = Date.now() + timeout
+
+    let payload: any
+    try {
+      payload = JSON.parse(req.payload)
+    } catch {
+      return { success: false, error: 'Invalid JSON payload' }
+    }
+
+    // If proto path provided, use it directly
+    if (req.protoPath) {
+      const packageDefinition = protoLoader.loadSync(req.protoPath, {
+        keepCase: true, longs: String, enums: String, defaults: true, oneofs: true,
+      })
+      const proto = grpc.loadPackageDefinition(packageDefinition)
+      const serviceParts = req.service.split('.')
+      let serviceConstructor: any = proto
+      for (const part of serviceParts) {
+        serviceConstructor = serviceConstructor[part]
+      }
+      if (!serviceConstructor) {
+        return { success: false, error: `Service "${req.service}" not found in proto` }
+      }
+      const client = new serviceConstructor(cleanHost, credentials)
+      return new Promise<GrpcCallResponse>((resolve) => {
+        const methodFn = client[req.method]
+        if (!methodFn) {
+          resolve({ success: false, error: `Method "${req.method}" not found on service` })
+          return
+        }
+
+        let responseHeaders = {}
+        let responseTrailers = {}
+
+        if (methodFn.responseStream) {
+          const call = methodFn.call(client, payload, metadata, callOptions)
+          call.on('metadata', (m: grpc.Metadata) => {
+            responseHeaders = metadataToObject(m)
+          })
+          const responses: any[] = []
+          
+          let timeoutTimer: any
+          const cleanup = () => {
+            if (timeoutTimer) clearTimeout(timeoutTimer)
+            client.close()
+          }
+
+          timeoutTimer = setTimeout(() => {
+            resolve({ success: false, error: 'gRPC stream timeout (30s)' })
+            cleanup()
+          }, 30000)
+
+          call.on('data', (response: any) => {
+            responses.push(response)
+          })
+          call.on('error', (err: GrpcError) => {
+            cleanup()
+            const time = Date.now() - start
+            const errorMsg = formatGrpcError(err)
+            resolve({ 
+              success: true, 
+              data: { 
+                type: 'GRPC',
+                status: err.code || 2, 
+                statusText: err.details || 'Stream Error', 
+                headers: responseHeaders, 
+                trailers: responseTrailers || metadataToObject(err.metadata || new grpc.Metadata()),
+                body: errorMsg,
+                time, 
+                size: Buffer.byteLength(errorMsg, 'utf-8') 
+              } 
+            })
+          })
+          call.on('status', (status: grpc.StatusObject) => {
+            responseTrailers = metadataToObject(status.metadata)
+          })
+          call.on('end', () => {
+            cleanup()
+            const time = Date.now() - start
+            try {
+              const body = JSON.stringify(responses, null, 2)
+              resolve({ 
+                success: true, 
+                data: { 
+                  type: 'GRPC',
+                  status: 0, 
+                  statusText: 'OK', 
+                  headers: responseHeaders, 
+                  trailers: responseTrailers,
+                  body, 
+                  time, 
+                  size: Buffer.byteLength(body, 'utf-8') 
+                } 
+              })
+            } catch (err: any) {
+              resolve({ success: false, error: `Failed to serialize streaming responses: ${err.message}` })
+            }
+          })
+        } else {
+          const call = methodFn.call(client, payload, metadata, callOptions, (err: GrpcError | null, responseBody: unknown) => {
+            const time = Date.now() - start
+            if (err) {
+              const errorMsg = formatGrpcError(err)
+              resolve({ 
+                success: true, 
+                data: { 
+                  type: 'GRPC',
+                  status: err.code || 2, 
+                  statusText: err.details || 'Error',
+                  headers: responseHeaders, 
+                  trailers: responseTrailers,
+                  body: errorMsg,
+                  time, 
+                  size: Buffer.byteLength(errorMsg, 'utf-8') 
+                } 
+              })
+            } else {
+              const body = JSON.stringify(responseBody, null, 2)
+              resolve({ 
+                success: true, 
+                data: { 
+                  type: 'GRPC',
+                  status: 0, 
+                  statusText: 'OK', 
+                  headers: responseHeaders, 
+                  trailers: responseTrailers,
+                  body, 
+                  time, 
+                  size: Buffer.byteLength(body, 'utf-8') 
+                } 
+              })
+              client.close()
+            }
+          })
+          call.on('metadata', (m: grpc.Metadata) => {
+            responseHeaders = metadataToObject(m)
+          })
+          call.on('status', (s: grpc.StatusObject) => {
+            responseTrailers = metadataToObject(s.metadata)
+          })
+          // Wire up abort signal
+          if (req.abortSignal) {
+            const abortHandler = () => { try { call.cancel() } catch {} }
+            req.abortSignal.addEventListener('abort', abortHandler)
+          }
+        }
+      })
+    }
+
+    // Server reflection call
+    const reflectionClient = createReflectionClient(req.host, req.insecure)
+    return new Promise<GrpcCallResponse>((resolve) => {
+      const call = reflectionClient.ServerReflectionInfo(metadata)
+      const descriptorBuffers: Buffer[] = []
+      let resolved = false
+
+      call.on('data', (response: any) => {
+        if (response.file_descriptor_response) {
+          for (const fd of response.file_descriptor_response.file_descriptor_proto) {
+             descriptorBuffers.push(Buffer.isBuffer(fd) ? fd : Buffer.from(fd))
+          }
+        }
+        if (response.error_response) {
+          resolved = true; reflectionClient.close();
+          resolve({ success: false, error: response.error_response.error_message })
+        }
+      })
+
+      call.on('error', (err: GrpcError) => {
+        if (resolved) return
+        resolved = true; reflectionClient.close()
+        resolve({ success: false, error: err.message || 'Reflection failed' })
+      })
+
+      call.on('end', async () => {
+        if (resolved) return
+        resolved = true; reflectionClient.close()
+
+        if (descriptorBuffers.length === 0) {
+          return resolve({ success: false, error: `No file descriptor found for service "${req.service}"` })
+        }
+
+        try {
+          // Parse raw descriptors to find input/output types for the method
+          let inputTypeName: string | null = null
+          let outputTypeName: string | null = null
+          let isServerStreaming = false
+          const targetShortName = req.service.split('.').pop()
+
+          for (const buf of descriptorBuffers) {
+            const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
+            const pkg = decoded.package || ''
+            if (decoded.service) {
+              for (const svc of decoded.service) {
+                const svcFullName = pkg ? `${pkg}.${svc.name}` : svc.name
+                if (svcFullName === req.service || svc.name === targetShortName) {
+                  if (svc.method) {
+                    for (const m of svc.method) {
+                      if (m.name === req.method) {
+                        inputTypeName = m.inputType?.startsWith('.') ? m.inputType.slice(1) : m.inputType
+                        outputTypeName = m.outputType?.startsWith('.') ? m.outputType.slice(1) : m.outputType
+                        isServerStreaming = m.serverStreaming || false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          if (!inputTypeName || !outputTypeName) {
+            return resolve({ success: false, error: `Method "${req.method}" not found on service "${req.service}"` })
+          }
+
+          // Build a Root for message types using FileDescriptorSet
+          const decodedDescriptors = descriptorBuffers.map(buf =>
+            protobuf.descriptor.FileDescriptorProto.decode(buf)
+          )
+          const descriptorSet = protobuf.descriptor.FileDescriptorSet.create({
+            file: decodedDescriptors,
+          })
+          const root = protobuf.Root.fromDescriptor(descriptorSet)
+          root.resolveAll()
+
+          const requestType = root.lookupType(inputTypeName)
+          const responseType = root.lookupType(outputTypeName)
+
+          const fullMethodPath = `/${req.service}/${req.method}`
+          const genericClient = new grpc.Client(cleanHost, credentials)
+
+          let responseHeaders = {}
+          let responseTrailers = {}
+
+          if (isServerStreaming) {
+            const call = genericClient.makeServerStreamRequest(
+              fullMethodPath,
+              (msg: any) => {
+                const fixedPayload = parseMapsToArrays(requestType, msg)
+                return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
+              },
+              (buf: Buffer) => responseType.decode(buf),
+              payload,
+              metadata,
+              callOptions
+            )
+
+            call.on('metadata', (m: grpc.Metadata) => {
+              responseHeaders = metadataToObject(m)
+            })
+
+            const responses: any[] = []
+            call.on('data', (response: any) => {
+              const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
+              responses.push(responseObj)
+            })
+
+            call.on('error', (err: any) => {
+              const time = Date.now() - start
+              genericClient.close()
+              const errorMsg = formatGrpcError(err)
+              resolve({
+                success: true,
+                data: { 
+                  type: 'GRPC',
+                  status: err.code, 
+                  statusText: err.details || 'Stream Error', 
+                  headers: responseHeaders, 
+                  trailers: responseTrailers || metadataToObject(err.metadata),
+                  body: errorMsg,
+                  time, 
+                  size: Buffer.byteLength(errorMsg, 'utf-8') 
+                },
+              })
+            })
+
+            call.on('status', (status: grpc.StatusObject) => {
+              responseTrailers = metadataToObject(status.metadata)
+            })
+
+            call.on('end', () => {
+              const time = Date.now() - start
+              genericClient.close()
+              const body = JSON.stringify(responses, null, 2)
+              resolve({
+                success: true,
+                data: { 
+                  type: 'GRPC',
+                  status: 0, 
+                  statusText: 'OK (Stream Finished)', 
+                  headers: responseHeaders, 
+                  trailers: responseTrailers,
+                  body, 
+                  time, 
+                  size: Buffer.byteLength(body, 'utf-8') 
+                },
+              })
+            })
+          } else {
+            const call = genericClient.makeUnaryRequest(
+              fullMethodPath,
+              (msg: any) => {
+                const fixedPayload = parseMapsToArrays(requestType, msg)
+                return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
+              },
+              (buf: Buffer) => responseType.decode(buf),
+              payload,
+              metadata,
+              callOptions,
+              (err: any, responseBody: any) => {
+                const time = Date.now() - start
+                genericClient.close()
+                if (err) {
+                  const errorMsg = formatGrpcError(err)
+                  resolve({
+                    success: true,
+                    data: { 
+                      type: 'GRPC',
+                      status: err.code, 
+                      statusText: err.details || 'Error', 
+                      headers: responseHeaders, 
+                      trailers: responseTrailers,
+                      body: errorMsg,
+                      time, 
+                      size: Buffer.byteLength(errorMsg, 'utf-8') 
+                    },
+                  })
+                } else {
+                  const responseObj = responseType.toObject(responseBody, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
+                  const body = JSON.stringify(responseObj, null, 2)
+                  resolve({
+                    success: true,
+                    data: { 
+                      type: 'GRPC',
+                      status: 0, 
+                      statusText: 'OK', 
+                      headers: responseHeaders, 
+                      trailers: responseTrailers,
+                      body, 
+                      time, 
+                      size: Buffer.byteLength(body, 'utf-8') 
+                    },
+                  })
+                }
+              }
+            )
+
+            call.on('metadata', (m: grpc.Metadata) => {
+              responseHeaders = metadataToObject(m)
+            })
+            call.on('status', (status: grpc.StatusObject) => {
+              responseTrailers = metadataToObject(status.metadata)
+            })
+            // Wire up abort signal
+            if (req.abortSignal) {
+              const abortHandler = () => { try { call.cancel() } catch {} }
+              req.abortSignal.addEventListener('abort', abortHandler)
+            }
+          }
+        } catch (err: any) {
+          resolve({ success: false, error: err.message || 'Call failed' })
+        }
+      })
+
+      call.write({ file_containing_symbol: req.service })
+      call.end()
+    })
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'Unknown error',
+      time: Date.now() - start,
+    }
+  }
+}
+
 export function registerGrpcHandlers() {
   // ===== List services via reflection =====
   ipcMain.handle('grpc:reflect', async (_event, args: { host: string; insecure: boolean; headers: Record<string, string>; protoPath?: string }) => {
@@ -618,448 +1054,9 @@ export function registerGrpcHandlers() {
     }
   })
 
+
   // ===== Execute a gRPC unary call =====
-    ipcMain.handle('grpc:call', async (_event, req: GrpcRequest) => {
-    const start = Date.now()
-    const protobuf = getProtobuf()
-    try {
-      const metadata = new grpc.Metadata()
-      for (const [key, value] of Object.entries(req.headers || {})) {
-        if (key && value) metadata.add(key, value)
-      }
-
-      const isSecure = req.host.startsWith('https://') || req.host.endsWith(':443') || req.host.includes(':443/');
-      const cleanHost = req.host.replace(/^https?:\/\//, '').split('/')[0];
-
-      if (req.insecure) {
-        console.log(`[gRPC Backend] Request has insecure=true`)
-      } else {
-        console.log(`[gRPC Backend] Request has insecure=false`)
-      }
-      
-      let credentials: grpc.ChannelCredentials
-      if (isSecure && req.insecure) {
-        console.log(`[gRPC Backend] Using SSL with hostname & trust verification bypass (insecure=true)`)
-        // HTTPS host with SSL verification disabled: use SSL but skip hostname/cert check
-        credentials = grpc.credentials.createSsl(
-          null, null, null,
-            { 
-              checkServerIdentity: () => undefined,
-              rejectUnauthorized: false, // Bypass trust verification for self-signed certs
-              // @ts-expect-error - passing to underlying tls socket
-              'grpc.ssl_target_name_override': cleanHost,
-              'grpc.default_authority': cleanHost
-            }
-        )
-      } else if (isSecure) {
-        // HTTPS host or secure port: full SSL verification
-        credentials = grpc.credentials.createSsl()
-      } else {
-        // Plain HTTP host: no TLS at all
-        credentials = grpc.credentials.createInsecure()
-      }
-
-      const callOptions: grpc.CallOptions = {}
-      const timeout = req.timeoutMs && req.timeoutMs > 0 ? req.timeoutMs : 60000
-      callOptions.deadline = Date.now() + timeout
-
-      let payload: any
-      try {
-        payload = JSON.parse(req.payload)
-      } catch {
-        return { success: false, error: 'Invalid JSON payload' }
-      }
-
-      // If proto path provided, use it directly
-      if (req.protoPath) {
-        const packageDefinition = protoLoader.loadSync(req.protoPath, {
-          keepCase: true, longs: String, enums: String, defaults: true, oneofs: true,
-        })
-        const proto = grpc.loadPackageDefinition(packageDefinition)
-        const serviceParts = req.service.split('.')
-        let serviceConstructor: any = proto
-        for (const part of serviceParts) {
-          serviceConstructor = serviceConstructor[part]
-        }
-        if (!serviceConstructor) {
-          return { success: false, error: `Service "${req.service}" not found in proto` }
-        }
-        const client = new serviceConstructor(cleanHost, credentials)
-        return new Promise((resolve) => {
-          const methodFn = client[req.method]
-          if (!methodFn) {
-            resolve({ success: false, error: `Method "${req.method}" not found on service` })
-            return
-          }
-
-          let responseHeaders = {}
-          let responseTrailers = {}
-
-          if (methodFn.responseStream) {
-            const call = methodFn.call(client, payload, metadata, callOptions)
-            call.on('metadata', (m: grpc.Metadata) => {
-              responseHeaders = metadataToObject(m)
-            })
-            const responses: any[] = []
-            const backendLog = (msg: string) => {
-              try { 
-                fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`) 
-              } catch {}
-            }
-            backendLog(`Starting streaming call for ${req.service}/${req.method}`)
-
-            let timeout: any
-            const cleanup = () => {
-              if (timeout) clearTimeout(timeout)
-              client.close()
-            }
-
-            timeout = setTimeout(() => {
-              backendLog(`Streaming call TIMEOUT (30s)`)
-              resolve({ success: false, error: 'gRPC stream timeout (30s)' })
-              cleanup()
-            }, 30000)
-
-            call.on('data', (response: any) => {
-              backendLog(`Data received. Total: ${responses.length + 1}`)
-              responses.push(response)
-            })
-            call.on('error', (err: GrpcError) => {
-              cleanup()
-              backendLog(`Streaming error: ${err.message}`)
-              const time = Date.now() - start
-              const errorMsg = formatGrpcError(err)
-              resolve({ 
-                success: true, 
-                data: { 
-                  type: 'GRPC',
-                  status: err.code, 
-                  statusText: err.details || 'Stream Error', 
-                  headers: responseHeaders, 
-                  trailers: responseTrailers || metadataToObject(err.metadata || new grpc.Metadata()),
-                  body: errorMsg,
-                  time, 
-                  size: Buffer.byteLength(errorMsg, 'utf-8') 
-                } 
-              })
-            })
-            call.on('status', (status: grpc.StatusObject) => {
-              backendLog(`Streaming status: code=${status.code} details=${status.details}`)
-              responseTrailers = metadataToObject(status.metadata)
-            })
-            call.on('end', () => {
-              cleanup()
-              backendLog(`Streaming ended. Count=${responses.length}`)
-              const time = Date.now() - start
-              try {
-                const body = JSON.stringify(responses, null, 2)
-                resolve({ 
-                  success: true, 
-                  data: { 
-                    type: 'GRPC',
-                    status: 0, 
-                    statusText: 'OK (Stream Finished)', 
-                    headers: responseHeaders, 
-                    trailers: responseTrailers,
-                    body, 
-                    time, 
-                    size: Buffer.byteLength(body, 'utf-8') 
-                  } 
-                })
-              } catch (err: any) {
-                backendLog(`Error stringifying: ${err.message}`)
-                resolve({
-                  success: false,
-                  error: `Failed to serialize streaming responses: ${err.message}`
-                })
-              }
-            })
-          } else {
-            const call = methodFn.call(client, payload, metadata, callOptions, (err: GrpcError | null, responseBody: unknown) => {
-              const time = Date.now() - start
-              if (err) {
-                console.log(`[gRPC Backend] Unary call error: ${err.message}. Capturing metadata/trailers.`)
-                setTimeout(() => {
-                  const errorMsg = formatGrpcError(err)
-                  resolve({ 
-                    success: true, 
-                    data: { 
-                      type: 'GRPC',
-                      status: err.code, 
-                      statusText: err.details || 'Error', // statusText from gRPC
-                      headers: responseHeaders, 
-                      trailers: responseTrailers,
-                      body: errorMsg,
-                      time, 
-                      size: Buffer.byteLength(errorMsg, 'utf-8') 
-                    } 
-                  })
-                }, 10)
-              } else {
-                console.log(`[gRPC Backend] Unary call success. Waiting for status for trailers.`)
-                // Use a small delay to ensure 'status' event is processed if it fires in same tick
-                setTimeout(() => {
-                  const body = JSON.stringify(responseBody, null, 2)
-                  console.log(`[gRPC Backend] Resolving unary call with trailers:`, JSON.stringify(responseTrailers))
-                  resolve({ 
-                    success: true, 
-                    data: { 
-                      type: 'GRPC',
-                      status: 0, 
-                      statusText: 'OK', 
-                      headers: responseHeaders, 
-                      trailers: responseTrailers,
-                      body, 
-                      time, 
-                      size: Buffer.byteLength(body, 'utf-8') 
-                    } 
-                  })
-                }, 10)
-              }
-            })
-            call.on('metadata', (m: grpc.Metadata) => {
-              responseHeaders = metadataToObject(m)
-              console.log(`[gRPC Backend] Captured metadata (headers):`, JSON.stringify(responseHeaders))
-            })
-            call.on('status', (status: grpc.StatusObject) => {
-              responseTrailers = metadataToObject(status.metadata)
-              console.log(`[gRPC Backend] Captured status (trailers):`, JSON.stringify(responseTrailers))
-            })
-          }
-        })
-      }
-
-      // ===== Reflection-based call =====
-      // Step 1: Get file descriptor for the service
-      const reflClient = createReflectionClient(req.host, req.insecure)
-
-      const descriptorBuffers: Buffer[] = await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reflClient.close()
-          reject(new Error('Reflection timeout (10s)'))
-        }, 10000)
-
-        const call = reflClient.ServerReflectionInfo(metadata)
-        const bufs: Buffer[] = []
-
-        call.on('data', (response: any) => {
-          if (response.file_descriptor_response) {
-            for (const fd of response.file_descriptor_response.file_descriptor_proto) {
-              bufs.push(Buffer.isBuffer(fd) ? fd : Buffer.from(fd))
-            }
-          }
-          if (response.error_response) {
-            clearTimeout(timeout)
-            reject(new Error(response.error_response.error_message))
-          }
-        })
-        call.on('error', (err: GrpcError) => {
-          clearTimeout(timeout)
-          reject(err)
-        })
-        call.on('end', () => {
-          clearTimeout(timeout)
-          resolve(bufs)
-        })
-        call.write({ file_containing_symbol: req.service })
-        call.end()
-      })
-
-      if (descriptorBuffers.length === 0) {
-        return { success: false, error: `No file descriptor found for service "${req.service}"` }
-      }
-
-      // Step 2: Parse raw descriptors to find input/output types for the method
-
-      let inputTypeName: string | null = null
-      let outputTypeName: string | null = null
-      let isServerStreaming = false
-      const targetShortName = req.service.split('.').pop()
-
-      for (const buf of descriptorBuffers) {
-        const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
-        const pkg = decoded.package || ''
-        if (decoded.service) {
-          for (const svc of decoded.service) {
-            const svcFullName = pkg ? `${pkg}.${svc.name}` : svc.name
-            if (svcFullName === req.service || svc.name === targetShortName) {
-              if (svc.method) {
-                for (const m of svc.method) {
-                  if (m.name === req.method) {
-                    inputTypeName = m.inputType?.startsWith('.') ? m.inputType.slice(1) : m.inputType
-                    outputTypeName = m.outputType?.startsWith('.') ? m.outputType.slice(1) : m.outputType
-                    isServerStreaming = m.serverStreaming || false
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (!inputTypeName || !outputTypeName) {
-        return { success: false, error: `Method "${req.method}" not found on service "${req.service}"` }
-      }
-
-      // Step 3: Build a Root for message types using FileDescriptorSet
-      // (Root.fromDescriptor needs a FileDescriptorSet, not individual FileDescriptorProto)
-      const decodedDescriptors = descriptorBuffers.map(buf =>
-        protobuf.descriptor.FileDescriptorProto.decode(buf)
-      )
-      const descriptorSet = protobuf.descriptor.FileDescriptorSet.create({
-        file: decodedDescriptors,
-      })
-      const root = protobuf.Root.fromDescriptor(descriptorSet)
-      root.resolveAll()
-
-      const requestType = root.lookupType(inputTypeName)
-      const responseType = root.lookupType(outputTypeName)
-
-      // Step 4: Make the call using a generic gRPC client
-      const fullMethodPath = `/${req.service}/${req.method}`
-      const genericClient = new grpc.Client(cleanHost, credentials)
-
-      return new Promise((resolve) => {
-        let responseHeaders = {}
-        let responseTrailers = {}
-
-        if (isServerStreaming) {
-          const call = genericClient.makeServerStreamRequest(
-            fullMethodPath,
-            (msg: any) => {
-              const fixedPayload = parseMapsToArrays(requestType, msg)
-              console.log(`[gRPC Backend] Final payload for ${fullMethodPath}:`, JSON.stringify(fixedPayload, null, 2))
-              return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
-            },
-            (buf: Buffer) => responseType.decode(buf),
-            payload,
-            metadata,
-            callOptions
-          )
-
-          call.on('metadata', (m: grpc.Metadata) => {
-            responseHeaders = metadataToObject(m)
-          })
-
-          const responses: any[] = []
-          call.on('data', (response: any) => {
-            const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
-            responses.push(responseObj)
-          })
-
-          call.on('error', (err: any) => {
-            const time = Date.now() - start
-            genericClient.close()
-            const errorMsg = formatGrpcError(err)
-            resolve({
-              success: true,
-              data: { 
-                type: 'GRPC',
-                status: err.code, 
-                statusText: err.details || 'Stream Error', 
-                headers: responseHeaders, 
-                trailers: responseTrailers || metadataToObject(err.metadata),
-                body: errorMsg,
-                time, 
-                size: Buffer.byteLength(errorMsg, 'utf-8') 
-              },
-            })
-          })
-
-          call.on('status', (status: grpc.StatusObject) => {
-            responseTrailers = metadataToObject(status.metadata)
-          })
-
-          call.on('end', () => {
-            const time = Date.now() - start
-            genericClient.close()
-            const body = JSON.stringify(responses, null, 2)
-            resolve({
-              success: true,
-              data: { 
-                type: 'GRPC',
-                status: 0, 
-                statusText: 'OK (Stream Finished)', 
-                headers: responseHeaders, 
-                trailers: responseTrailers,
-                body, 
-                time, 
-                size: Buffer.byteLength(body, 'utf-8') 
-              },
-            })
-          })
-        } else {
-          const call = genericClient.makeUnaryRequest(
-            fullMethodPath,
-            (msg: any) => {
-              const fixedPayload = parseMapsToArrays(requestType, msg)
-              return Buffer.from(requestType.encode(requestType.fromObject(fixedPayload)).finish())
-            },
-            (buf: Buffer) => responseType.decode(buf),
-            payload,
-            metadata,
-            callOptions,
-            (err: any, responseBody: any) => {
-              const time = Date.now() - start
-              genericClient.close()
-              if (err) {
-                console.log(`[gRPC Backend] Generic unary call error: ${err.message}. Capturing metadata/trailers.`)
-                setTimeout(() => {
-                  const errorMsg = formatGrpcError(err)
-                  resolve({
-                    success: true,
-                    data: { 
-                      type: 'GRPC',
-                      status: err.code, 
-                      statusText: err.details || 'Error', 
-                      headers: responseHeaders, 
-                      trailers: responseTrailers,
-                      body: errorMsg,
-                      time, 
-                      size: Buffer.byteLength(errorMsg, 'utf-8') 
-                    },
-                  })
-                }, 10)
-              } else {
-                console.log(`[gRPC Backend] Generic unary call success. Waiting for status for trailers.`)
-                setTimeout(() => {
-                  const responseObj = responseType.toObject(responseBody, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
-                  const body = JSON.stringify(responseObj, null, 2)
-                  console.log(`[gRPC Backend] Resolving generic unary call with trailers:`, JSON.stringify(responseTrailers))
-                  resolve({
-                    success: true,
-                    data: { 
-                      type: 'GRPC',
-                      status: 0, 
-                      statusText: 'OK', 
-                      headers: responseHeaders, 
-                      trailers: responseTrailers,
-                      body, 
-                      time, 
-                      size: Buffer.byteLength(body, 'utf-8') 
-                    },
-                  })
-                }, 10)
-              }
-            }
-          )
-
-          call.on('metadata', (m: grpc.Metadata) => {
-            responseHeaders = metadataToObject(m)
-            console.log(`[gRPC Backend] Captured generic metadata (headers):`, JSON.stringify(responseHeaders))
-          })
-          call.on('status', (status: grpc.StatusObject) => {
-            responseTrailers = metadataToObject(status.metadata)
-            console.log(`[gRPC Backend] Captured generic status (trailers):`, JSON.stringify(responseTrailers))
-          })
-        }
-      })
-    } catch (err: any) {
-      return {
-        success: false,
-        error: err.message || 'Unknown error',
-        time: Date.now() - start,
-      }
-    }
+  ipcMain.handle('grpc:call', async (_event, req: GrpcRequest) => {
+    return handleGrpcCall(req)
   })
 }

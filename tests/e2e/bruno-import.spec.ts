@@ -153,7 +153,7 @@ test.describe('Bruno opencollection Import', () => {
     await page.click('button:has-text("Post-Response")');
 
     const scriptContent = await page.locator('.script-editor .cm-content').textContent({ timeout: 10000 });
-    expect(scriptContent).toContain('ultra.variables.set');
+    expect(scriptContent).toContain('ultra.context.set');
     expect(scriptContent).not.toContain('bru.setVar');
     console.log('Script correctly converted to ultra.* API');
   });

@@ -74,10 +74,10 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
   // Pre-request: Set a timestamp
   ultra.env.set("timestamp", Date.now().toString());
 
-  // Post-response: Validate status and save a token
-  ultra.expect(ultra.response.status).toBe(200);
-  if (ultra.response.body.token) {
-    ultra.collection.set("auth_token", ultra.response.body.token);
+  // Post-response: Save a token for subsequent requests
+  if (ultra.response.status === 200 && ultra.response.body.token) {
+    ultra.context.set("auth_token", ultra.response.body.token);
+    console.log("Auth token updated!");
   }
   ```
 - Use the **Script Console** at the bottom of each script tab to debug with `console.log()`.
@@ -103,6 +103,14 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **Variable Interpolation** — use `{{variable}}` syntax in gRPC headers, URL, and **Request Payloads**
 - **Deadlines / Timeouts** — configure native gRPC deadlines in the "Options" tab
 - **Auto-generated sample request bodies** — generated from protobuf descriptors via reflection
+- **Native gRPC metadata** — support for custom key-value pairs in gRPC calls
+
+### 🔄 Flow Runner (Orchestration)
+- **Visual Node Editor** — drag-and-drop support for reordering execution steps
+- **Request Chaining** — pass data between REST and gRPC calls seamlessly
+- **Variable Extraction** — use **JSONPath** to extract data from responses into a flow-scoped variable store
+- **Assertions & Logic** — add delay steps, assertions, and logical branching to your flows
+- **Main Process Execution** — flows run in a dedicated engine in the Node.js backend for reliability
 
 ### 📁 Collections & Variables
 - **File-based storage** — each collection is a folder, each request is a `.json` file
@@ -131,16 +139,17 @@ The `ultra` object is available in both pre-request and post-response scripts.
 | **Environment** | `ultra.env.get(key)` | Returns the value of an environment variable. |
 | | `ultra.env.set(key, value)` | Sets/updates an environment variable. |
 | | `ultra.env.all()` | Returns all enabled environment variables as an object. |
-| **Collection** | `ultra.collection.get(key)` | Returns the value of a collection variable. |
-| | `ultra.collection.set(key, value)` | Sets/updates a collection variable. |
-| | `ultra.collection.all()` | Returns all enabled collection variables as an object. |
+| **Context** | `ultra.context.get(key)` | Returns the value of a context variable (scoped to the **Collection** in tab execution, or the **Flow run**). |
+| | `ultra.context.set(key, value)` | Sets/updates a context variable (persists to collection variables or current flow run sandbox). |
+| | `ultra.context.all()` | Returns all current context variables as an object. |
 | **Globals** | `ultra.globals.get(key)` | Returns the value of a global variable. |
 | | `ultra.globals.set(key, value)` | Sets/updates a global variable. |
 | | `ultra.globals.all()` | Returns all enabled global variables as an object. |
-| **Assertions** | `ultra.expect(val).toBe(exp)` | Strict equality check (`===`). |
-| | `ultra.expect(val).toInclude(str)`| Partial string match. |
-| | `ultra.expect(val).toBeTruthy()` | Checks if value is non-falsy. |
 | **Network** | `ultra.sendRequest(req, cb)` | Sends an async HTTP request. `req` can be a URL string or object. |
+
+> [!IMPORTANT]
+> **Developer Tooling Positioning**: UltraRPC is a **Developer Tool** designed to facilitate rapid API iteration, debugging, and local workflow automation. It is **not** intended as a comprehensive E2E testing framework, regression suite, or performance testing tool. Complex validation and automated quality assurance should ideally be implemented within your application's primary code-based test suites. Scripting in UltraRPC should be used primarily for setting up request state and extracting data for chained calls.
+
 
 #### Response Metadata (Post-Response Only)
 In post-response scripts, the `ultra.response` object contains the full result:
@@ -172,6 +181,7 @@ Manage reusable JavaScript scripts that can be shared across all your API reques
 - **File-Based**: Scripts reside as independent `.js` files on your disk. You can create new ones or link existing logic from your local file system.
 - **Renaming Scripts**: You can rename scripts directly in the UI. **Note**: Renames must follow standard OS-level filename rules (no forbidden characters like `/`, `\`, `:`, etc.) as they physically move the file on your disk.
 - **Selective Loading**: Use the checkboxes in the library to enable or disable specific scripts as needed.
+- **Go to Definition**: Navigate directly to a method's source by holding **Cmd** (Mac) or **Ctrl** (Windows/Linux) and clicking on any `ultra.lib.*` method call in your scripts.
 - **Real-Time Execution**: Every time you send a request, your enabled library scripts are executed before your main script, populating the `ultra.lib` object.
 - **Example**:
   ```javascript
@@ -388,15 +398,13 @@ The first time you try to access the vault, you will be prompted to grant access
 - [ ] **Metadata (Headers) Helpers** (Dedicated UI for common gRPC metadata)
 
 ### 📁 Collections & Management
-- [ ] **Collection Runner** (Sequence execution with summary reports)
+- [x] **Flow Runner** (Visual request chaining and execution)
 
 ### 🤖 Scripting & Variables
 - [ ] **Visual Test Results** (Dedicated UI for assertion summaries)
 - [ ] **Built-in JS Libraries** (CryptoJS for HMAC/SHA signing, ajv for JSON Schema)
 - [ ] **Dynamic Variables** (Support for `{{$guid}}`, `{{$timestamp}}`, and `{{$randomInt}}`)
-- [ ] **Local Variables** (`ultra.variables` for temporary request-level context)
 - [ ] **Response Visualizers** (Custom HTML/CSS rendering for data visualization)
-- [ ] **Workflows** (`ultra.setNextRequest` for collection runner logic)
 
 ### 🎨 UX & Reliability
 - [ ] **Global Search** (Searching across history, and tabs)

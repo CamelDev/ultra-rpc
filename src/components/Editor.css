@@ -61,6 +61,22 @@
   font-weight: 500;
 }
 
+/* Library Link Highlighting */
+.cm-library-link {
+  color: #79b8ff !important; /* Material Blue in Dark */
+  transition: all 0.2s ease;
+}
+
+.mod-key-down .cm-library-link {
+  text-decoration: underline;
+  cursor: pointer;
+  color: var(--accent) !important;
+}
+
+.mod-key-down .cm-library-link:hover {
+  filter: brightness(1.2);
+}
+
 /* Scrollbar styling for CodeMirror */
 .cm-scroller::-webkit-scrollbar {
   width: 10px;
@@ -283,4 +299,25 @@
 .cm-searchMatch.cm-searchMatch-selected {
   background: rgba(139, 92, 246, 0.35) !important;
   outline: 1px solid var(--accent);
+}
+
+/* ===== Picker Mode Styling ===== */
+.editor-container.picker-active {
+  border-color: var(--status-success, #10b981) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+}
+
+.editor-container.picker-active,
+.editor-container.picker-active .cm-content,
+.editor-container.picker-active .cm-line,
+.editor-container.picker-active .cm-scroller {
+  cursor: crosshair !important;
+}
+
+/* Highlight JSON tokens on hover in picker mode */
+.editor-container.picker-active .cm-json-key:hover,
+.editor-container.picker-active .cm-json-value:hover {
+  background: rgba(16, 185, 129, 0.2) !important;
+  outline: 1px solid var(--status-success, #10b981);
+  border-radius: 2px;
 }

@@ -19,10 +19,12 @@ import {
   MoreHorizontal,
   Download,
   Link,
+  GitBranch,
   Search,
 } from 'lucide-react'
 import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
 import { useTreeOpenState } from '../hooks/useTreeOpenState'
+import Tooltip from './Tooltip'
 import './CollectionPanel.css'
 import type { Collection, RequestConfig, KeyValuePair, Environment } from '../types'
 
@@ -38,6 +40,9 @@ interface Props {
   onDeleteCollection: (id: string, name: string) => void
   onMoveCollection: (collectionId: string, currentPath?: string) => void
   onCloneCollection: (id: string) => void
+  onOpenFlow: (flow: any) => void
+  onNewFlow: (parentId: string) => void
+  onRenameFlow: (collectionId: string | undefined, flowId: string, newName: string, path?: string) => Promise<void>
   onImportEnvironments?: (envs: Environment[], vaultEntries?: Record<string, { key: string; value: string }[]>) => void
 }
 
@@ -123,9 +128,10 @@ type TreeDataItem = {
   realId: string
   collectionId: string
   name: string
-  type: 'collection' | 'folder' | 'request'
+  type: 'collection' | 'folder' | 'request' | 'flow'
   children?: TreeDataItem[]
   request?: RequestConfig
+  flow?: any
   variables?: KeyValuePair[]
   path?: string
 }
@@ -222,6 +228,8 @@ const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
   initialValue, error, onConfirm, onCancel, onBlur, onChange
 }) => {
   const [val, setVal] = useState(initialValue)
+  // Prevents onBlur from firing a second commit after Enter already confirmed
+  const committedRef = useRef(false)
 
   return (
     <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
@@ -233,11 +241,13 @@ const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
           if (e.key === 'Enter') {
             e.preventDefault()
             e.stopPropagation()
+            committedRef.current = true
             onConfirm(val)
           }
           if (e.key === 'Escape') {
             e.preventDefault()
             e.stopPropagation()
+            committedRef.current = true
             onCancel()
           }
         }}
@@ -245,7 +255,7 @@ const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
         onKeyPress={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
         onBlur={() => {
-          if (onBlur) onBlur()
+          if (!committedRef.current && onBlur) onBlur()
         }}
         autoFocus
         style={{ width: '100%' }}
@@ -269,12 +279,13 @@ interface CollContextMenuProps {
   onShowInFolder: (realId: string) => void
   onMove: (id: string, path?: string) => void
   onClone: (id: string) => void
+  onNewFlow: (parentId: string) => void
   onDelete: (id: string, name: string) => void
 }
 
 const CollContextMenu: React.FC<CollContextMenuProps> = ({
   menu, onClose,
-  onRename, onNewFolder, onEditVariables, onExport, // Added onNewFolder
+  onRename, onNewFolder, onNewFlow, onEditVariables, onExport, 
   onCopyPath, onShowInFolder, onMove, onClone, onDelete,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -310,9 +321,14 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
         onMouseDown={e => e.stopPropagation()}
       >
         {(menu.node.type === 'collection' || menu.node.type === 'folder') && (
-          <button onClick={() => { onNewFolder(menu.node.realId); onClose() }}>
-            <FolderPlus size={12} /> New Folder
-          </button>
+          <>
+            <button onClick={() => { onNewFolder(menu.node.realId); onClose() }}>
+              <FolderPlus size={12} /> New Folder
+            </button>
+            <button onClick={() => { onNewFlow(menu.node.realId); onClose() }}>
+              <GitBranch size={12} /> New Flow
+            </button>
+          </>
         )}
         <button onClick={() => { onRename(menu.node.id, menu.node.name); onClose() }}>
           <Edit2 size={12} /> Rename
@@ -362,6 +378,9 @@ const CollectionPanel: React.FC<Props> = ({
   onDeleteCollection,
   onMoveCollection,
   onCloneCollection,
+  onOpenFlow,
+  onNewFlow,
+  onRenameFlow,
   onImportEnvironments,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -413,6 +432,7 @@ const CollectionPanel: React.FC<Props> = ({
         name: item.name,
         type: item.type,
         request: item.request,
+        flow: item.flow,
         children: item.children ? item.children.map((c: any) => transformItem(c, collId)) : [],
       };
     };
@@ -599,11 +619,13 @@ const CollectionPanel: React.FC<Props> = ({
       const updatedRequest = { ...targetNode.data.request, name: freshName }
       await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as RequestConfig })
       onRenameRequest(targetNode.data.realId, updatedRequest.name)
+    } else if (targetNode.data.type === 'flow' && targetNode.data.flow) {
+      await onRenameFlow(collectionId, targetNode.data.realId, freshName)
     }
 
     setEditingId(null)
     onRefresh()
-  }, [treeRef, getCollectionIdOfNode, onRenameRequest, onRefresh])
+  }, [treeRef, getCollectionIdOfNode, onRenameRequest, onRefresh, nameInput, onRenameFlow])
 
   const importCollection = async () => {
     if (window.ultraRpc) {
@@ -644,7 +666,9 @@ const CollectionPanel: React.FC<Props> = ({
       const isCollection = type === 'collection'
       const isFolder = type === 'folder'
       const isRequest = type === 'request'
+      const isFlow = type === 'flow'
       const request = node.data.request
+      const flowItem = node.data.flow
 
       const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -673,6 +697,7 @@ const CollectionPanel: React.FC<Props> = ({
           data-type={node.data.type}
           onClick={() => {
             if (isRequest && request) onOpenRequest(request)
+            else if (isFlow && flowItem) onOpenFlow(flowItem)
             else {
               node.toggle()
               onToggle()
@@ -740,29 +765,36 @@ const CollectionPanel: React.FC<Props> = ({
                 </button>
               ) : (
                 <>
-                  <button
-                    className="coll-req-btn"
-                    data-tooltip="Rename"
-                    data-tooltip-pos="top"
-                    onClick={() => { setEditingId(node.data.id); setNameInput(isRequest && request ? request.name : node.data.name) }}
-                  >
-                    <Edit2 size={11} />
-                  </button>
-                  <button
-                    className="coll-req-btn"
-                    data-tooltip="Clone"
-                    data-tooltip-pos="top"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const collId = getCollectionIdOfNode(node);
-                      if (collId) onCloneRequest(collId, node.data.realId);
-                    }}
-                  >
-                    <Copy size={11} />
-                  </button>
-                  <button className="coll-req-btn danger" data-tooltip="Delete" data-tooltip-pos="top" onClick={handleDelete}>
-                    <Trash2 size={11} />
-                  </button>
+                  <Tooltip text="Rename" position="top">
+                    <button
+                      className="coll-req-btn"
+                      onClick={() => {
+                        const initialName = isRequest && request ? request.name : node.data.name
+                        nameInputRef.current = initialName
+                        setNameInput(initialName)
+                        setEditingId(node.data.id)
+                      }}
+                    >
+                      <Edit2 size={11} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Clone" position="top">
+                    <button
+                      className="coll-req-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const collId = getCollectionIdOfNode(node);
+                        if (collId) onCloneRequest(collId, node.data.realId);
+                      }}
+                    >
+                      <Copy size={11} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Delete" position="top">
+                    <button className="coll-req-btn danger" onClick={handleDelete}>
+                      <Trash2 size={11} />
+                    </button>
+                  </Tooltip>
                 </>
               )}
             </div>
@@ -773,7 +805,7 @@ const CollectionPanel: React.FC<Props> = ({
   }, [
     editingId, nameInput, renameError,
     onOpenRequest,
-    onDeleteRequest, onDeleteFolder, getCollectionIdOfNode, handleRename, onToggle, onCloneRequest
+    onDeleteRequest, onDeleteFolder, getCollectionIdOfNode, handleRename, onToggle, onCloneRequest, onOpenFlow
   ])
 
   return (
@@ -800,35 +832,60 @@ const CollectionPanel: React.FC<Props> = ({
           </div>
         </div>
         <div className="coll-header-actions">
-          <button className="btn-ghost" onClick={() => setShowCreateModal(true)} data-tooltip="New Collection" data-tooltip-pos="bottom">
-            <Plus size={16} />
-          </button>
-          <button 
-            className="btn-ghost" 
-            onClick={() => {
-              const selected = treeRef.current?.selectedNodes[0];
-              if (selected) {
-                handleNewFolder(selected.data.realId);
-              } else if (collections.length > 0) {
-                handleNewFolder(collections[0].id);
-              } else {
-                alert('Create a collection first');
-              }
-            }} 
-            data-tooltip="New Folder" 
-            data-tooltip-pos="bottom"
-          >
-            <FolderPlus size={15} />
-          </button>
-          <button className="btn-ghost" onClick={handleLinkCollection} data-tooltip="Link existing folder" data-tooltip-pos="bottom">
-            <Link size={14} />
-          </button>
-          <button className="btn-ghost coll-btn" onClick={importCollection} data-tooltip="Import collection" data-tooltip-pos="bottom">
-            <Upload size={14} />
-          </button>
-          <button className="btn-ghost coll-btn" onClick={openFolder} data-tooltip="Import folder" data-tooltip-pos="bottom">
-            <FolderPlus size={14} />
-          </button>
+           <Tooltip text="New Collection" position="bottom">
+             <button className="btn-ghost" onClick={() => setShowCreateModal(true)}>
+               <Plus size={16} />
+             </button>
+           </Tooltip>
+           <Tooltip text="New Flow" position="bottom">
+             <button 
+               className="btn-ghost" 
+               onClick={() => {
+                 const selected = treeRef.current?.selectedNodes[0];
+                 if (selected) {
+                   onNewFlow(selected.data.realId);
+                 } else if (collections.length > 0) {
+                   onNewFlow(collections[0].id);
+                 } else {
+                   alert('Create a collection first');
+                 }
+               }} 
+             >
+               <GitBranch size={15} />
+             </button>
+           </Tooltip>
+           <Tooltip text="New Folder" position="bottom">
+             <button 
+               className="btn-ghost" 
+               onClick={() => {
+                 const selected = treeRef.current?.selectedNodes[0];
+                 if (selected) {
+                   handleNewFolder(selected.data.realId);
+                 } else if (collections.length > 0) {
+                   handleNewFolder(collections[0].id);
+                 } else {
+                   alert('Create a collection first');
+                 }
+               }} 
+             >
+               <FolderPlus size={15} />
+             </button>
+           </Tooltip>
+           <Tooltip text="Link existing folder" position="bottom">
+             <button className="btn-ghost" onClick={handleLinkCollection}>
+               <Link size={14} />
+             </button>
+           </Tooltip>
+           <Tooltip text="Import collection" position="bottom">
+             <button className="btn-ghost coll-btn" onClick={importCollection}>
+               <Upload size={14} />
+             </button>
+           </Tooltip>
+           <Tooltip text="Import folder" position="bottom">
+             <button className="btn-ghost coll-btn" onClick={openFolder}>
+               <FolderPlus size={14} />
+             </button>
+           </Tooltip>
         </div>
       </div>
 
@@ -887,6 +944,7 @@ const CollectionPanel: React.FC<Props> = ({
           onShowInFolder={handleMenuShowInFolder}
           onMove={onMoveCollection}
           onClone={onCloneCollection}
+          onNewFlow={onNewFlow}
           onDelete={(_, name) => {
             if (contextMenu.node.type === 'folder') {
               const collId = getCollectionIdOfNode(contextMenu.node)

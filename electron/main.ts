@@ -8,6 +8,7 @@ import { registerGrpcHandlers } from './grpc-handler'
 import { registerStorageHandlers } from './storage-handler'
 import { registerVaultHandlers } from './vault-handler'
 import { registerFormatHandlers } from './format-handler'
+import { registerFlowHandlers } from './flow-handler'
 
 process.on('uncaughtException', (err) => {
   try {
@@ -124,6 +125,7 @@ try {
     registerStorageHandlers()
     registerVaultHandlers()
     registerFormatHandlers()
+    registerFlowHandlers()
 
     // Theme Management
     ipcMain.handle('theme:set-source', (_, source: 'light' | 'dark' | 'system') => {

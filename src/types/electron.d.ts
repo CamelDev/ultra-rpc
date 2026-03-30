@@ -35,7 +35,7 @@ export interface UltraRpcApi {
   listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; children: any[]; variables?: any[]; path?: string }[]; warnings?: string[]; error?: string }>
   createCollection: (args: { name: string; path?: string }) => Promise<{ success: boolean; id?: string; error?: string }>
   createFolder: (args: { collectionId: string; folderName: string; parentId?: string }) => Promise<{ success: boolean; id?: string; error?: string }>
-  saveCollectionVariables: (args: { collectionId: string; variables: any[] }) => Promise<{ success: boolean; error?: string }>
+  saveContextVariables: (args: { collectionId: string; variables: any[] }) => Promise<{ success: boolean; error?: string }>
   saveRequest: (args: { collectionId: string; request: any }) => Promise<{ success: boolean; error?: string }>
   deleteRequest: (args: { collectionId: string; requestId: string }) => Promise<{ success: boolean; error?: string }>
   deleteFolder: (args: { collectionId: string; folderId: string }) => Promise<{ success: boolean; error?: string }>
@@ -125,6 +125,28 @@ export interface UltraRpcApi {
   
   // Formatting
   formatCode: (args: { code: string; language: string }) => Promise<{ success: boolean; formatted?: string; error?: string }>
+
+  flow: {
+    execute: (flow: import('./flow').FlowDefinition, activeEnvId?: string | null, environments?: import('./index').Environment[], collections?: import('./index').Collection[], libraries?: import('./index').Library[]) => Promise<{ success: boolean; error?: string; variables?: Record<string, any> }>
+    stop: (flowId: string) => Promise<void>
+    cancelStep: (flowId: string) => Promise<{ success: boolean; error?: string }>
+    executeStep: (flow: import('./flow').FlowDefinition, stepId: string, activeEnvId?: string | null, environments?: import('./index').Environment[], collections?: import('./index').Collection[], libraries?: import('./index').Library[]) => Promise<{ success: boolean; error?: string; variables?: Record<string, any> }>
+    onStepStatus: (callback: (stepId: string, status: any) => void) => () => void
+    onLog: (callback: (data: { timestamp: number, level: string, message: string }) => void) => () => void
+    onClearLogs: (callback: () => void) => () => void
+    onVariableUpdate: (callback: (data: { type: 'set' | 'delete' | 'clear', key?: string, value?: any }) => void) => () => void
+    showInFolder: (args: { collectionId: string; flowId: string }) => Promise<{ success: boolean; error?: string }>
+    export: (args: { collectionId: string; flowId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
+  }
+  saveFlow: (args: { collectionId: string; flow: import('./flow').FlowDefinition; parentId?: string }) => Promise<{ success: boolean; error?: string }>
+  saveFlowToPath: (args: { folderPath: string; flow: import('./flow').FlowDefinition }) => Promise<{ success: boolean; collectionId?: string; path?: string; error?: string }>
+  saveFlowStandalone: (args: { path: string; flow: import('./flow').FlowDefinition }) => Promise<{ success: boolean; error?: string }>
+  listFlows: () => Promise<{ success: boolean; flows?: { flow: import('./flow').FlowDefinition; collectionId?: string; collectionName?: string; path: string }[]; error?: string }>
+  openFlowFile: () => Promise<{ success: boolean; flow?: import('./flow').FlowDefinition; path?: string; error?: string }>
+  saveFlowOrder: (args: { order: string[] }) => Promise<{ success: boolean; error?: string }>
+  moveFlow: (args: { flowId: string; currentPath: string; targetFolderPath: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
+  deleteFlow: (args: { collectionId: string; flowId: string; path?: string }) => Promise<{ success: boolean; error?: string }>
+  renameFlow: (args: { collectionId?: string; flowId: string; newName: string; path?: string }) => Promise<{ success: boolean; newId?: string; error?: string }>
 }
 
 declare global {

@@ -11,7 +11,7 @@ interface Props {
   keyPlaceholder?: string
   valuePlaceholder?: string
   activeEnv?: Environment | null
-  collectionVariables?: any[]
+  contextVariables?: any[]
   vaultEntries?: any[]
   theme?: 'dark' | 'light'
 }
@@ -22,7 +22,7 @@ const KeyValueEditor: React.FC<Props> = ({
   keyPlaceholder = 'Key',
   valuePlaceholder = 'Value',
   activeEnv,
-  collectionVariables,
+  contextVariables,
   vaultEntries,
   theme = 'dark',
 }) => {
@@ -61,7 +61,7 @@ const KeyValueEditor: React.FC<Props> = ({
             value={pair.key}
             onChange={(val) => update(pair.id, 'key', val)}
             activeEnv={activeEnv}
-            collectionVariables={collectionVariables}
+            contextVariables={contextVariables}
             vaultEntries={vaultEntries}
             theme={theme}
           />
@@ -71,7 +71,7 @@ const KeyValueEditor: React.FC<Props> = ({
             value={pair.value}
             onChange={(val) => update(pair.id, 'value', val)}
             activeEnv={activeEnv}
-            collectionVariables={collectionVariables}
+            contextVariables={contextVariables}
             vaultEntries={vaultEntries}
             theme={theme}
           />

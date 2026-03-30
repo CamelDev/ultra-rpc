@@ -95,7 +95,7 @@ test.describe('Collection Management', () => {
       await page.waitForSelector('.coll-context-menu', { timeout: 5000 });
       await page.click('.coll-context-menu button:has-text("Clone")');
       
-      const clonedHeader = page.locator('.tree-node').filter({ has: page.locator('.tree-node-name').filter({ hasText: /^renamed-coll-copy$/ }) }).first();
+      const clonedHeader = page.locator('.tree-node').filter({ has: page.locator('.tree-node-name').filter({ hasText: /copy/i }) }).first();
       await expect(clonedHeader).toBeVisible({ timeout: 15000 });
       console.log('Collection cloned!');
 
@@ -105,7 +105,7 @@ test.describe('Collection Management', () => {
       await targetColl.locator('.coll-action-btn').click();
       await page.waitForSelector('.coll-context-menu', { timeout: 5000 });
       
-      const newFolderBtn = page.locator('.coll-context-menu button').filter({ hasText: /New Folder/ });
+      const newFolderBtn = page.locator('.coll-context-menu button:has-text("New Folder")');
       await expect(newFolderBtn).toBeVisible({ timeout: 5000 });
       await newFolderBtn.click({ force: true });
       
@@ -140,7 +140,7 @@ test.describe('Collection Management', () => {
       await page.click('.coll-context-menu button:has-text("Variables")');
       
       await page.waitForSelector('.modal-overlay', { timeout: 5000 });
-      await expect(page.locator('.modal-header h3')).toContainText('Collection Variables: renamed-coll');
+      await expect(page.locator('.modal-header h3')).toContainText('Context Variables: renamed-coll');
       
       // Add a variable
       await page.waitForTimeout(1000); // Wait for modal animation

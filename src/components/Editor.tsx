@@ -22,6 +22,7 @@ import { tags as t } from '@lezer/highlight'
 import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { createPortal } from 'react-dom'
 import type { Environment, VaultEntry } from '../types'
+import { getJsonPathFromCmtree } from '../lib/json-utils'
 import './Editor.css'
 
 const lightHighlightStyle = HighlightStyle.define([
@@ -44,6 +45,7 @@ const lightHighlightStyle = HighlightStyle.define([
 const variableHighlighter = Decoration.mark({ class: 'cm-variable-token' })
 const jsonKeyHighlighter = Decoration.mark({ class: 'cm-json-key' })
 const jsonValueHighlighter = Decoration.mark({ class: 'cm-json-value' })
+const libraryLinkHighlighter = Decoration.mark({ class: 'cm-library-link' })
 const propSyncEffect = StateEffect.define<boolean>()
 
 function getVariableDecos(view: EditorView) {
@@ -112,6 +114,31 @@ const jsonPlugin = ViewPlugin.fromClass(class {
   decorations: v => v.decorations
 })
 
+function getLibraryLinkDecos(view: EditorView) {
+  const builder = new RangeSetBuilder<Decoration>()
+  const text = view.state.doc.toString()
+  const regex = /ultra\.lib\.([a-zA-Z0-9_]+)/g
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    builder.add(match.index, match.index + match[0].length, libraryLinkHighlighter)
+  }
+  return builder.finish()
+}
+
+const libraryLinkPlugin = ViewPlugin.fromClass(class {
+  decorations: DecorationSet
+  constructor(view: EditorView) {
+    this.decorations = getLibraryLinkDecos(view)
+  }
+  update(update: ViewUpdate) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = getLibraryLinkDecos(update.view)
+    }
+  }
+}, {
+  decorations: v => v.decorations
+})
+
 interface Props {
   value: string
   onChange?: (value: string) => void
@@ -122,11 +149,13 @@ interface Props {
   wrapLines?: boolean
   className?: string
   activeEnv?: Environment | null
-  collectionVariables?: any[]
+  contextVariables?: any[]
   vaultEntries?: VaultEntry[]
   onKeyDown?: (e: React.KeyboardEvent) => void
+  onFollowDefinition?: (name: string) => void
   theme?: 'dark' | 'light'
   enableSearch?: boolean
+  onSelectPath?: (path: string) => void
 }
 
 export interface EditorHandle {
@@ -144,15 +173,29 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   wrapLines = true,
   className = '',
   activeEnv,
-  collectionVariables,
+  contextVariables,
   vaultEntries,
   onKeyDown,
+  onFollowDefinition,
   theme = 'dark',
   enableSearch = false,
+  onSelectPath,
 }, ref) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const [isFocused, setIsFocused] = useState(false)
+  const [isModKeyDown, setIsModKeyDown] = useState(false)
+
+  const handleFormat = useCallback(async () => {
+    if (!viewRef.current || readOnly) return
+    const code = viewRef.current.state.doc.toString()
+    const res = await window.ultraRpc.formatCode({ code, language })
+    if (res.success && res.formatted && res.formatted !== code) {
+      viewRef.current.dispatch({
+        changes: { from: 0, to: viewRef.current.state.doc.length, insert: res.formatted }
+      })
+    }
+  }, [language, readOnly])
 
   useImperativeHandle(ref, () => ({
     openSearch: () => {
@@ -181,7 +224,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (inVault) {
        titleText = `${varName} = (Secret) (Vault)`
     } else {
-      const collVar = collectionVariables?.find(v => v.enabled && v.key === varName)
+      const collVar = contextVariables?.find(v => v.enabled && v.key === varName)
       if (collVar) {
         const val = collVar.value
         titleText = `${varName} = ${val} (Collection)`
@@ -198,7 +241,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       }
     }
     return titleText
-  }, [activeEnv, collectionVariables, vaultEntries])
+  }, [activeEnv, contextVariables, vaultEntries])
 
   const variableCompletionSource = useCallback((context: CompletionContext): CompletionResult | null => {
     const word = context.matchBefore(/\{\{[\w.-]*/)
@@ -215,11 +258,11 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       }
     }
 
-    // 2. Collection 
-    if (collectionVariables) {
-      for (const v of collectionVariables) {
+    // 2. Context 
+    if (contextVariables) {
+      for (const v of contextVariables) {
         if (v.enabled && v.key) {
-          options.push({ label: v.key, type: 'variable', detail: `(Collection) ${v.value}`, boost: 5 })
+          options.push({ label: v.key, type: 'variable', detail: `(Context) ${v.value}`, boost: 5 })
         }
       }
     }
@@ -246,7 +289,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       options: uniqueOptions,
       filter: true
     }
-  }, [activeEnv, collectionVariables, vaultEntries])
+  }, [activeEnv, contextVariables, vaultEntries])
 
   const handleMouseEnterVar = useCallback((e: React.MouseEvent, text: string) => {
     if (tooltipTimeoutId.current) clearTimeout(tooltipTimeoutId.current)
@@ -264,17 +307,6 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (tooltipTimeoutId.current) clearTimeout(tooltipTimeoutId.current)
     setTooltip(prev => ({ ...prev, visible: false }))
   }, [])
-  
-  const handleFormat = useCallback(async () => {
-    if (!viewRef.current || readOnly) return
-    const code = viewRef.current.state.doc.toString()
-    const res = await window.ultraRpc.formatCode({ code, language })
-    if (res.success && res.formatted && res.formatted !== code) {
-      viewRef.current.dispatch({
-        changes: { from: 0, to: viewRef.current.state.doc.length, insert: res.formatted }
-      })
-    }
-  }, [language, readOnly])
 
   // Memoize extensions to avoid re-creating the editor too often
   const getExtensions = useCallback(() => {
@@ -290,6 +322,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       ]),
       ...(enableSearch && !singleLine ? [search({ top: true })] : []),
       variablePlugin,
+      libraryLinkPlugin,
       autocompletion({ override: [variableCompletionSource] }),
       (wrapLines && !singleLine) ? EditorView.lineWrapping : [],
       EditorView.theme({
@@ -333,6 +366,34 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
           }
           return false
         },
+        mousedown: (e, view) => {
+          if (onSelectPath && language === 'json') {
+            const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+            if (pos !== null) {
+              const path = getJsonPathFromCmtree(view.state, pos)
+              if (path) {
+                onSelectPath(path)
+                return true
+              }
+            }
+          }
+
+          if ((e.metaKey || e.ctrlKey) && onFollowDefinition) {
+            const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+            if (pos !== null) {
+              const text = view.state.doc.toString()
+              const regex = /ultra\.lib\.([a-zA-Z0-9_]+)/g
+              let match
+              while ((match = regex.exec(text)) !== null) {
+                if (pos >= match.index && pos <= match.index + match[0].length) {
+                  onFollowDefinition(match[1])
+                  return true
+                }
+              }
+            }
+          }
+          return false
+        },
         mousemove: (e, view) => {
           const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
           if (pos === null) {
@@ -340,8 +401,17 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
             return
           }
 
+          // Case 1: Picker Mode (Highest priority)
+          if (onSelectPath && language === 'json') {
+            const path = getJsonPathFromCmtree(view.state, pos)
+            if (path) {
+              handleMouseEnterVar(e as any, `Click to pick: ${path}`)
+              return
+            }
+          }
+
           const text = view.state.doc.toString()
-          // Check if pos is inside a variable {{...}}
+          // Case 2: Variables
           const regex = /\{\{([\w.-]+)\}\}/g
           let match
           let found = false
@@ -395,7 +465,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource])
+  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition])
 
   // Initialize view once on mount
   const initialValue = useRef(value)
@@ -458,8 +528,21 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     }
   }, [getExtensions])
 
+  // Track modifier key for library links
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      setIsModKeyDown(e.metaKey || e.ctrlKey)
+    }
+    window.addEventListener('keydown', handleKey)
+    window.addEventListener('keyup', handleKey)
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      window.removeEventListener('keyup', handleKey)
+    }
+  }, [])
+
   return (
-    <div className={`editor-container ${className} ${isFocused ? 'focused' : ''} ${readOnly ? 'readonly' : ''} ${singleLine ? 'singleline' : ''}`} ref={editorRef}>
+    <div className={`editor-container ${className} ${isFocused ? 'focused' : ''} ${readOnly ? 'readonly' : ''} ${singleLine ? 'singleline' : ''} ${isModKeyDown ? 'mod-key-down' : ''} ${onSelectPath ? 'picker-active' : ''}`} ref={editorRef}>
       {tooltip.visible && createPortal(
         <div 
           className="env-tooltip glass fade-in-tooltip"

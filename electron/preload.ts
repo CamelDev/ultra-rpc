@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   createCollection: (args: any) => ipcRenderer.invoke('storage:createCollection', args),
   createFolder: (args: { collectionId: string; folderName: string; parentId?: string }) => 
     ipcRenderer.invoke('storage:createFolder', args),
-  saveCollectionVariables: (args: any) => ipcRenderer.invoke('storage:saveCollectionVariables', args),
+  saveContextVariables: (args: any) => ipcRenderer.invoke('storage:saveContextVariables', args),
   saveRequest: (args: any) => ipcRenderer.invoke('storage:saveRequest', args),
   deleteRequest: (args: any) => ipcRenderer.invoke('storage:deleteRequest', args),
   deleteFolder: (args: { collectionId: string; folderId: string }) => ipcRenderer.invoke('storage:deleteFolder', args),
@@ -102,4 +102,59 @@ contextBridge.exposeInMainWorld('ultraRpc', {
 
   // ===== Formatting =====
   formatCode: (args: { code: string; language: string }) => ipcRenderer.invoke('code:format', args),
+  // ===== Flow =====
+  flow: {
+    execute: (flow: any, activeEnvId?: string | null, environments?: any[], collections?: any[], libraries?: any[]) => ipcRenderer.invoke('flow:execute', { flow, activeEnvId, environments, collections, libraries }),
+    stop: (flowId: string) => ipcRenderer.invoke('flow:stop', flowId),
+    cancelStep: (flowId: string) => ipcRenderer.invoke('flow:cancel-step', flowId),
+    executeStep: (flow: any, stepId: string, activeEnvId?: string | null, environments?: any[], collections?: any[], libraries?: any[]) => ipcRenderer.invoke('flow:execute-step', { flow, stepId, activeEnvId, environments, collections, libraries }),
+    onStepStatus: (callback: (stepId: string, status: any) => void) => {
+      const listener = (_: any, data: any) => {
+        callback(data.stepId, data)
+      }
+      ipcRenderer.on('flow:step-status', listener)
+      return () => {
+        ipcRenderer.removeListener('flow:step-status', listener)
+      }
+    },
+    onLog: (callback: (data: { timestamp: number, level: string, message: string }) => void) => {
+      const listener = (_: any, data: any) => callback(data)
+      ipcRenderer.on('flow:log', listener)
+      return () => {
+        ipcRenderer.removeListener('flow:log', listener)
+      }
+    },
+    onClearLogs: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('flow:clear-logs', listener)
+      return () => {
+        ipcRenderer.removeListener('flow:clear-logs', listener)
+      }
+    },
+    onVariableUpdate: (callback: (data: { type: 'set' | 'delete' | 'clear', key?: string, value?: any }) => void) => {
+      const listener = (_: any, data: any) => callback(data)
+      ipcRenderer.on('flow:variable-update', listener)
+      return () => {
+        ipcRenderer.removeListener('flow:variable-update', listener)
+      }
+    },
+    showInFolder: (args: { collectionId: string; flowId: string }) => ipcRenderer.invoke('storage:showFlowInFolder', args),
+    export: (args: { collectionId: string; flowId: string }) => ipcRenderer.invoke('storage:exportFlow', args),
+  },
+  saveFlow: (args: { collectionId: string; flow: any; parentId?: string }) => 
+    ipcRenderer.invoke('storage:saveFlow', args),
+  saveFlowToPath: (args: { folderPath: string; flow: any }) => 
+    ipcRenderer.invoke('storage:saveFlowToPath', args),
+  saveFlowStandalone: (args: { path: string; flow: any }) => 
+    ipcRenderer.invoke('storage:saveFlowStandalone', args),
+  listFlows: () => ipcRenderer.invoke('storage:listFlows'),
+  openFlowFile: () => ipcRenderer.invoke('storage:openFlowFile'),
+  saveFlowOrder: (args: { order: string[] }) => 
+    ipcRenderer.invoke('storage:saveFlowOrder', args),
+  moveFlow: (args: { flowId: string; currentPath: string; targetFolderPath: string }) => 
+    ipcRenderer.invoke('storage:moveFlow', args),
+  deleteFlow: (args: { collectionId: string; flowId: string; path?: string }) => 
+    ipcRenderer.invoke('storage:deleteFlow', args),
+  renameFlow: (args: { collectionId?: string; flowId: string; newName: string; path?: string }) => 
+    ipcRenderer.invoke('storage:renameFlow', args),
 })

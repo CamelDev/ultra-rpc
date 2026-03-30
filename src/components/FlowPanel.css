@@ -1,0 +1,267 @@
+.flow-panel {
+  display: flex;
+  flex-direction: column;
+  height: 40%;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.flow-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.flow-panel-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.flow-search-wrapper {
+  margin-left: 12px;
+  margin-right: 8px;
+  flex: 1;
+  min-width: 60px;
+}
+
+.flow-search-input-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0 8px;
+  height: 24px;
+  transition: all 0.2s ease;
+}
+
+.flow-search-input-container:focus-within {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+}
+
+.flow-search-icon {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.flow-search-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 11px;
+  width: 100%;
+  padding: 0;
+  height: 100%;
+}
+
+.flow-search-input:focus {
+  outline: none;
+}
+
+.flow-search-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.flow-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.15s ease;
+}
+
+.flow-search-clear:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.flow-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+
+.flow-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.flow-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+
+.flow-item:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-focus);
+}
+
+.flow-item-icon {
+  color: var(--accent);
+  background: var(--accent-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.flow-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.flow-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-item-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.flow-item-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: var(--transition);
+}
+
+.flow-item:hover .flow-item-actions {
+  opacity: 1;
+}
+
+.flow-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.flow-action-btn:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.flow-action-btn.run:hover {
+  color: var(--success);
+}
+
+.flow-action-btn.delete:hover {
+  color: var(--danger);
+}
+
+.flow-rename-input {
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+/* Flow Context Menu */
+.flow-context-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 180px;
+  backdrop-filter: blur(12px);
+}
+
+.flow-context-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: all 0.1s ease;
+}
+
+.flow-context-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.flow-context-menu button svg {
+  opacity: 0.7;
+}
+
+.flow-context-menu button:hover svg {
+  opacity: 1;
+}
+
+.flow-context-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
+}
+
+.flow-danger-action:hover {
+  color: var(--danger) !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+}

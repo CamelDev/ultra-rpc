@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe, Check, Lock, Download } from 'lucide-react'
+import Tooltip from './Tooltip'
 import type { Environment, KeyValuePair, VaultEntry } from '../types'
 import { emptyKV } from '../lib/helpers'
 import './EnvironmentPanel.css'
@@ -144,12 +145,16 @@ const EnvironmentPanel: React.FC<Props> = ({
       <div className="env-panel-header">
         <span className="env-panel-title">Environments</span>
         <div className="env-panel-actions">
-          <button className="btn-ghost env-action-btn" onClick={handleImport} data-tooltip="Import Environment">
-            <FileUp size={14} />
-          </button>
-          <button className="btn-ghost env-action-btn" onClick={addEnvironment} data-tooltip="Add Environment">
-            <Plus size={14} />
-          </button>
+          <Tooltip text="Import Environment" position="bottom">
+            <button className="btn-ghost env-action-btn" onClick={handleImport}>
+              <FileUp size={14} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Add Environment" position="bottom">
+            <button className="btn-ghost env-action-btn" onClick={addEnvironment}>
+              <Plus size={14} />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -188,30 +193,40 @@ const EnvironmentPanel: React.FC<Props> = ({
             )}
             <div className="env-item-actions" onClick={e => e.stopPropagation()}>
               {editingName === env.id ? (
-                <button className="btn-ghost env-action" data-tooltip="Save name" data-tooltip-pos="top" onClick={() => saveRename(env.id)}>
-                  <Save size={13} />
-                </button>
+                <Tooltip text="Save name" position="top">
+                  <button className="btn-ghost env-action" onClick={() => saveRename(env.id)}>
+                    <Save size={13} />
+                  </button>
+                </Tooltip>
               ) : (
-                <button className="btn-ghost env-action" data-tooltip="Rename" data-tooltip-pos="top" onClick={() => startRename(env)}>
-                  <Edit2 size={13} />
-                </button>
+                <Tooltip text="Rename" position="top">
+                  <button className="btn-ghost env-action" onClick={() => startRename(env)}>
+                    <Edit2 size={13} />
+                  </button>
+                </Tooltip>
               )}
 
-              <button className="btn-ghost env-action" data-tooltip="Apply to all tabs" data-tooltip-pos="top" onClick={() => {
-                if (window.confirm(`Apply environment "${env.name}" to all opened tabs?`)) {
-                  onApplyToAllTabs(env.id)
-                }
-              }}>
-                <Globe size={13} />
-              </button>
+              <Tooltip text="Apply to all tabs" position="top">
+                <button className="btn-ghost env-action" onClick={() => {
+                  if (window.confirm(`Apply environment "${env.name}" to all opened tabs?`)) {
+                    onApplyToAllTabs(env.id)
+                  }
+                }}>
+                  <Globe size={13} />
+                </button>
+              </Tooltip>
 
-              <button className="btn-ghost env-action" data-tooltip="Export UltraRPC Environment" data-tooltip-pos="top" onClick={() => handleExport(env.id)}>
-                <Download size={13} />
-              </button>
+              <Tooltip text="Export UltraRPC Environment" position="top">
+                <button className="btn-ghost env-action" onClick={() => handleExport(env.id)}>
+                  <Download size={13} />
+                </button>
+              </Tooltip>
 
-              <button className="btn-ghost env-action env-delete" data-tooltip="Delete Environment" data-tooltip-pos="top" onClick={() => onDeleteRequest(env.id, env.name)}>
-                <Trash2 size={13} />
-              </button>
+              <Tooltip text="Delete Environment" position="top">
+                <button className="btn-ghost env-action env-delete" onClick={() => onDeleteRequest(env.id, env.name)}>
+                  <Trash2 size={13} />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -219,16 +234,19 @@ const EnvironmentPanel: React.FC<Props> = ({
             <div className="env-item-body">
               {/* SSL Verification Toggle */}
               <div className="env-ssl-row">
-                <button
-                  className={`env-ssl-toggle ${env.sslVerification !== false ? 'env-ssl-on' : 'env-ssl-off'}`}
-                  onClick={() => toggleSslVerification(env.id)}
-                  data-tooltip={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'}
-                  data-tooltip-pos="top"
+                <Tooltip 
+                  text={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'} 
+                  position="top"
                 >
-                  {env.sslVerification !== false
-                    ? <><ShieldCheck size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-on">ON</span></>
-                    : <><ShieldOff size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-off">OFF</span></>}
-                </button>
+                  <button
+                    className={`env-ssl-toggle ${env.sslVerification !== false ? 'env-ssl-on' : 'env-ssl-off'}`}
+                    onClick={() => toggleSslVerification(env.id)}
+                  >
+                    {env.sslVerification !== false
+                      ? <><ShieldCheck size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-on">ON</span></>
+                      : <><ShieldOff size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-off">OFF</span></>}
+                  </button>
+                </Tooltip>
               </div>
 
               <div className="env-protocol-row">
@@ -249,16 +267,17 @@ const EnvironmentPanel: React.FC<Props> = ({
                   className={['env-var-row', !v.enabled ? 'env-var-row-disabled' : ''].filter(Boolean).join(' ')}
                   key={v.id}
                 >
-                  <button
-                    className={`env-var-check ${v.enabled ? 'env-var-check-on' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      updateVariable(env.id, v.id, 'enabled', !v.enabled)
-                    }}
-                    title={v.enabled ? 'Disable Variable' : 'Enable Variable'}
-                  >
-                    {v.enabled && <Check size={12} />}
-                  </button>
+                  <Tooltip text={v.enabled ? 'Disable Variable' : 'Enable Variable'} position="top">
+                    <button
+                      className={`env-var-check ${v.enabled ? 'env-var-check-on' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        updateVariable(env.id, v.id, 'enabled', !v.enabled)
+                      }}
+                    >
+                      {v.enabled && <Check size={12} />}
+                    </button>
+                  </Tooltip>
                   <input
                     className="env-var-input env-var-key"
                     placeholder="VARIABLE_NAME"
@@ -271,9 +290,11 @@ const EnvironmentPanel: React.FC<Props> = ({
                     value={v.value}
                     onChange={e => updateVariable(env.id, v.id, 'value', e.target.value)}
                   />
-                  <button className="env-var-delete" data-tooltip="Remove Variable" data-tooltip-pos="left" onClick={() => removeVariable(env.id, v.id)}>
-                    <Trash2 size={12} />
-                  </button>
+                  <Tooltip text="Remove Variable" position="left">
+                    <button className="env-var-delete" onClick={() => removeVariable(env.id, v.id)}>
+                      <Trash2 size={12} />
+                    </button>
+                  </Tooltip>
                 </div>
               ))}
               <button className="kv-add" onClick={() => addVariable(env.id)}>
@@ -325,15 +346,15 @@ const EnvironmentPanel: React.FC<Props> = ({
                           onChange={e => updateVaultEntry(env.id, v.id, 'value', e.target.value)}
                           disabled={!vaultAvailable}
                         />
-                        <button
-                          className="env-var-delete"
-                          data-tooltip="Remove Secret"
-                          data-tooltip-pos="left"
-                          onClick={() => deleteVaultEntry(env.id, v.id)}
-                          disabled={!vaultAvailable}
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        <Tooltip text="Remove Secret" position="left">
+                          <button
+                            className="env-var-delete"
+                            onClick={() => deleteVaultEntry(env.id, v.id)}
+                            disabled={!vaultAvailable}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </Tooltip>
                       </div>
                     ))}
                     <button 

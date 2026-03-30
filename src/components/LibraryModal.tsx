@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Editor, { type EditorHandle } from './Editor'
 import type { Library } from '../types'
-import { AlertTriangle, Plus, Link, Save, Trash2, FilePlus, FolderSearch, ShieldCheck, Pencil, Code } from 'lucide-react'
+import { AlertTriangle, Plus, Link, Save, Trash2, FilePlus, FolderSearch, ShieldCheck, Pencil, Code, Copy, Check } from 'lucide-react'
 import { useScriptValidation } from '../hooks/useScriptValidation'
 import ValidationBanner from './ValidationBanner'
 import './LibraryModal.css'
@@ -15,6 +15,7 @@ interface LibraryModalProps {
   initialHeight?: number
   onResize?: (width: number, height: number) => void
   theme?: 'dark' | 'light'
+  initialSelectedId?: string | null
 }
 
 function basename(filePath: string): string {
@@ -47,7 +48,8 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
   initialWidth = 1100,
   initialHeight = 760,
   onResize,
-  theme = 'dark'
+  theme = 'dark',
+  initialSelectedId = null
 }) => {
   const [localLibs, setLocalLibs] = useState<Library[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -57,6 +59,7 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
   const [fileContents, setFileContents] = useState<Record<string, string>>({})
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set())
   const [collisions, setCollisions] = useState<Record<string, string[]>>({})
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   
   const { validationStatus, validationError, validate, resetValidation } = useScriptValidation()
   const editorRef = useRef<EditorHandle>(null)
@@ -73,13 +76,13 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setLocalLibs(libraries)
-      setSelectedId(libraries[0]?.id || null)
+      setSelectedId(initialSelectedId || libraries[0]?.id || null)
       setFileContents({})
       setDirtyIds(new Set())
       setSize({ width: initialWidth, height: initialHeight })
       resetValidation()
     }
-  }, [isOpen, libraries, initialWidth, initialHeight])
+  }, [isOpen, libraries, initialWidth, initialHeight, initialSelectedId])
 
   // Proper resize handler
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -326,6 +329,17 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     validate(fileContents[selectedId] ?? '', { checkUltraLib: true })
   }
 
+  const handleCopy = async (id: string, content?: string) => {
+    const textToCopy = content ?? fileContents[id] ?? ''
+    try {
+      await navigator.clipboard.writeText(textToCopy)
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy text:', err)
+    }
+  }
+
   if (!isOpen) return null
 
   const selectedLib = localLibs.find(l => l.id === selectedId)
@@ -366,6 +380,14 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
             title="Prettify code (Shift+Alt+F)"
           >
             <Code size={14} /> Format
+          </button>
+          <button
+            className={`btn-ghost ${copiedId === selectedId ? 'val-success' : ''}`}
+            onClick={() => selectedId && handleCopy(selectedId)}
+            disabled={!selectedId}
+            title="Copy script to clipboard"
+          >
+            {copiedId === selectedId ? <Check size={14} /> : <Copy size={14} />} Copy
           </button>
           <div style={{ width: '8px' }} />
           <button
@@ -446,6 +468,22 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
                 </div>
                 {!editingId && (
                   <>
+                    <button
+                      className={`lib-item-btn ${copiedId === lib.id ? 'val-success' : ''}`}
+                      style={{ opacity: selectedId === lib.id ? 1 : 0.5 }}
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        let content = fileContents[lib.id]
+                        if (content === undefined) {
+                          const res = await window.ultraRpc?.readFileContents(lib.filePath)
+                          content = (res?.success && res.content !== undefined) ? res.content : ''
+                        }
+                        handleCopy(lib.id, content)
+                      }}
+                      title="Copy script content"
+                    >
+                      {copiedId === lib.id ? <Check size={13} /> : <Copy size={13} />}
+                    </button>
                     <button
                       className="lib-item-btn"
                       style={{ opacity: selectedId === lib.id ? 1 : 0.5 }}
