@@ -72,24 +72,19 @@ const Tooltip: React.FC<TooltipProps> = ({
     };
   }, []);
 
-  // Use the existing child and wrap it or clone it to attach event listeners
-  const child = React.cloneElement(children as React.ReactElement<any>, {
-    ref: targetRef,
-    'data-tooltip': typeof text === 'string' ? text : undefined, // Restore for E2E tests
-    title: typeof text === 'string' ? text : undefined, // Restore for E2E tests that use [title="..."]
-    onMouseEnter: (e: React.MouseEvent) => {
-      handleMouseEnter();
-      if ((children.props as any).onMouseEnter) (children.props as any).onMouseEnter(e);
-    },
-    onMouseLeave: (e: React.MouseEvent) => {
-      handleMouseLeave();
-      if ((children.props as any).onMouseLeave) (children.props as any).onMouseLeave(e);
-    }
-  });
-
   return (
     <>
-      {child}
+      <span 
+        ref={targetRef as any}
+        className="tooltip-trigger"
+        style={{ display: 'contents' }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        data-tooltip={typeof text === 'string' ? text : undefined}
+        title={typeof text === 'string' ? text : undefined}
+      >
+        {children}
+      </span>
       {isVisible && createPortal(
         <div 
           className={`tooltip-portal tooltip-${position} fade-in-fast`}

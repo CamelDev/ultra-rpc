@@ -112,21 +112,26 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **Assertions & Logic** — add delay steps, assertions, and logical branching to your flows
 - **Main Process Execution** — flows run in a dedicated engine in the Node.js backend for reliability
 
+### 📂 Strict File System Mapping
+UltraRPC uses a **strict one-to-one mapping** between the UI and your local file system. This ensures your data is always portable, human-readable, and version-control friendly.
+
+- **Universal Mapping**: Every Collection, Folder, Request, and Flow you see in the sidebar exists as a real file or directory on your disk.
+- **Physical Renaming**: Renaming an item in the UI (Right Click → Rename) physically renames the file or directory on your disk.
+- **Naming Sanitization**: To ensure compatibility across Windows, macOS, and Linux, names are automatically sanitized. Forbidden characters (e.g., `< > : " / \ | ? *`) are replaced with underscores (`_`).
+- **Direct Deletion**: Deleting an item physically removes it from your machine. 
+    - *Note: Internal collections are moved to a `backups` folder within your userData directory instead of immediate deletion for safety.*
+- **No Cloud Sync**: Your data never leaves your machine unless you manually commit it to a Git repository or move the files.
+
 ### 📁 Collections & Variables
-- **File-based storage** — each collection is a folder, each request is a `.json` file
-- **Native Recursive Folders** — support for deeply nested folder structures with drag-and-drop reordering and context menu management (Rename/Delete/New Folder). **Note**: Renaming a folder physically moves the directory on your disk and must follow standard OS-level filename rules (no forbidden characters like `/`, `\`, `:`, etc.).
-- **Collection-Level Variables** — define variables scoped specifically to a collection
-- **Hierarchical Resolution** — Variables are resolved with priority: `Vault > Collection > Environment`
-- **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging", with automatic inheritance for new tabs. This selection is **session-only** and does not trigger unsaved change warnings.
+- **File-per-Request** — Each collection is a folder, and each request/flow is a standard `.json` file.
+- **Native Recursive Folders** — Support for deeply nested folder structures with drag-and-drop reordering.
+- **Collection-Level Variables** — Define variables scoped specifically to a collection.
+- **Hierarchical Resolution** — Variables are resolved with priority: `Vault > Collection > Environment`.
+- **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging".
 - **Selective Variable Enabling** — Checkboxes in the Environment Panel allow you to selectively disable variables during interpolation.
-- **Postman Import** — Seamlessly import Postman v2.1 collections. Recursive folder structures are preserved, and scripts (`prerequest`/`test`) are automatically converted to UltraRPC syntax.
-- **Bruno Import** — Import `.yml` or `.json` Bruno collections. Supports multi-protocol requests (REST + gRPC), automatic script conversion (`bru.*` -> `ultra.*`), and extracts environment variables and secret vault entries.
-- **Secrets Vault (Encrypted)**: Store sensitive keys (e.g., `STRIPE_KEY`, `SESSION_TOKEN`) in a per-environment vault.
-    - **Native Encryption**: Uses Electron's `safeStorage` (Keychain on macOS, DPAPI on Windows) to encrypt data at rest.
-    - **Isolation**: Vault files are stored separately from collections and are excluded from all exports.
-    - **Masking**: Values are masked in the UI and only revealed during active editing.
-    - **Highest Priority**: Vault keys override Collection and Environment variables of the same name.
-- **Import/Export** — Support for `.ultrarpc.json` archives and opening any local folder as a collection
+- **Postman & Bruno Import** — Seamlessly import Postman v2.1 and Bruno collections, preserving folders and converting scripts.
+- **Secrets Vault (Encrypted)**: Store sensitive keys (e.g., `STRIPE_KEY`) in a per-environment vault encrypted with native OS security (`safeStorage`).
+- **External Linking** — Open any local folder as a collection. UltraRPC will watch the directory and reflect changes.
 
 ### 🤖 Scripting & Automation
 UltraRPC features a powerful scripting engine that allows you to automate workflows and validate responses using JavaScript.

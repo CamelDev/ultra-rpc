@@ -124,6 +124,14 @@ UltraRPC supports dynamic variables using `{{variable_name}}` syntax:
 - Collections are stored as directory trees with `_meta.json` for metadata (ID, variables, request order).
 - Tree expansion state is persisted via `tree:setOpenState` / `tree:getOpenState`.
 
+### Strict File System Mapping
+UltraRPC maintains a **strict one-to-one mapping** between the UI sidebar and the local filesystem:
+- **Collections/Folders**: Represented by physical directories.
+- **Requests/Flows**: Represented by `.json` files.
+- **Renaming**: Renaming in the UI physically renames the file/folder on disk.
+- **Deletion**: Deleting in the UI physically removes the file/folder (with backups for internal collections).
+- **Sanitization**: Names are sanitized using `text.replace(/[<>:"/\\|?*]/g, '_').trim()`. This is enforced in `electron/storage-handler.ts`.
+
 ---
 
 ## IPC API Reference
