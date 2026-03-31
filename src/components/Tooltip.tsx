@@ -80,10 +80,11 @@ const Tooltip: React.FC<TooltipProps> = ({
         style={{ display: 'contents' }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        data-tooltip={typeof text === 'string' ? text : undefined}
-        title={typeof text === 'string' ? text : undefined}
       >
-        {children}
+        {React.cloneElement(children, {
+          'data-tooltip': typeof text === 'string' ? text : undefined,
+          title: typeof text === 'string' ? text : undefined,
+        } as any)}
       </span>
       {isVisible && createPortal(
         <div 

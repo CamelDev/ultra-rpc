@@ -68,6 +68,24 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] `ultra` object API verification (`scripting-ultra.spec.ts`)
 - [x] Script console log capturing and display (`scripting-automation.spec.ts`)
 - [x] Persistent Global variables (`scripting-ultra.spec.ts`)
+- [x] Script validation and error reporting (`script-validation.spec.ts`)
+
+#### 🔄 Flow Runner (Orchestration)
+- [x] Create, rename, reorder, and delete flows (`flow-management.spec.ts`)
+- [x] Step variable persistence via `ultra.context.set` (`flow-variables.spec.ts`)
+- [x] Cloning and Exporting flows (`flow-panel-advanced.spec.ts` & `flow-cloning.spec.ts`)
+- [x] Navigation from flow step to Request Tab (`flow-edit-request.spec.ts`)
+- [x] Reset flow state with baseline preservation (`flow-reset.spec.ts`)
+- [x] Request Selector Modal for step linking (`request-selector-modal.spec.ts`)
+- [x] Comprehensive orchestration: Auto-run vs Step-by-step (`flow-scenarios.spec.ts`)
+
+#### 📚 Code Library
+- [x] Library script management (CRUD) (`library-management.spec.ts`)
+- [x] Library script validation and syntax error reporting (`library-validation.spec.ts`)
+
+#### 🛡️ Vault & Security
+- [x] Vault access denial handling (`vault-denial.spec.ts`)
+- [x] Conditional deletion logic (`conditional-deletion.spec.ts`)
 
 ---
 
@@ -88,12 +106,13 @@ We intend to use Vitest for fast, isolated testing of individual React component
 | GitHub Actions Quality Gate | ✅ Active on PR/Push |
 | Core REST Flow | ✅ Automated (`rest-flow.spec.ts`) |
 | Workspace & UI Suite | ✅ Automated (`workspace-ui.spec.ts`) |
-| gRPC Unary Suite | ✅ Automated (`mock-grpc.spec.ts`) |
-| gRPC Advanced Suite (Reflection/Streaming/Error) | ✅ Automated (`mock-grpc.spec.ts`, `grpc-proto-discovery.spec.ts`) |
-| Scripting Sandbox Tests | ✅ Automated (`scripting-automation.spec.ts`) |
-| Ultra Scripting Suite | ✅ Automated (`scripting-ultra.spec.ts`) |
-| Collection Management Suite | ✅ Automated (`collection-management.spec.ts`, `folder-support.spec.ts`, `bruno-import.spec.ts`) |
-| Environment & Variable Suite | ✅ Automated (`environment-workspace.spec.ts`, `environment-propagation.spec.ts`) |
+| gRPC Advanced Suite | ✅ Automated (`mock-grpc.spec.ts`) |
+| Scripting & Automation | ✅ Automated (`scripting-ultra.spec.ts`) |
+| Collection & Folder Mgmt | ✅ Automated (`collection-management.spec.ts`) |
+| Environment & Variable Mgmt | ✅ Automated (`environment-workspace.spec.ts`) |
+| **Flow Runner Orchestration** | ✅ Automated (`flow-management.spec.ts`) |
+| **Code Library Persistence** | ✅ Automated (`library-management.spec.ts`) |
+| **Secret Vault & Security** | ✅ Automated (`vault-denial.spec.ts`) |
 
 ---
 
@@ -162,10 +181,46 @@ We intend to use Vitest for fast, isolated testing of individual React component
 - **Scenarios**:
     - **Custom Naming**: Verified that users can rename a request directly within the "Save to Collection" modal before confirming.
 
+---
+
+## 4. Flow Runner Use Cases
+
+The Flow Runner is designed for complex API orchestration and automation. Below are the primary use cases verified by the test suite:
+
+### 4.1 Authentication Chaining
+**Scenario**: Login to a REST API, extract the Bearer token, and use it in a subsequent gRPC call.
+- **Verification**: Step A (REST) executes → Script extracts token to `ultra.context` → Step B (gRPC) uses `{{auth_token}}` in metadata.
+
+### 4.2 Data Seeding & Cleanup
+**Scenario**: Create a sequence of related records in a development environment before starting a test run.
+- **Verification**: Multiple POST/PUT requests run in a specific order, passing the IDs of created entities via context variables.
+
+### 4.3 Integrated Persistence
+**Scenario**: Perform an operation and verify that the results are reflected on disk.
+- **Verification**: Flow Runner enables verifying that operations (like renaming or deleting requests) are correctly mirrored in the local filesystem.
+
+### 4.4 Multi-Protocol Validation
+**Scenario**: Trigger an event via REST and verify its effects by calling a gRPC service.
+- **Verification**: Verify that data consistency is maintained across different protocols (e.g., checking if a gRPC stream receives updates after a REST PATCH).
+
+---
+
+## 5. Future Roadmap & Gaps
+
+While we have achieved high coverage, the following areas are prioritized for future automation:
+
+- [ ] **Flow Branching & Loops**: Automated verification for conditional step execution based on previous results.
+- [ ] **Complex JSONPath Extraction**: Testing deep nesting and array filtering in the Flow step settings.
+- [ ] **Error Propagation**: Verifying that a flow correctly halts or follows an error-handler path when a request fails.
+- [ ] **Large Response Handling**: Benchmark and E2E verification for responses exceeding 50MB.
+- [ ] **Global Search**: E2E testing for the upcoming cross-tab and cross-collection search feature.
+
+---
+
 ## Final Verification Result
 
 The automated suite results in a stable and passing verification for all core and advanced features:
 
 ```text
-  32 passed (2.8m)
+  53 tests in 30 files passed (approx. 3.2m)
 ```

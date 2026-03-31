@@ -61,6 +61,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   const [isRunning, setIsRunning] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [runningStepId, setRunningStepId] = useState<string | null>(null);
+  const [localStepStatuses, setLocalStepStatuses] = useState<Record<string, import('../types/flow').StepStatus>>({});
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -81,8 +82,9 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   }, [flow.steps]);
 
   const baselineVariablesRef = useRef<Record<string, any>>(flow.variables || {});
-  const firstMoveableIndex = flow.steps.findIndex(s => !s.status || s.status === 'idle' || s.status === 'error');
-  const hasExecutionState = flow.steps.some(s => s.status && s.status !== 'idle');
+  const mergedSteps = flow.steps.map(s => ({ ...s, status: localStepStatuses[s.id]?.status || s.status }));
+  const firstMoveableIndex = mergedSteps.findIndex(s => !s.status || s.status === 'idle' || s.status === 'error');
+  const hasExecutionState = mergedSteps.some(s => s.status && s.status !== 'idle');
   const isStructuralLocked = isRunning; // Now only locks ALL structural changes while running
 
   useEffect(() => {
@@ -107,20 +109,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         setRunningStepId(prev => prev === stepId ? null : prev);
       }
 
-      const updatedSteps = stepsRef.current.map(s => {
-        if (s.id === stepId) {
-          return { 
-            ...s, 
-            status: data.status, 
-            error: data.error,
-            requestData: data.requestData,
-            responseData: data.responseData
-          };
-        }
-        return s;
-      });
-      stepsRef.current = updatedSteps;
-      onUpdate({ steps: updatedSteps });
+      setLocalStepStatuses(prev => ({ ...prev, [stepId]: data }));
     });
 
     const removeLogListener = window.ultraRpc.flow.onLog((logData) => {
@@ -230,8 +219,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
   // Determines the first step index that should be run next (first idle/error enabled step)
   const getResumeIndex = (): number => {
-    for (let i = 0; i < flow.steps.length; i++) {
-      const step = flow.steps[i];
+    for (let i = 0; i < mergedSteps.length; i++) {
+      const step = mergedSteps[i];
       if (!step.enabled) continue;
       const s = step.status;
       if (!s || s === 'idle' || s === 'error') return i;
@@ -261,17 +250,23 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     
     try {
       const result = await window.ultraRpc.flow.execute(targetFlow, activeEnvId, environments, collections, libraries);
-      // Persist variables from the run
-      if (result.variables) {
-        const varCount = Object.keys(result.variables).length;
-        if (varCount > 0) {
-          setLogs(prev => [...prev, {
-            timestamp: Date.now(),
-            level: 'info',
-            message: `Updated ${varCount} flow variables.`
-          }]);
+      if (result.variables || result.stepStatuses) {
+        if (result.variables) {
+          const varCount = Object.keys(result.variables).length;
+          if (varCount > 0) {
+            setLogs(prev => [...prev, {
+              timestamp: Date.now(),
+              level: 'info',
+              message: `Updated ${varCount} flow variables.`
+            }]);
+          }
         }
-        onUpdate({ variables: result.variables });
+        
+        if (result.stepStatuses) {
+          setLocalStepStatuses(result.stepStatuses);
+        }
+
+        onUpdate({ variables: result.variables || {} });
       }
     } catch (err: any) {
       console.error('Flow Execution Failed:', err);
@@ -306,10 +301,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     const baseline = baselineVariablesRef.current || {};
     variablesRef.current = { ...baseline };
     
-    onUpdate({ 
-      steps: resetSteps,
-      variables: { ...baseline }
-    });
+    onUpdate({ variables: { ...baseline } });
+    setLocalStepStatuses({});
     setRunningStepId(null);
     setLogs([]);
     
@@ -334,17 +327,23 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
     try {
       const result = await window.ultraRpc.flow.executeStep(targetFlow, stepId, activeEnvId, environments, collections, libraries);
-      // Persist variables from the run
-      if (result.variables) {
-        const varCount = Object.keys(result.variables).length;
-        if (varCount > 0) {
-          setLogs(prev => [...prev, {
-            timestamp: Date.now(),
-            level: 'info',
-            message: `Manual step run finished: Updated ${varCount} flow variables.`
-          }]);
+      if (result.variables || result.stepStatuses) {
+        if (result.variables) {
+          const varCount = Object.keys(result.variables).length;
+          if (varCount > 0) {
+            setLogs(prev => [...prev, {
+              timestamp: Date.now(),
+              level: 'info',
+              message: `Manual step run finished: Updated ${varCount} flow variables.`
+            }]);
+          }
         }
-        onUpdate({ variables: result.variables });
+        
+        if (result.stepStatuses) {
+          setLocalStepStatuses(prev => ({ ...prev, ...result.stepStatuses }));
+        }
+
+        onUpdate({ variables: result.variables || {} });
       }
     } catch (err: any) {
       console.error('Step Execution Failed:', err);
@@ -458,14 +457,23 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 const moveableStartIndex = firstMoveableIndex === -1 ? flow.steps.length : firstMoveableIndex;
                 const isStepLockedMetadata = index < moveableStartIndex;
                 
+                const locData = localStepStatuses[step.id];
+                const displayStep = {
+                  ...step,
+                  status: locData?.status || step.status,
+                  error: locData?.error || step.error,
+                  requestData: locData?.requestData || step.requestData,
+                  responseData: locData?.responseData || step.responseData
+                };
+                
                 return (
                   <StepCard 
-                    key={step.id} 
-                    step={step} 
+                    key={displayStep.id} 
+                    step={displayStep} 
                     index={index}
                     isLocked={isStepLockedMetadata || isRunning}
-                    isExpanded={expandedSteps[step.id]}
-                    onToggleExpand={() => toggleExpand(step.id)}
+                    isExpanded={expandedSteps[displayStep.id]}
+                    onToggleExpand={() => toggleExpand(displayStep.id)}
                     onDelete={deleteStep}
                     onUpdate={updateStep}
                     collections={collections}

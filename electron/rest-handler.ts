@@ -159,8 +159,8 @@ export async function handleRestRequest(req: RestRequest) {
       })
 
       const abortHandler = () => {
-        request.destroy(new DOMException('Request aborted', 'AbortError'))
-        reject(new DOMException('Request aborted', 'AbortError'))
+        request.destroy(new Error('Request aborted'))
+        reject(new Error('Request aborted'))
       }
       req.abortSignal?.addEventListener('abort', abortHandler)
 

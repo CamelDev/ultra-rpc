@@ -344,7 +344,7 @@ export class FlowEngine {
       const result = await handleGrpcCall(grpcReq as any) as any
       if (!result.success) {
         if (this.currentAbortController?.signal.aborted) {
-          throw new DOMException('Request cancelled', 'AbortError')
+          throw new Error('Request cancelled')
         }
         console.error('[FlowEngine] gRPC call failed:', result.error)
         throw new Error(result.error || 'gRPC call failed')
@@ -428,11 +428,11 @@ export class FlowEngine {
       if (signal) {
         if (signal.aborted) {
           clearTimeout(timer)
-          return reject(new DOMException('Delay cancelled', 'AbortError'))
+          return reject(new Error('Delay cancelled'))
         }
         signal.addEventListener('abort', () => {
           clearTimeout(timer)
-          reject(new DOMException('Delay cancelled', 'AbortError'))
+          reject(new Error('Delay cancelled'))
         })
       }
     })

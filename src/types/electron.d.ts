@@ -127,10 +127,10 @@ export interface UltraRpcApi {
   formatCode: (args: { code: string; language: string }) => Promise<{ success: boolean; formatted?: string; error?: string }>
 
   flow: {
-    execute: (flow: import('./flow').FlowDefinition, activeEnvId?: string | null, environments?: import('./index').Environment[], collections?: import('./index').Collection[], libraries?: import('./index').Library[]) => Promise<{ success: boolean; error?: string; variables?: Record<string, any> }>
+    execute: (flow: import('./flow').FlowDefinition, activeEnvId?: string | null, environments?: import('./index').Environment[], collections?: import('./index').Collection[], libraries?: import('./index').Library[]) => Promise<{ success: boolean; error?: string; variables?: Record<string, any>; stepStatuses?: Record<string, import('./flow').StepStatus> }>
     stop: (flowId: string) => Promise<void>
     cancelStep: (flowId: string) => Promise<{ success: boolean; error?: string }>
-    executeStep: (flow: import('./flow').FlowDefinition, stepId: string, activeEnvId?: string | null, environments?: import('./index').Environment[], collections?: import('./index').Collection[], libraries?: import('./index').Library[]) => Promise<{ success: boolean; error?: string; variables?: Record<string, any> }>
+    executeStep: (flow: import('./flow').FlowDefinition, stepId: string, activeEnvId?: string | null, environments?: import('./index').Environment[], collections?: import('./index').Collection[], libraries?: import('./index').Library[]) => Promise<{ success: boolean; error?: string; variables?: Record<string, any>; stepStatuses?: Record<string, import('./flow').StepStatus> }>
     onStepStatus: (callback: (stepId: string, status: any) => void) => () => void
     onLog: (callback: (data: { timestamp: number, level: string, message: string }) => void) => () => void
     onClearLogs: (callback: () => void) => () => void
