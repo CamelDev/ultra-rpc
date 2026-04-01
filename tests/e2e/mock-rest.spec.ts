@@ -8,12 +8,11 @@ import fs from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mockServer: MockRestServer;
-const MOCK_PORT = 3341;
 let electronApp: any;
 let window: any;
 
 test.beforeAll(async () => {
-  mockServer = new MockRestServer(MOCK_PORT);
+  mockServer = new MockRestServer(0);
   await mockServer.start();
 
   const userDataDir = join(__dirname, '../../test-output/user-data/mock-rest');

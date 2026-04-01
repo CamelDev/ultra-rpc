@@ -143,9 +143,7 @@ test('Should handle server streaming and accumulate responses', async () => {
 
   await window.click('button.config-tab:has-text("Body")', { force: true });
   await wait(500);
-  const bodyEditor = window.locator('.body-textarea .cm-content');
-  await bodyEditor.scrollIntoViewIfNeeded();
-  await bodyEditor.fill('{"name": "Stream Test"}', { force: true });
+  await setCMValue('.body-textarea', '{"name": "Stream Test"}');
   await wait(500);
 
   console.log('Sending streaming request...');

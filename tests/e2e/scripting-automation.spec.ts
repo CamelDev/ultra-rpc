@@ -11,11 +11,9 @@ test.describe('Scripting & Automation Suite', () => {
   let mockServer: MockRestServer;
   let electronApp: any;
   let window: any;
-  const MOCK_PORT = 3343;
-  const GRPC_PORT = 50059;
 
   test.beforeAll(async () => {
-    mockServer = new MockRestServer(MOCK_PORT);
+    mockServer = new MockRestServer(0);
     await mockServer.start();
 
     const userDataDir = join(__dirname, '../../test-output/user-data/scripting');
