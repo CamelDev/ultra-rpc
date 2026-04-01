@@ -16,7 +16,7 @@ test.describe('Flow Panel Advanced', () => {
     }
 
     electronApp = await electron.launch({
-      args: ['.', `--user-data-dir=${userDataDir}`],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: {
         ...process.env,
         NODE_ENV: 'test',
@@ -28,7 +28,9 @@ test.describe('Flow Panel Advanced', () => {
   });
 
   test.afterAll(async () => {
-    await electronApp.close();
+    if (electronApp) {
+      await electronApp.close();
+    }
   });
 
   test('should support cloning, exporting, and deleting flows', async () => {

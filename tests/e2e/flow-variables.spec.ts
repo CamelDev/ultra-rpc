@@ -17,7 +17,7 @@ test.describe('Flow Variable Persistence', () => {
     }
     
     electronApp = await electron.launch({
-      args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`],
+      args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`, '--no-lock'],
       env: { ...process.env, NODE_ENV: 'test' },
     });
     window = await electronApp.firstWindow();
