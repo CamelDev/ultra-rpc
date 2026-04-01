@@ -38,7 +38,7 @@ The app is split into two Electron processes:
 
 **Main process** (`electron/`) — Node.js, handles side effects
 - `electron/main.ts` — Electron lifecycle, window creation, IPC routing, app menu
-- `electron/rest-handler.ts` — executes HTTP requests (Axios, supports HTTP/1.1 and HTTP/2)
+- `electron/rest-handler.ts` — executes HTTP requests (Native Node http/https/http2, supports HTTP/1.1 and HTTP/2)
 - `electron/grpc-handler.ts` — executes gRPC calls, server reflection, proto file loading, streaming
 - `electron/storage-handler.ts` — reads/writes collections and environments as JSON files on disk
 - `electron/preload.ts` — IPC bridge exposing `window.electronAPI` to the renderer
