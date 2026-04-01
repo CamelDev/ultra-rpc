@@ -1056,7 +1056,7 @@ const App: React.FC = () => {
       name: saveFlowModalName.trim() || 'New Flow',
       steps: [],
       settings: {
-        timeout: 30000,
+        timeoutMs: 30000,
         onFailure: 'stop',
         repeat: 0
       },
@@ -1897,7 +1897,7 @@ const App: React.FC = () => {
     { key: 'params', label: 'Params' },
     { key: 'headers', label: 'Headers' },
     { key: 'body', label: 'Body' },
-    { key: 'auth', label: 'Options' },
+    { key: 'auth', label: activeRequest?.type === 'GRPC' ? 'Options & Timeout' : 'Options' },
     { key: 'pre-request', label: 'Pre-request' },
     { key: 'post-response', label: 'Post-response' },
   ] as { key: RequestTab; label: string }[]).filter(t => {
@@ -2648,7 +2648,7 @@ const App: React.FC = () => {
                                   color: 'var(--text-primary)',
                                   padding: '6px 10px',
                                   borderRadius: '4px',
-                                  width: '120px',
+                                  width: '160px',
                                   outline: 'none',
                                   fontSize: '13px'
                                 }}

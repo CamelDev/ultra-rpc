@@ -20,7 +20,8 @@ import {
   Square,
   RotateCcw,
   Database,
-  Search
+  Search,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { FlowStep } from '../types/flow';
@@ -193,16 +194,6 @@ export const StepCard: React.FC<StepCardProps> = ({
           />
         </div>
 
-        {step.type === 'request' && step.config.requestId && onOpenRequest && (
-          <button 
-            className="btn-text edit-request-btn"
-            onClick={() => onOpenRequest(step.config.requestId!)}
-            title="Edit original request"
-          >
-            Edit Request
-          </button>
-        )}
-
       <div className="step-actions">
           {/* Cancel button — active only when THIS step is running */}
           {runningStepId === step.id && (
@@ -263,6 +254,18 @@ export const StepCard: React.FC<StepCardProps> = ({
                       <span className="trigger-text">{currentRequestName}</span>
                       <ChevronDown size={14} className="trigger-chevron" />
                     </button>
+
+                    {step.type === 'request' && step.config.requestId && onOpenRequest && (
+                      <button 
+                        className="edit-request-btn"
+                        onClick={() => onOpenRequest(step.config.requestId!)}
+                        title="Edit original request"
+                        disabled={isLocked}
+                      >
+                        <ExternalLink size={14} />
+                        Edit Request
+                      </button>
+                    )}
                     
                     <AnimatePresence>
                       {showRequestSelector && collections && (
@@ -279,16 +282,15 @@ export const StepCard: React.FC<StepCardProps> = ({
                       )}
                     </AnimatePresence>
                   </div>
-                </div>
-                <div className="step-config-row">
-                  <label>Environment</label>
+
+                  <label className="env-label">Environment</label>
                   <div className="env-picker-container">
                     <select
                       value={step.config.envId || ''}
                       onChange={(e) => onUpdate(step.id, { config: { ...step.config, envId: e.target.value || undefined } })}
                       disabled={isLocked}
                     >
-                      <option value="">(Default Environment)</option>
+                      <option value="">(Flow Environment)</option>
                       {environments?.map(env => (
                         <option key={env.id} value={env.id}>{env.name}</option>
                       ))}

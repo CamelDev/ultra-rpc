@@ -160,16 +160,79 @@
   background: #2563eb;
 }
 
-.btn.run.done {
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-  cursor: default;
-}
-
 .btn.run:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.flow-completion-panel {
+  margin-top: 24px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(var(--bg-secondary-rgb), 0.5);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border-left: 4px solid var(--accent);
+}
+
+.summary-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-icon.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.status-icon.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.flow-completion-panel:has(.status-icon.error) {
+  border-left-color: #ef4444;
+}
+
+.status-text h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stats-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.stat-item {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.stat-item.success {
+  color: #10b981;
+}
+
+.stat-item.error {
+  color: #ef4444;
 }
 
 .btn.stop {
@@ -320,5 +383,17 @@
 
 .fade-in-up {
   animation: fade-in-up 0.15s ease-out forwards;
+}
+
+.summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summary-hint {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
 }
 

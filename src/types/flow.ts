@@ -76,10 +76,11 @@ export interface FlowDefinition {
   name?: string;
   steps: FlowStep[];
   settings: {
-    timeout: number;
+    timeoutMs: number;
     onFailure: 'stop' | 'continue' | 'retry';
     retryCount?: number;
     repeat: number;
+    environmentId?: string | null;
   };
   variables: Record<string, any>; // The "Variable Store"
 }

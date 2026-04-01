@@ -11,17 +11,19 @@ interface FlowSettingsDrawerProps {
   onClose: () => void;
   flow: FlowDefinition;
   onUpdate: (updates: Partial<FlowDefinition>) => void;
+  environments: any[];
 }
 
 const FlowSettingsDrawer: React.FC<FlowSettingsDrawerProps> = ({
   isOpen,
   onClose,
   flow,
-  onUpdate
+  onUpdate,
+  environments
 }) => {
   if (!isOpen) return null;
 
-  const settings = flow.settings || { timeout: 30000, onFailure: 'stop', repeat: 1 };
+  const settings = flow.settings || { timeoutMs: 30000, onFailure: 'stop', repeat: 1 };
   
   // Local state for variables to allow empty rows while editing
   const [localVars, setLocalVars] = useState(recordToKV(flow.variables || {}));
@@ -52,6 +54,25 @@ const FlowSettingsDrawer: React.FC<FlowSettingsDrawerProps> = ({
         <div className="drawer-content">
           <div className="settings-section">
             <h3>Execution Behavior</h3>
+            <div className="settings-field">
+              <label>Environment</label>
+              <select
+                value={settings.environmentId || ''}
+                onChange={e => onUpdate({ 
+                  settings: { ...settings, environmentId: e.target.value || null } 
+                })}
+              >
+                <option value="">None</option>
+                {environments.map(env => (
+                  <option key={env.id} value={env.id}>{env.name}</option>
+                ))}
+              </select>
+              <div className="field-hint">
+                <AlertTriangle size={12} />
+                <span>The default environment for all request steps in this flow.</span>
+              </div>
+            </div>
+
             <div className="settings-field">
               <label>On Failure</label>
               <select
@@ -89,9 +110,10 @@ const FlowSettingsDrawer: React.FC<FlowSettingsDrawerProps> = ({
               <label>Global Timeout (ms)</label>
               <input
                 type="number"
-                value={settings.timeout}
+                placeholder="30000 (Default)"
+                value={settings.timeoutMs}
                 onChange={e => onUpdate({ 
-                  settings: { ...settings, timeout: parseInt(e.target.value) || 30000 } 
+                  settings: { ...settings, timeoutMs: parseInt(e.target.value) || 30000 } 
                 })}
               />
             </div>

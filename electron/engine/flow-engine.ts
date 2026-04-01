@@ -304,14 +304,14 @@ export class FlowEngine {
     })
 
     let response: any
-    const envId = step.config.envId || this.activeEnvId
+    const envId = step.config.envId || this.definition.settings?.environmentId || this.activeEnvId
     const variables = await this.getVariables(envId, step.config.collectionId)
     const env = this.environments.find(e => e.id === envId)
     const insecure = env?.sslVerification === false // true if verification is disabled
 
     console.log(`[FlowEngine] Final variables for ${step.name}:`, variables)
 
-    const globalTimeout = this.definition.settings?.timeout || 30000
+    const globalTimeout = this.definition.settings?.timeoutMs || 30000
 
     if (savedRequest.preRequestScript) {
       try {
@@ -444,7 +444,7 @@ export class FlowEngine {
     
     // Handle legacy single assertion if no multi-assertions exist
     if ((!assertions || assertions.length === 0) && legacyAssertion) {
-      const envId = step.config.envId || this.activeEnvId
+      const envId = step.config.envId || this.definition.settings?.environmentId || this.activeEnvId
       const variables = await this.getVariables(envId, step.config.collectionId)
       const left = this.interpolate(legacyAssertion.left, variables)
       const right = this.interpolate(legacyAssertion.right, variables)
@@ -536,7 +536,7 @@ export class FlowEngine {
     const { code } = step.config
     if (!code) return undefined
 
-    const envId = step.config.envId || this.activeEnvId
+    const envId = step.config.envId || this.definition.settings?.environmentId || this.activeEnvId
     const variables = await this.getVariables(envId, step.config.collectionId)
 
     const mockConsole = {

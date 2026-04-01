@@ -64,6 +64,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   const [localStepStatuses, setLocalStepStatuses] = useState<Record<string, import('../types/flow').StepStatus>>({});
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddDropdownOpen, setIsAddDropdownOpen] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const [logs, setLogs] = useState<{ timestamp: number; level: string; message: string }[]>([]);
@@ -247,6 +248,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
     setIsRunning(true);
     setIsStopping(false);
+    setShowSummary(false);
     
     try {
       const result = await window.ultraRpc.flow.execute(targetFlow, activeEnvId, environments, collections, libraries);
@@ -274,6 +276,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       setIsRunning(false);
       setIsStopping(false);
       setRunningStepId(null);
+      setShowSummary(true);
     }
   };
 
@@ -301,9 +304,13 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     const baseline = baselineVariablesRef.current || {};
     variablesRef.current = { ...baseline };
     
-    onUpdate({ variables: { ...baseline } });
+    onUpdate({ 
+      variables: { ...baseline },
+      steps: resetSteps
+    });
     setLocalStepStatuses({});
     setRunningStepId(null);
+    setShowSummary(false);
     setLogs([]);
     
     return { ...flow, steps: resetSteps, variables: { ...baseline } };
@@ -359,7 +366,6 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   };
 
   const resumeIndex = getResumeIndex();
-  const allDone = hasExecutionState && resumeIndex === -1;
   const activeStepIndex = getActiveStepIndex();
 
   return (
@@ -419,15 +425,15 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
               </Tooltip>
             ) : (
               <Tooltip 
-                text={allDone ? 'All steps completed — Reset to run again' : resumeIndex > 0 ? `Resume from step ${resumeIndex + 1}` : 'Run all steps'} 
+                text={resumeIndex > 0 ? `Resume from step ${resumeIndex + 1}` : 'Run all steps'} 
                 position="bottom"
               >
                 <button 
-                  className={`btn run ${allDone ? 'done' : ''}`} 
+                  className="btn run" 
                   onClick={() => runFlow()}
                   disabled={flow.steps.length === 0}
                 >
-                  <Play size={16} fill="currentColor" /> {allDone ? 'Done' : resumeIndex > 0 ? 'Resume' : 'Run Flow'}
+                  <Play size={16} fill="currentColor" /> {resumeIndex > 0 ? 'Resume' : 'Run Flow'}
                 </button>
               </Tooltip>
             )}
@@ -518,6 +524,34 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
               )}
             </AnimatePresence>
           </div>}
+
+          {showSummary && !isRunning && hasExecutionState && (
+            <motion.div 
+              className="flow-completion-panel glass fade-in-up"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="summary-status">
+                <div className={`status-icon ${mergedSteps.some(s => s.status === 'error') ? 'error' : 'success'}`}>
+                  {mergedSteps.some(s => s.status === 'error') ? <Square size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+                </div>
+                <div className="status-text">
+                  <h4>Flow Finished</h4>
+                  <div className="stats-row">
+                    <span className="stat-item success">{mergedSteps.filter(s => s.status === 'success').length} passed</span>
+                    <span className="stat-item error">{mergedSteps.filter(s => s.status === 'error').length} failed</span>
+                    <span className="stat-item">{mergedSteps.filter(s => s.status === 'skipped').length} skipped</span>
+                  </div>
+                </div>
+              </div>
+              <div className="summary-actions">
+                <span className="summary-hint">Flow finished</span>
+                <button className="btn secondary" onClick={resetFlow}>
+                  <RotateCcw size={14} /> Clear & Reset
+                </button>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         <FlowLogViewer 
@@ -528,12 +562,15 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         />
       </div>
 
-      <FlowSettingsDrawer 
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        flow={flow}
-        onUpdate={onUpdate}
-      />
+      {isSettingsOpen && (
+        <FlowSettingsDrawer 
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          flow={flow}
+          onUpdate={onUpdate}
+          environments={environments}
+        />
+      )}
     </div>
   );
 };
