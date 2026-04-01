@@ -19,7 +19,6 @@ import {
   MoreHorizontal,
   Download,
   Link,
-  GitBranch,
   Search,
 } from 'lucide-react'
 import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
@@ -41,8 +40,6 @@ interface Props {
   onMoveCollection: (collectionId: string, currentPath?: string) => void
   onCloneCollection: (id: string) => void
   onOpenFlow: (flow: any) => void
-  onNewFlow: (parentId: string) => void
-  onRenameFlow: (collectionId: string | undefined, flowId: string, newName: string, path?: string) => Promise<void>
   onImportEnvironments?: (envs: Environment[], vaultEntries?: Record<string, { key: string; value: string }[]>) => void
 }
 
@@ -279,13 +276,12 @@ interface CollContextMenuProps {
   onShowInFolder: (realId: string) => void
   onMove: (id: string, path?: string) => void
   onClone: (id: string) => void
-  onNewFlow: (parentId: string) => void
   onDelete: (id: string, name: string) => void
 }
 
 const CollContextMenu: React.FC<CollContextMenuProps> = ({
   menu, onClose,
-  onRename, onNewFolder, onNewFlow, onEditVariables, onExport, 
+  onRename, onNewFolder, onEditVariables, onExport, 
   onCopyPath, onShowInFolder, onMove, onClone, onDelete,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -324,9 +320,6 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
           <>
             <button onClick={() => { onNewFolder(menu.node.realId); onClose() }}>
               <FolderPlus size={12} /> New Folder
-            </button>
-            <button onClick={() => { onNewFlow(menu.node.realId); onClose() }}>
-              <GitBranch size={12} /> New Flow
             </button>
           </>
         )}
@@ -379,8 +372,6 @@ const CollectionPanel: React.FC<Props> = ({
   onMoveCollection,
   onCloneCollection,
   onOpenFlow,
-  onNewFlow,
-  onRenameFlow,
   onImportEnvironments,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -619,13 +610,10 @@ const CollectionPanel: React.FC<Props> = ({
       const updatedRequest = { ...targetNode.data.request, name: freshName }
       await window.ultraRpc.saveRequest({ collectionId, request: updatedRequest as RequestConfig })
       onRenameRequest(targetNode.data.realId, updatedRequest.name)
-    } else if (targetNode.data.type === 'flow' && targetNode.data.flow) {
-      await onRenameFlow(collectionId, targetNode.data.realId, freshName)
     }
-
     setEditingId(null)
     onRefresh()
-  }, [treeRef, getCollectionIdOfNode, onRenameRequest, onRefresh, nameInput, onRenameFlow])
+  }, [treeRef, getCollectionIdOfNode, onRenameRequest, onRefresh, nameInput])
 
   const importCollection = async () => {
     if (window.ultraRpc) {
@@ -636,13 +624,6 @@ const CollectionPanel: React.FC<Props> = ({
           onImportEnvironments(result.environments, result.vaultEntries)
         }
       }
-    }
-  }
-
-  const openFolder = async () => {
-    if (window.ultraRpc) {
-      const result = await window.ultraRpc.openFolder()
-      if (result.success) onRefresh()
     }
   }
 
@@ -837,21 +818,15 @@ const CollectionPanel: React.FC<Props> = ({
                <Plus size={16} />
              </button>
            </Tooltip>
-           <Tooltip text="New Flow" position="bottom">
-             <button 
-               className="btn-ghost" 
-               onClick={() => {
-                 const selected = treeRef.current?.selectedNodes[0];
-                 if (selected) {
-                   onNewFlow(selected.data.realId);
-                 } else if (collections.length > 0) {
-                   onNewFlow(collections[0].id);
-                 } else {
-                   alert('Create a collection first');
-                 }
-               }} 
-             >
-               <GitBranch size={15} />
+
+           <Tooltip text="Link existing folder" position="bottom">
+             <button className="btn-ghost" onClick={handleLinkCollection}>
+               <Link size={14} />
+             </button>
+           </Tooltip>
+           <Tooltip text="Import collection" position="bottom">
+             <button className="btn-ghost coll-btn" onClick={importCollection}>
+               <Upload size={14} />
              </button>
            </Tooltip>
            <Tooltip text="New Folder" position="bottom">
@@ -869,21 +844,6 @@ const CollectionPanel: React.FC<Props> = ({
                }} 
              >
                <FolderPlus size={15} />
-             </button>
-           </Tooltip>
-           <Tooltip text="Link existing folder" position="bottom">
-             <button className="btn-ghost" onClick={handleLinkCollection}>
-               <Link size={14} />
-             </button>
-           </Tooltip>
-           <Tooltip text="Import collection" position="bottom">
-             <button className="btn-ghost coll-btn" onClick={importCollection}>
-               <Upload size={14} />
-             </button>
-           </Tooltip>
-           <Tooltip text="Import folder" position="bottom">
-             <button className="btn-ghost coll-btn" onClick={openFolder}>
-               <FolderPlus size={14} />
              </button>
            </Tooltip>
         </div>
@@ -944,7 +904,6 @@ const CollectionPanel: React.FC<Props> = ({
           onShowInFolder={handleMenuShowInFolder}
           onMove={onMoveCollection}
           onClone={onCloneCollection}
-          onNewFlow={onNewFlow}
           onDelete={(_, name) => {
             if (contextMenu.node.type === 'folder') {
               const collId = getCollectionIdOfNode(contextMenu.node)

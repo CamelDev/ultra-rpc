@@ -1178,10 +1178,9 @@ const App: React.FC = () => {
 
     return () => clearTimeout(timer)
   }, [tabs, findCollectionByFlowId, setTabs])
-
-  const handleOpenFlowFile = async () => {
+  const handleLinkFlow = async () => {
     if (!window.ultraRpc) return
-    const res = await window.ultraRpc.openFlowFile()
+    const res = await window.ultraRpc.linkFlow()
     if (res.success && res.flow) {
       handleOpenFlowTab(res.flow, res.path)
       loadFlows()
@@ -2133,8 +2132,6 @@ const App: React.FC = () => {
             onCloneRequest={handleCloneRequest}
             onImportEnvironments={handleImportEnvironments}
             onOpenFlow={handleOpenFlowTab}
-            onNewFlow={handleNewFlow}
-            onRenameFlow={handleRenameFlow}
           />
 
           {showFlowPanel && (
@@ -2145,7 +2142,7 @@ const App: React.FC = () => {
               onNewFlow={handleNewFlow}
               onDeleteFlow={handleDeleteFlow}
               onRenameFlow={handleRenameFlow}
-              onOpenFile={handleOpenFlowFile}
+              onLinkFlow={handleLinkFlow}
               onMoveFlow={handleMoveFlow}
               onCloneFlow={handleCloneFlow}
               onReorderFlows={handleReorderFlows}

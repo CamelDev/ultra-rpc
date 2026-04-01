@@ -56,16 +56,6 @@ export interface UltraRpcApi {
     vaultEntries?: Record<string, any[]>; 
     error?: string 
   }>
-  openFolder: () => Promise<{ 
-    success: boolean; 
-    id?: string; 
-    name?: string; 
-    requestCount?: number; 
-    path?: string; 
-    environments?: any[]; 
-    vaultEntries?: Record<string, any[]>; 
-    error?: string 
-  }>
   getCollectionPath: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   showCollectionInFolder: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
   moveCollection: (args: { collectionId: string; currentPath?: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
@@ -142,7 +132,7 @@ export interface UltraRpcApi {
   saveFlowToPath: (args: { folderPath: string; flow: import('./flow').FlowDefinition }) => Promise<{ success: boolean; collectionId?: string; path?: string; error?: string }>
   saveFlowStandalone: (args: { path: string; flow: import('./flow').FlowDefinition }) => Promise<{ success: boolean; error?: string }>
   listFlows: () => Promise<{ success: boolean; flows?: { flow: import('./flow').FlowDefinition; collectionId?: string; collectionName?: string; path: string }[]; error?: string }>
-  openFlowFile: () => Promise<{ success: boolean; flow?: import('./flow').FlowDefinition; path?: string; error?: string }>
+  linkFlow: () => Promise<{ success: boolean; flow?: import('./flow').FlowDefinition; path?: string; error?: string }>
   saveFlowOrder: (args: { order: string[] }) => Promise<{ success: boolean; error?: string }>
   moveFlow: (args: { flowId: string; currentPath: string; targetFolderPath: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
   deleteFlow: (args: { collectionId: string; flowId: string; path?: string }) => Promise<{ success: boolean; error?: string }>

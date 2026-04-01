@@ -4,8 +4,8 @@ import { Reorder } from 'framer-motion'
 import Tooltip from './Tooltip'
 import { 
   Search, GitBranch, Plus, Trash2, Folder, 
-  Edit2, Move, Copy, Upload, X, Download, 
-  MoreHorizontal, FolderSearch 
+  Edit2, Move, Copy, X, Download, 
+  MoreHorizontal, FolderSearch, Link
 } from 'lucide-react'
 import type { Collection, FlowDefinition } from '../types'
 import './FlowPanel.css'
@@ -79,7 +79,7 @@ interface FlowPanelProps {
   onNewFlow: (parentId?: string) => void
   onDeleteFlow: (collectionId: string, flowId: string, path?: string) => void
   onRenameFlow: (collectionId: string | undefined, flowId: string, newName: string, path?: string) => Promise<void>
-  onOpenFile: () => void
+  onLinkFlow: () => void
   onMoveFlow: (flowId: string, path: string) => void
   onCloneFlow: (flow: FlowDefinition, path: string) => void
   onReorderFlows: (flows: { flow: FlowDefinition; collectionId?: string; collectionName?: string; path: string }[]) => void
@@ -92,7 +92,7 @@ const FlowPanel: React.FC<FlowPanelProps> = ({
   onNewFlow, 
   onDeleteFlow,
   onRenameFlow,
-  onOpenFile,
+  onLinkFlow,
   onMoveFlow,
   onCloneFlow,
   onReorderFlows
@@ -145,14 +145,6 @@ const FlowPanel: React.FC<FlowPanelProps> = ({
         </div>
 
         <div className="flow-panel-actions">
-           <Tooltip text="Import Flow File" position="bottom">
-             <button 
-               className="btn-ghost icon-btn" 
-               onClick={onOpenFile} 
-             >
-               <Upload size={14} />
-             </button>
-           </Tooltip>
            {collections.length > 0 && (
              <Tooltip text="New Flow" position="bottom">
                <button 
@@ -163,6 +155,14 @@ const FlowPanel: React.FC<FlowPanelProps> = ({
                </button>
              </Tooltip>
            )}
+           <Tooltip text="Link Flow File" position="bottom">
+             <button 
+               className="btn-ghost icon-btn" 
+               onClick={onLinkFlow} 
+             >
+               <Link size={14} />
+             </button>
+           </Tooltip>
         </div>
       </div>
 

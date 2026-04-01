@@ -1295,10 +1295,11 @@ export function registerStorageHandlers() {
     }
   })
 
-  // Open an existing flow file and register it
-  ipcMain.handle('storage:openFlowFile', async () => {
+  // Link an existing flow file and register it
+  ipcMain.handle('storage:linkFlow', async () => {
     try {
       const result = await dialog.showOpenDialog({
+        title: 'Select Existing Flow File',
         properties: ['openFile'],
         filters: [{ name: 'UltraRPC Flow', extensions: ['json'] }]
       })
@@ -1308,6 +1309,11 @@ export function registerStorageHandlers() {
       const filePath = result.filePaths[0]
       const flow = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
       
+      // Basic validation
+      if (!flow.steps || !flow.settings) {
+        return { success: false, error: 'Selected file is not a valid UltraRPC Flow.' }
+      }
+
       // Register it
       registerFlowPath(filePath)
 
@@ -2069,7 +2075,7 @@ export function registerStorageHandlers() {
             const flowName = item.name || item.flow.name || 'Imported Flow'
             const flowToSave = { ...item.flow }
             delete flowToSave.name
-            const filename = filenameFromFlowName(flowName)
+            const filename = filenameFromName(flowName, 'Untitled Flow.json')
             fs.writeFileSync(
               path.join(folderPath, filename),
               JSON.stringify(flowToSave, null, 2)
@@ -2087,104 +2093,6 @@ export function registerStorageHandlers() {
   })
 
   // ===== Open collection folder to custom path (Bruno-style: use your repo) =====
-  ipcMain.handle('storage:openFolder', async () => {
-    try {
-      const result = await dialog.showOpenDialog({
-        title: 'Open Collection Folder',
-        properties: ['openDirectory'],
-      })
-
-      if (result.canceled || result.filePaths.length === 0) {
-        return { success: false, error: 'Cancelled' }
-      }
-
-      const folderPath = result.filePaths[0]
-      const folderName = path.basename(folderPath)
-
-      const children = buildStaticTree(folderPath)
-
-      if (children.length === 0) {
-        return { success: false, error: 'No valid requests found in the selected folder' }
-      }
-
-      // Symlink or copy to our storage so it appears in the list
-      const root = getStorageRoot()
-      const id = sanitizeFolderName(folderName)
-      const destPath = path.join(root, id)
-
-      if (!fs.existsSync(destPath)) {
-        fs.mkdirSync(destPath, { recursive: true })
-      }
-
-      fs.writeFileSync(
-        path.join(destPath, '_meta.json'),
-        JSON.stringify({ id, name: folderName, externalPath: folderPath }, null, 2)
-      )
-
-      const copyItems = (src: string, dest: string) => {
-        const entries = fs.readdirSync(src, { withFileTypes: true })
-        for (const entry of entries) {
-          const s = path.join(src, entry.name)
-          const d = path.join(dest, entry.name)
-          if (entry.isDirectory()) {
-            fs.mkdirSync(d, { recursive: true })
-            copyItems(s, d)
-          } else if (entry.name.endsWith('.json')) {
-            try {
-              const content = JSON.parse(fs.readFileSync(s, 'utf-8'))
-              if (content.steps && content.settings) {
-                const flowToSave = { ...content }
-                delete flowToSave.name
-                fs.writeFileSync(d, JSON.stringify(flowToSave, null, 2))
-              } else {
-                const validated = validateRequest(content)
-                if (validated) {
-                  fs.writeFileSync(d, JSON.stringify(validated, null, 2))
-                }
-              }
-            } catch { /* skip */ }
-          }
-        }
-      }
-      copyItems(folderPath, destPath)
-
-      return { success: true, id, name: folderName, path: folderPath }
-    } catch (err: any) {
-      console.error('Open Folder Error:', err)
-      return { success: false, error: err.message }
-    }
-  })
-
-  function buildStaticTree(dirPath: string): CollectionItem[] {
-    const childrenList: CollectionItem[] = []
-    const files = fs.readdirSync(dirPath, { withFileTypes: true })
-
-    for (const entry of files) {
-      const fullPath = path.join(dirPath, entry.name)
-      if (entry.isDirectory()) {
-        const subItems = buildStaticTree(fullPath)
-        if (subItems.length > 0) {
-          childrenList.push({
-            id: entry.name,
-            name: entry.name,
-            type: 'folder',
-            children: subItems
-          })
-        }
-      } else if (entry.name.endsWith('.json') || entry.name.endsWith('.postman_collection')) {
-        try {
-          const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
-          const extracted = extractRequests(content)
-          if (extracted.length === 1 && extracted[0].type === 'request') {
-             extracted[0].name = flowNameFromFilename(entry.name)
-             if (extracted[0].request) extracted[0].request.name = extracted[0].name
-          }
-          childrenList.push(...extracted)
-        } catch { /* skip */ }
-      }
-    }
-    return childrenList
-  }
 
   // ===== History =====
 

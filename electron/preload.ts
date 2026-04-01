@@ -30,7 +30,6 @@ contextBridge.exposeInMainWorld('ultraRpc', {
     ipcRenderer.invoke('storage:moveItem', args),
   exportCollection: (args: any) => ipcRenderer.invoke('storage:exportCollection', args),
   importCollection: () => ipcRenderer.invoke('storage:importCollection'),
-  openFolder: () => ipcRenderer.invoke('storage:openFolder'),
   getCollectionPath: (args: any) => ipcRenderer.invoke('storage:getCollectionPath', args),
   showCollectionInFolder: (args: any) => ipcRenderer.invoke('storage:showCollectionInFolder', args),
   moveCollection: (args: any) => ipcRenderer.invoke('storage:moveCollection', args),
@@ -148,7 +147,7 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   saveFlowStandalone: (args: { path: string; flow: any }) => 
     ipcRenderer.invoke('storage:saveFlowStandalone', args),
   listFlows: () => ipcRenderer.invoke('storage:listFlows'),
-  openFlowFile: () => ipcRenderer.invoke('storage:openFlowFile'),
+  linkFlow: () => ipcRenderer.invoke('storage:linkFlow'),
   saveFlowOrder: (args: { order: string[] }) => 
     ipcRenderer.invoke('storage:saveFlowOrder', args),
   moveFlow: (args: { flowId: string; currentPath: string; targetFolderPath: string }) => 
