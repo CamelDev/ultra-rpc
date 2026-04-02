@@ -205,6 +205,7 @@ const FlowPanel: React.FC<FlowPanelProps> = ({
                         onChange={(e) => setEditName(e.target.value)}
                         onBlur={() => handleRename(collectionId, flow, path)}
                         onKeyDown={(e) => {
+                          e.stopPropagation()
                           if (e.key === 'Enter') handleRename(collectionId, flow, path)
                           if (e.key === 'Escape') setEditingId(null)
                         }}

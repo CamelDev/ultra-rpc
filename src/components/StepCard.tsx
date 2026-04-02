@@ -724,12 +724,16 @@ export const StepCard: React.FC<StepCardProps> = ({
           isOpen={true}
           onClose={() => setPickerConfig(null)}
           title={pickerConfig.stepName}
-          jsonData={allSteps.find(s => s.id === pickerConfig.stepId)?.responseData?.body ? 
-            (() => {
-              try { return JSON.parse(allSteps.find(s => s.id === pickerConfig.stepId)!.responseData!.body); }
-              catch { return allSteps.find(s => s.id === pickerConfig.stepId)!.responseData!.body; }
-            })() : {}
-          }
+          jsonData={(() => {
+            const ps = allSteps.find(s => s.id === pickerConfig.stepId);
+            const body = ps?.responseData?.body;
+            if (!body) return {};
+            try {
+              return typeof body === 'string' ? JSON.parse(body) : body;
+            } catch {
+              return body;
+            }
+          })()}
           onSelectPath={(path) => {
             const assertion = step.config.assertions?.find(a => a.id === pickerConfig.assertionId);
             if (assertion) {

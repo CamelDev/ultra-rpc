@@ -6,7 +6,7 @@ import { VaultEntry } from '../src/types'
 import { parseBrunoCollection } from './bruno-importer'
 
 // Default storage root: user's home/.ultrarpc
-const getStorageRoot = () => {
+export const getStorageRoot = () => {
   const root = path.join(app.getPath('userData'), 'collections')
   if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true })
   return root
@@ -24,7 +24,7 @@ const getEnvPath = () => {
   return p
 }
 
-const getSettingsPath = () => {
+export const getSettingsPath = () => {
   const p = path.join(app.getPath('userData'), 'settings.json')
   return p
 }
@@ -42,7 +42,7 @@ const getFlowReferencesPath = () => {
  * For secrets (API keys, tokens), use the Vault integration.
  */
 
-const sanitizeFolderName = (text: string): string => {
+export const sanitizeFolderName = (text: string): string => {
   return text.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Untitled'
 }
 
@@ -58,7 +58,33 @@ const filenameFromName = (name: string, defaultName: string = 'Untitled.json'): 
   return sanitized
 }
 
-const getUniqueFilename = (dir: string, baseName: string, extension: string, currentPath?: string, isFlow?: boolean): string => {
+const writeQueues = new Map<string, Promise<any>>()
+
+/**
+ * Ensures that file read-mutate-write operations for the same path are executed sequentially.
+ */
+const queuedTask = async <T>(key: string, task: () => Promise<T>): Promise<T> => {
+  const previous = writeQueues.get(key) || Promise.resolve()
+  const next = (async () => {
+    try {
+      await previous
+    } catch {
+      // Ignore previous errors in the chain
+    }
+    return task()
+  })()
+
+  writeQueues.set(key, next)
+  next.finally(() => {
+    if (writeQueues.get(key) === next) {
+      writeQueues.delete(key)
+    }
+  })
+  return next
+}
+
+
+export const getUniqueFilename = (dir: string, baseName: string, extension: string, currentPath?: string, isFlow?: boolean): string => {
   const sanitizedBase = filenameFromName(baseName, isFlow ? 'Untitled Flow.json' : 'Untitled Request.json')
   let filename = sanitizedBase
   let fullPath = path.join(dir, filename)
@@ -221,7 +247,7 @@ const validateRequest = (req: any, idOverride?: string): SavedRequest | null => 
   }
 }
 
-const findRequestByIdRecursively = (dir: string, requestId: string): string | null => {
+export const findRequestByIdRecursively = (dir: string, requestId: string): string | null => {
   // First, check for _meta.json in this directory to see if it has a mapping
   const metaPath = path.join(dir, '_meta.json')
   if (fs.existsSync(metaPath)) {
@@ -335,7 +361,7 @@ export const getRequestById = (requestId: string, collectionId?: string): SavedR
   return null
 }
 
-const updateIdMap = (dirPath: string, id: string, filename: string | null) => {
+export const updateIdMap = (dirPath: string, id: string, filename: string | null) => {
   const metaPath = path.join(dirPath, '_meta.json')
   let meta: any = { id: path.basename(dirPath), name: path.basename(dirPath), idMap: {} }
   if (fs.existsSync(metaPath)) {
@@ -384,7 +410,7 @@ const updateOrderMeta = (dirPath: string, itemId: string, action: 'add' | 'remov
   fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
 }
 
-const getCollectionDir = (collectionId: string): string | null => {
+export const getCollectionDir = (collectionId: string): string | null => {
   const root = getStorageRoot()
   const defaultDir = path.join(root, collectionId)
   if (fs.existsSync(defaultDir)) {
@@ -1576,21 +1602,24 @@ export function registerStorageHandlers() {
 
   // Save collection variables
   ipcMain.handle('storage:saveContextVariables', async (_event, args: { collectionId: string; variables: any[] }) => {
-    try {
-      const collDir = getCollectionDir(args.collectionId)
-      if (!collDir) return { success: false, error: 'Collection not found' }
+    const collDir = getCollectionDir(args.collectionId)
+    if (!collDir) return { success: false, error: 'Collection not found' }
+    const metaPath = path.join(collDir, '_meta.json')
 
-      const metaPath = path.join(collDir, '_meta.json')
-      let meta: any = { id: args.collectionId, variables: [] }
-      if (fs.existsSync(metaPath)) {
-        try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
+    return queuedTask(metaPath, async () => {
+      try {
+        let meta: any = { id: args.collectionId, variables: [] }
+        if (fs.existsSync(metaPath)) {
+          try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
+        }
+        meta.variables = args.variables
+        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+        return { success: true }
+      } catch (err: any) {
+        console.error('[storage] Error saving context variables:', err)
+        return { success: false, error: err.message }
       }
-      meta.variables = args.variables
-      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
-      return { success: true }
-    } catch (err: any) {
-      return { success: false, error: err.message }
-    }
+    })
   })
 
   // Move an item (request or folder) to a new location
@@ -2148,13 +2177,16 @@ export function registerStorageHandlers() {
   })
 
   ipcMain.handle('storage:saveEnvironments', async (_event, envs: any[]) => {
-    try {
-      const envPath = getEnvPath()
-      fs.writeFileSync(envPath, JSON.stringify(envs, null, 2))
-      return { success: true }
-    } catch (err: any) {
-      return { success: false, error: err.message }
-    }
+    const envPath = getEnvPath()
+    return queuedTask(envPath, async () => {
+      try {
+        fs.writeFileSync(envPath, JSON.stringify(envs, null, 2))
+        return { success: true }
+      } catch (err: any) {
+        console.error('[storage] Error saving environments:', err)
+        return { success: false, error: err.message }
+      }
+    })
   })
 
   ipcMain.handle('storage:exportEnvironment', async (_event, { envId }: { envId: string }) => {
@@ -2301,6 +2333,14 @@ export function registerStorageHandlers() {
       // Merge new settings with existing ones
       Object.assign(settings, newSettings)
       fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+
+      // Handle MCP Server lifecycle
+      if (settings.mcpEnabled) {
+        startMcpServer(settings.mcpPort || 3000).catch(err => console.error('[MCP] Failed to start:', err))
+      } else {
+        stopMcpServer().catch(err => console.error('[MCP] Failed to stop:', err))
+      }
+
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }

@@ -235,15 +235,14 @@ const InlineRenameInput: React.FC<InlineRenameInputProps> = ({
         value={val}
         onChange={e => { setVal(e.target.value); if (onChange) onChange(e.target.value) }}
         onKeyDown={e => {
+          e.stopPropagation()
           if (e.key === 'Enter') {
             e.preventDefault()
-            e.stopPropagation()
             committedRef.current = true
             onConfirm(val)
           }
           if (e.key === 'Escape') {
             e.preventDefault()
-            e.stopPropagation()
             committedRef.current = true
             onCancel()
           }

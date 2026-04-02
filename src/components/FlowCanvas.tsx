@@ -83,7 +83,16 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   }, [flow.steps]);
 
   const baselineVariablesRef = useRef<Record<string, any>>(flow.variables || {});
-  const mergedSteps = flow.steps.map(s => ({ ...s, status: localStepStatuses[s.id]?.status || s.status }));
+  const mergedSteps = flow.steps.map(s => {
+    const loc = localStepStatuses[s.id];
+    return {
+      ...s,
+      status: loc?.status || s.status,
+      error: loc?.error || s.error,
+      requestData: loc?.requestData || s.requestData,
+      responseData: loc?.responseData || s.responseData
+    };
+  });
   const firstMoveableIndex = mergedSteps.findIndex(s => !s.status || s.status === 'idle' || s.status === 'error');
   const hasExecutionState = mergedSteps.some(s => s.status && s.status !== 'idle');
   const isStructuralLocked = isRunning; // Now only locks ALL structural changes while running
@@ -459,18 +468,9 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
               items={flow.steps.map(s => s.id)}
               strategy={verticalListSortingStrategy}
             >
-              {flow.steps.map((step, index) => {
+              {mergedSteps.map((displayStep, index) => {
                 const moveableStartIndex = firstMoveableIndex === -1 ? flow.steps.length : firstMoveableIndex;
                 const isStepLockedMetadata = index < moveableStartIndex;
-                
-                const locData = localStepStatuses[step.id];
-                const displayStep = {
-                  ...step,
-                  status: locData?.status || step.status,
-                  error: locData?.error || step.error,
-                  requestData: locData?.requestData || step.requestData,
-                  responseData: locData?.responseData || step.responseData
-                };
                 
                 return (
                   <StepCard 
@@ -491,7 +491,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                     onOpenRequest={onOpenRequest}
                     runningStepId={runningStepId}
                     isFlowRunning={isRunning}
-                    allSteps={flow.steps}
+                    allSteps={mergedSteps}
                   />
                 );
               })}

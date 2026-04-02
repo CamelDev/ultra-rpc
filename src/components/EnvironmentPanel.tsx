@@ -184,7 +184,10 @@ const EnvironmentPanel: React.FC<Props> = ({
                 className="env-name-input"
                 value={nameInput}
                 onChange={e => setNameInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && saveRename(env.id)}
+                onKeyDown={e => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') saveRename(env.id)
+                }}
                 onClick={e => e.stopPropagation()}
                 autoFocus
               />
