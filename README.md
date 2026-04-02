@@ -475,6 +475,9 @@ AI agents can perform the following actions through the UltraRPC MCP server:
 
 - **`list_collections`**: Discover all local collections and their IDs.
 - **`create_collection`**: Initialize new API collections on disk.
+- **`list_environments`**: Discover all environments (excluding vault secrets).
+- **`create_environment`**: Create new environments with variables and settings.
+- **`update_environment`**: Modify existing environments by their ID.
 - **`add_rest_request`**: Create new REST requests with headers, body, and params.
 - **`update_rest_request`**: Modify existing REST requests by their ID.
 - **`add_grpc_request`**: Create new gRPC calls with service, method, and payload.

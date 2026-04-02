@@ -42,7 +42,7 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
               </button>
             </div>
 
-            <div className="modal-body ai-info-body no-scrollbar">
+            <div className="modal-body ai-info-body">
               <section className="ai-hero">
                 <div className="ai-icon-wrapper">
                   <Zap size={32} />
@@ -176,6 +176,21 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
                     <div className="op-tag">Tool</div>
                     <h5>create_collection</h5>
                     <p>Initializes a new empty collection on your local disk.</p>
+                  </div>
+                  <div className="op-card">
+                    <div className="op-tag">Tool</div>
+                    <h5>list_environments</h5>
+                    <p>Lists all saved environments (excluding vault secrets).</p>
+                  </div>
+                  <div className="op-card">
+                    <div className="op-tag">Tool</div>
+                    <h5>create_environment</h5>
+                    <p>Creates a new environment with variables and settings.</p>
+                  </div>
+                  <div className="op-card">
+                    <div className="op-tag">Tool</div>
+                    <h5>update_environment</h5>
+                    <p>Modifies an existing environment by ID.</p>
                   </div>
                   <div className="op-card">
                     <div className="op-tag">Tool</div>

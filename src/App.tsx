@@ -512,6 +512,24 @@ const App: React.FC = () => {
     }
   }, [addToast, setCollections, loadFlows])
 
+  const loadEnvironments = useCallback(async () => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.getEnvironments()
+    if (res.success && res.environments) {
+      setEnvironments(res.environments)
+      // Load vaults for each environment
+      const vaultEntries = await Promise.all(
+        res.environments.map((e: any) => window.ultraRpc.getVault({ envId: e.id }))
+      )
+      const vaultMap: Record<string, VaultEntry[]> = {}
+      res.environments.forEach((e: any, i: number) => {
+        vaultMap[e.id] = vaultEntries[i].entries ?? []
+      })
+      setVaults(vaultMap)
+      vaultsRef.current = vaultMap
+    }
+  }, [setEnvironments, setVaults])
+
   // MCP action — refresh collections panel, show toast, play sound
   useEffect(() => {
     if (!window.ultraRpc?.onMcpAction) return
@@ -522,6 +540,8 @@ const App: React.FC = () => {
       update_rest_request: '✏️ REST request updated',
       add_grpc_request:    '➕ gRPC request added',
       update_grpc_request: '✏️ gRPC request updated',
+      create_environment:  '🌍 Environment created',
+      update_environment:  '🌍 Environment updated',
     }
 
     const playMcpChime = () => {
@@ -550,8 +570,12 @@ const App: React.FC = () => {
     }
 
     const unsubscribeMcp = window.ultraRpc.onMcpAction((event) => {
-      // 1. Refresh left-hand collection panel
-      loadCollections()
+      // 1. Refresh relevant panel
+      if (event.action.includes('collection') || event.action.includes('request')) {
+        loadCollections()
+      } else if (event.action.includes('environment')) {
+        loadEnvironments()
+      }
 
       // 2. Toast
       const label = ACTION_LABELS[event.action] ?? 'AI action executed'
@@ -566,7 +590,7 @@ const App: React.FC = () => {
     })
 
     return unsubscribeMcp
-  }, [loadCollections, addToast])
+  }, [loadCollections, loadEnvironments, addToast])
 
   const handleMoveCollection = useCallback(async (collectionId: string, currentPath?: string) => {
     if (!window.ultraRpc) return
@@ -646,25 +670,11 @@ const App: React.FC = () => {
     if (window.ultraRpc) {
       loadCollections()
       loadFlows()
-      window.ultraRpc.getEnvironments().then(async res => {
-        if (res.success && res.environments) {
-          setEnvironments(res.environments)
-          // Load vaults for each environment
-          const vaultEntries = await Promise.all(
-            res.environments.map((e: any) => window.ultraRpc.getVault({ envId: e.id }))
-          )
-          const vaultMap: Record<string, VaultEntry[]> = {}
-          res.environments.forEach((e: any, i: number) => {
-            vaultMap[e.id] = vaultEntries[i].entries ?? []
-          })
-          setVaults(vaultMap)
-          vaultsRef.current = vaultMap
-        }
-      })
+      loadEnvironments()
 
       window.ultraRpc.getLibraries().then(res => { if (res.success && res.libraries) setLibraries(res.libraries) })
     }
-  }, [loadCollections, setEnvironments, setLibraries])
+  }, [loadCollections, loadFlows, loadEnvironments, setLibraries])
 
 
 

@@ -19,7 +19,7 @@ const getHistoryPath = () => {
 
 
 
-const getEnvPath = () => {
+export const getEnvPath = () => {
   const p = path.join(app.getPath('userData'), 'environments.json')
   return p
 }
