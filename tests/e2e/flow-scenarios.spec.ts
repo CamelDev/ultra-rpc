@@ -57,8 +57,14 @@ test.describe('Flow Runner Comprehensive Scenarios', () => {
     console.log('Opening new tab...');
     await page.click('button.tab-add');
     
-    console.log('Creating request...');
+    // Intro Page check: if address bar isn't visible, click 'New REST Request' on Intro Page
     const addressBar = page.locator('.address-input .cm-content');
+    if (!(await addressBar.isVisible())) {
+      console.log('Intro Page detected, clicking New REST Request...');
+      await page.click('button:has-text("New REST Request")');
+    }
+    
+    console.log('Creating request...');
     await expect(addressBar).toBeVisible({ timeout: 10000 });
     await addressBar.click();
     await page.keyboard.type('https://jsonplaceholder.typicode.com/posts/1');

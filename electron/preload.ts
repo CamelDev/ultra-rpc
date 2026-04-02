@@ -154,6 +154,12 @@ contextBridge.exposeInMainWorld('ultraRpc', {
     ipcRenderer.invoke('storage:moveFlow', args),
   deleteFlow: (args: { collectionId: string; flowId: string; path?: string }) => 
     ipcRenderer.invoke('storage:deleteFlow', args),
-  renameFlow: (args: { collectionId?: string; flowId: string; newName: string; path?: string }) => 
+      renameFlow: (args: { collectionId?: string; flowId: string; newName: string; path?: string }) => 
     ipcRenderer.invoke('storage:renameFlow', args),
+  
+  isTest: 
+    process.env.NODE_ENV === 'test' || 
+    process.env.VITEST === 'true' || 
+    process.argv.includes('--test-mode') ||
+    (typeof process?.env?.USER_DATA_DIR === 'string' && (process.env.USER_DATA_DIR.includes('test-output') || process.env.USER_DATA_DIR.includes('ultrarpc-test'))),
 })

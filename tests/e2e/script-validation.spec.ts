@@ -35,10 +35,16 @@ test.describe('Script Validation Suite', () => {
   test('Pre-request script validation works', async () => {
     // Create new tab
     await window.click('.tab-add');
-    await wait(500);
+    
+    // Dismiss Intro Page if it appears
+    const preBtn = window.locator('button:has-text("Pre-request")');
+    if (!(await preBtn.isVisible())) {
+      await window.click('button:has-text("New REST Request")');
+    }
 
     // Open Pre-request tab
-    await window.click('button:has-text("Pre-request")');
+    await preBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await preBtn.click();
     
     // Enter invalid JS
     const editor = window.locator('.script-section .cm-content').first();
@@ -69,10 +75,16 @@ test.describe('Script Validation Suite', () => {
   test('Post-response script validation works', async () => {
     // Create new tab
     await window.click('.tab-add');
-    await wait(500);
+    
+    // Dismiss Intro Page if it appears
+    const postBtn = window.locator('button:has-text("Post-response")');
+    if (!(await postBtn.isVisible())) {
+      await window.click('button:has-text("New REST Request")');
+    }
 
     // Open Post-response tab
-    await window.click('button:has-text("Post-response")');
+    await postBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await postBtn.click();
     
     // Enter invalid JS
     const editor = window.locator('.script-section .cm-content').first();

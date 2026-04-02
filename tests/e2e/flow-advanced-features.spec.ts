@@ -78,7 +78,15 @@ test.describe('Flow Advanced Features — Environment & Completion', () => {
     await page.fill('.modal-body input', 'Test Collection');
     await page.click('button:has-text("Create Collection")');
     
-    await page.click('.address-input .cm-content');
+    // Intro Page check
+    const addressBar = page.locator('.address-input .cm-content');
+    if (!(await addressBar.isVisible())) {
+      console.log('[E2E] Intro Page detected, clicking New REST Request...');
+      await page.click('button:has-text("New REST Request")');
+    }
+    
+    await addressBar.waitFor({ state: 'visible', timeout: 10000 });
+    await addressBar.click();
     await page.keyboard.type('http://localhost:1234/{{base_url}}');
     await page.click('.save-btn');
     await page.waitForSelector('.modal-content h3:has-text("Save Request")');

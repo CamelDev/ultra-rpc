@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Editor, { type EditorHandle } from './Editor'
 import type { Library } from '../types'
-import { AlertTriangle, Plus, Link, Save, Trash2, FilePlus, FolderSearch, ShieldCheck, Pencil, Code, Copy, Check } from 'lucide-react'
+import { AlertTriangle, Plus, Link, Save, Trash2, FilePlus, FolderSearch, ShieldCheck, Pencil, Code, Copy, Check, X } from 'lucide-react'
+import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { useScriptValidation } from '../hooks/useScriptValidation'
 import ValidationBanner from './ValidationBanner'
 import './LibraryModal.css'
@@ -60,6 +61,10 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set())
   const [collisions, setCollisions] = useState<Record<string, string[]>>({})
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  
+  const selectedLib = localLibs.find(l => l.id === selectedId)
+  const collisionKeys = Object.keys(collisions)
+  const dragControls = useDragControls()
   
   const { validationStatus, validationError, validate, resetValidation } = useScriptValidation()
   const editorRef = useRef<EditorHandle>(null)
@@ -340,21 +345,30 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     }
   }
 
-  if (!isOpen) return null
-
-  const selectedLib = localLibs.find(l => l.id === selectedId)
-  const collisionKeys = Object.keys(collisions)
-
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div
-        className="modal-content library-modal glass"
-        onClick={e => e.stopPropagation()}
-        style={{ width: `${size.width}px`, height: `${size.height}px` }}
-      >
-        <div className="modal-header">
-          <h3>Code Library</h3>
-        </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="library-modal glass floating-window"
+          drag
+          dragControls={dragControls}
+          dragMomentum={false}
+          dragListener={false}
+          initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-50%', top: '50%', left: '50%' }}
+          animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%', top: '50%', left: '50%' }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          style={{ width: `${size.width}px`, height: `${size.height}px` }}
+        >
+          <div 
+            className="modal-header drag-handle"
+            onPointerDown={(e) => dragControls.start(e)}
+            style={{ cursor: 'move' }}
+          >
+            <h3>Code Library</h3>
+            <button className="btn-ghost btn-close-header" onClick={handleClose}>
+              <X size={18} />
+            </button>
+          </div>
 
         {/* Toolbar */}
         <div className="library-toolbar">
@@ -567,8 +581,9 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
           <button className="btn-primary btn-large" onClick={handleClose}>Close</button>
           <div className="modal-resizer" onMouseDown={handleResizeStart} />
         </div>
-      </div>
-    </div>
+      </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 

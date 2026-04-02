@@ -137,6 +137,7 @@ export interface UltraRpcApi {
   moveFlow: (args: { flowId: string; currentPath: string; targetFolderPath: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
   deleteFlow: (args: { collectionId: string; flowId: string; path?: string }) => Promise<{ success: boolean; error?: string }>
   renameFlow: (args: { collectionId?: string; flowId: string; newName: string; path?: string }) => Promise<{ success: boolean; newId?: string; error?: string }>
+  isTest: boolean
 }
 
 declare global {

@@ -72,7 +72,7 @@ test.describe('Library Management Suite', () => {
 
     await openLibraryModal();
     console.log('Clicking New...');
-    await window.click('button:has-text("New")');
+    await window.click('.library-toolbar button:has-text("New")');
 
     // Should appear in the list
     const libItem = window.locator('.library-item', { hasText: 'new-lib.js' });
@@ -92,7 +92,7 @@ test.describe('Library Management Suite', () => {
     }, linkedScriptPath);
 
     console.log('Clicking Link Script...');
-    await window.click('button:has-text("Link Script")');
+    await window.click('.library-toolbar button:has-text("Link Script")');
 
     const linkedItem = window.locator('.library-item', { hasText: 'linked-lib.js' });
     await expect(linkedItem).toBeVisible();
@@ -105,7 +105,7 @@ test.describe('Library Management Suite', () => {
     await window.keyboard.type('ultra.lib.updated = () => "updated"', { delay: 5 });
 
     console.log('Clicking Save...');
-    await window.click('button.btn-primary:has-text("Save")');
+    await window.click('.library-toolbar button.btn-primary:has-text("Save")');
 
     // Verify it was written to disk
     expect(readFileSync(linkedScriptPath, 'utf-8')).toBe('ultra.lib.updated = () => "updated"');
@@ -141,7 +141,7 @@ test.describe('Library Management Suite', () => {
     expect(existsSync(renamedPath)).toBe(false);
 
     // Close modal
-    await window.click('button:has-text("Close")');
+    await window.click('.modal-header button[title="Close"], .modal-header button:has-text("Close"), .library-modal button:has-text("Close")');
     await expect(window.locator('.library-modal')).not.toBeVisible();
   });
 
@@ -162,13 +162,13 @@ ultra.lib.test = (phase) => {
     }, libPath);
 
     await openLibraryModal();
-    await window.click('button:has-text("Link Script")');
+    await window.click('.library-toolbar button:has-text("Link Script")');
     
     // Ensure it's enabled (it should be by default)
     const libItem = window.locator('.library-item', { hasText: 'execution-test.js' });
     await expect(libItem.locator('input[type="checkbox"]')).toBeChecked();
 
-    await window.click('button:has-text("Close")');
+    await window.click('.library-modal button:has-text("Close")');
 
     // Setup: Create an environment
     await ensurePanelOpen('Environments', '.env-panel');

@@ -45,7 +45,7 @@ test.describe('Library Validation Suite', () => {
       dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath }) as any;
     }, scriptPath);
 
-    await window.click('button:has-text("New")');
+    await window.click('.library-toolbar button:has-text("New")');
     await expect(window.locator('.library-item', { hasText: 'val-success.js' })).toBeVisible();
 
     // Type correct code
@@ -55,7 +55,7 @@ test.describe('Library Validation Suite', () => {
     await window.keyboard.type('ultra.lib.test = () => "ok";', { delay: 5 });
 
     // Click Validate
-    await window.click('button:has-text("Validate")');
+    await window.click('.library-toolbar button:has-text("Validate")');
 
     // Check success banner
     const banner = window.locator('.validation-banner.success');
@@ -63,7 +63,7 @@ test.describe('Library Validation Suite', () => {
     await expect(banner).toContainText('Script is syntactically valid');
     
     // Check button color class
-    await expect(window.locator('button:has-text("Validate")')).toHaveClass(/val-success/);
+    await expect(window.locator('.library-toolbar button:has-text("Validate")')).toHaveClass(/val-success/);
   });
 
   test('should show error for invalid syntax', async () => {
@@ -76,7 +76,7 @@ test.describe('Library Validation Suite', () => {
       dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath }) as any;
     }, scriptPath);
 
-    await window.click('button:has-text("New")');
+    await window.click('.library-toolbar button:has-text("New")');
 
     // Type invalid code
     await window.click('.library-editor .cm-content');
@@ -85,7 +85,7 @@ test.describe('Library Validation Suite', () => {
     await window.keyboard.type('const x = ;', { delay: 5 });
 
     // Click Validate
-    await window.click('button:has-text("Validate")');
+    await window.click('.library-toolbar button:has-text("Validate")');
 
     // Check error banner
     const banner = window.locator('.validation-banner.error');
@@ -93,7 +93,7 @@ test.describe('Library Validation Suite', () => {
     await expect(banner).toContainText('Validation Error');
     
     // Check button color class
-    await expect(window.locator('button:has-text("Validate")')).toHaveClass(/val-error/);
+    await expect(window.locator('.library-toolbar button:has-text("Validate")')).toHaveClass(/val-error/);
   });
 
   test('should show warning for script not using ultra.lib', async () => {
@@ -106,7 +106,7 @@ test.describe('Library Validation Suite', () => {
       dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath }) as any;
     }, scriptPath);
 
-    await window.click('button:has-text("New")');
+    await window.click('.library-toolbar button:has-text("New")');
 
     // Type valid code but no ultra.lib
     await window.click('.library-editor .cm-content');
@@ -115,7 +115,7 @@ test.describe('Library Validation Suite', () => {
     await window.keyboard.type('console.log("hello");', { delay: 5 });
 
     // Click Validate
-    await window.click('button:has-text("Validate")');
+    await window.click('.library-toolbar button:has-text("Validate")');
 
     // Check error banner (it uses error styling for the lint warning)
     const banner = window.locator('.validation-banner.error');
@@ -133,8 +133,8 @@ test.describe('Library Validation Suite', () => {
       dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath }) as any;
     }, scriptPath);
 
-    await window.click('button:has-text("New")');
-    await window.click('button:has-text("Validate")');
+    await window.click('.library-toolbar button:has-text("New")');
+    await window.click('.library-toolbar button:has-text("Validate")');
     await expect(window.locator('.validation-banner.success')).toBeVisible();
 
     // Type something
@@ -143,6 +143,6 @@ test.describe('Library Validation Suite', () => {
 
     // Banner should disappear
     await expect(window.locator('.validation-banner')).not.toBeVisible();
-    await expect(window.locator('button:has-text("Validate")')).not.toHaveClass(/val-success/);
+    await expect(window.locator('.library-toolbar button:has-text("Validate")')).not.toHaveClass(/val-success/);
   });
 });

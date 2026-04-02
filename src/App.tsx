@@ -48,6 +48,12 @@ const App: React.FC = () => {
         console.error('Failed to restore tabs:', e)
       }
     }
+    if (window.ultraRpc?.isTest) {
+      const emptyReq = createEmptyRequest()
+      // Use a stable ID in test mode for the initial tab so activeTabId can find it
+      emptyReq.id = 'test-tab-initial'
+      return [{ id: emptyReq.id, type: 'request', request: emptyReq, isDirty: false }]
+    }
     return [] // Start with no tabs, showing intro page in background
   })
   const tabsRef = useRef<Tab[]>(tabs)
@@ -79,6 +85,7 @@ const App: React.FC = () => {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed[0].id
       } catch { }
     }
+    if (window.ultraRpc?.isTest) return 'test-tab-initial'
     return '' // No active tab
   })
   const activeTabIdRef = useRef<string>(activeTabId)
@@ -372,6 +379,15 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('ultraRpcActiveTabId', activeTabId)
   }, [activeTabId])
+
+  useEffect(() => {
+    if (tabs.length === 0 && window.ultraRpc?.isTest) {
+      const emptyReq = createEmptyRequest()
+      emptyReq.id = 'test-tab-initial'
+      setTabs([{ id: emptyReq.id, type: 'request', request: emptyReq, isDirty: false }])
+      setActiveTabId('test-tab-initial')
+    }
+  }, [tabs.length])
 
   // Removed stale tabsRef update useEffect
 
@@ -722,6 +738,13 @@ const App: React.FC = () => {
   }, [saveAppSetting])
 
   const addEmptyTab = () => {
+    if (window.ultraRpc?.isTest) {
+      const newReq = createEmptyRequest()
+      const nt: Tab = { id: newReq.id, type: 'request', request: newReq, isDirty: false, envId: activeEnvId }
+      setTabs(prev => [...prev, nt])
+      setActiveTabId(newReq.id)
+      return
+    }
     const id = Math.random().toString(36).substring(2, 11)
     const newTab: Tab = { id, type: 'intro', isDirty: false, envId: activeEnvId }
     setTabs(prev => [...prev, newTab])

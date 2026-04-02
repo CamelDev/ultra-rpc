@@ -32,6 +32,10 @@ test.describe('JSON Formatting with Variables', () => {
 
   test('should format JSON with unquoted interpolated variables', async () => {
     // 1. Go to Body tab
+    const configTab = window.locator('.config-tab:has-text("Body")');
+    if (!(await configTab.isVisible())) {
+      await window.click('button:has-text("New REST Request")');
+    }
     await window.waitForSelector('.config-tab', { timeout: 10000 });
     await window.click('.config-tab:has-text("Body")');
     
@@ -81,6 +85,10 @@ test.describe('JSON Formatting with Variables', () => {
     const jsonWithQuotedVar = '{"host": "{{search_host}}", "port": 8080}';
     
     // Ensure we are in Body/JSON
+    const configTab2 = window.locator('.config-tab:has-text("Body")');
+    if (!(await configTab2.isVisible())) {
+      await window.click('button:has-text("New REST Request")');
+    }
     await window.waitForSelector('.config-tab', { timeout: 10000 });
     await window.click('.config-tab:has-text("Body")');
     await window.waitForSelector('.body-type-btn', { timeout: 5000 });
@@ -118,6 +126,10 @@ test.describe('JSON Formatting with Variables', () => {
  }`;
      
      // Ensure we are in Body/JSON
+     const configTab3 = window.locator('.config-tab:has-text("Body")');
+     if (!(await configTab3.isVisible())) {
+       await window.click('button:has-text("New REST Request")');
+     }
      await window.waitForSelector('.config-tab', { timeout: 10000 });
      await window.click('.config-tab:has-text("Body")');
      await window.waitForSelector('.body-type-btn', { timeout: 5000 });

@@ -112,7 +112,14 @@ test.describe('Ultra Scripting Suite', () => {
       // 2. Create a new request tab
       console.log('Clicking .tab-add...');
       await window.click('.tab-add');
-      await wait(1000);
+      
+      // Intro Page check
+      const envSelector = window.locator('.env-selector');
+      if (!(await envSelector.isVisible())) {
+        console.log('Intro Page detected, clicking New REST Request...');
+        await window.click('button:has-text("New REST Request")');
+      }
+      await envSelector.waitFor({ state: 'visible', timeout: 10000 });
 
       // 3. Select environment for this tab — wait for the option to appear in the dropdown first
       // The tab should have inherited the active environment, but let's confirm selection in dropdown
