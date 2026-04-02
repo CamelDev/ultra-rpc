@@ -4,7 +4,7 @@ import {
   Info, FolderOpen,
   Search,
   WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder, Code,
-  GitBranch
+  GitBranch, Sparkles
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import { useScriptValidation } from './hooks/useScriptValidation'
@@ -18,6 +18,7 @@ import CollectionPanel from './components/CollectionPanel'
 import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
 import AboutModal from './components/AboutModal'
+import AiInfoModal from './components/AiInfoModal'
 import LibraryModal from './components/LibraryModal'
 import { FlowCanvas } from './components/FlowCanvas'
 import FlowPanel from './components/FlowPanel'
@@ -114,6 +115,7 @@ const App: React.FC = () => {
   const [deleteCollectionFiles, setDeleteCollectionFiles] = useState(false)
   const [showSettingsPopup, setShowSettingsPopup] = useState(false)
   const [showAboutModal, setShowAboutModal] = useState(false)
+  const [showAiInfoModal, setShowAiInfoModal] = useState(false)
 
   // ===== Environments =====
   const [collections, setCollectionsState] = useState<Collection[]>([])
@@ -238,6 +240,8 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('ultraRpcThreeColumnLayout')
     return saved === 'true'
   })
+  const [mcpEnabled, setMcpEnabled] = useState(false)
+  const [mcpPort, setMcpPort] = useState(3000)
   const [isResizingResponse, setIsResizingResponse] = useState(false)
   const [isResizingVertical, setIsResizingVertical] = useState(false)
   const [showGrpcDiscovery, setShowGrpcDiscovery] = useState(false)
@@ -480,6 +484,7 @@ const App: React.FC = () => {
     return unsubscribe
   }, [])
 
+
   // Push theme source to Electron
   useEffect(() => {
     if (window.ultraRpc) {
@@ -506,6 +511,62 @@ const App: React.FC = () => {
       loadFlows()
     }
   }, [addToast, setCollections, loadFlows])
+
+  // MCP action — refresh collections panel, show toast, play sound
+  useEffect(() => {
+    if (!window.ultraRpc?.onMcpAction) return
+
+    const ACTION_LABELS: Record<string, string> = {
+      create_collection:   '📁 Collection created',
+      add_rest_request:    '➕ REST request added',
+      update_rest_request: '✏️ REST request updated',
+      add_grpc_request:    '➕ gRPC request added',
+      update_grpc_request: '✏️ gRPC request updated',
+    }
+
+    const playMcpChime = () => {
+      try {
+        const ctx = new AudioContext()
+        // Brief ascending two-note chime: C5 → E5
+        const notes = [523.25, 659.25]
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.connect(gain)
+          gain.connect(ctx.destination)
+          osc.type = 'sine'
+          osc.frequency.value = freq
+          const startAt = ctx.currentTime + i * 0.12
+          gain.gain.setValueAtTime(0, startAt)
+          gain.gain.linearRampToValueAtTime(0.18, startAt + 0.02)
+          gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.22)
+          osc.start(startAt)
+          osc.stop(startAt + 0.25)
+        })
+        setTimeout(() => ctx.close(), 800)
+      } catch {
+        // AudioContext unavailable — silent fallback
+      }
+    }
+
+    const unsubscribeMcp = window.ultraRpc.onMcpAction((event) => {
+      // 1. Refresh left-hand collection panel
+      loadCollections()
+
+      // 2. Toast
+      const label = ACTION_LABELS[event.action] ?? 'AI action executed'
+      addToast({
+        type: 'success',
+        message: `${label}: "${event.name}"`,
+        duration: 5000,
+      })
+
+      // 3. Sound
+      playMcpChime()
+    })
+
+    return unsubscribeMcp
+  }, [loadCollections, addToast])
 
   const handleMoveCollection = useCallback(async (collectionId: string, currentPath?: string) => {
     if (!window.ultraRpc) return
@@ -655,6 +716,12 @@ const App: React.FC = () => {
         }
         if (res.settings.threeColumnLayout !== undefined) {
           setThreeColumnLayout(res.settings.threeColumnLayout)
+        }
+        if (res.settings.mcpEnabled !== undefined) {
+          setMcpEnabled(res.settings.mcpEnabled)
+        }
+        if (res.settings.mcpPort !== undefined) {
+          setMcpPort(res.settings.mcpPort)
         }
       }
     })
@@ -1405,13 +1472,6 @@ const App: React.FC = () => {
               return e
             })
             setEnvironments(currentEnvs)
-            if (window.ultraRpc) {
-              activeOperations++
-              window.ultraRpc.saveEnvironments(currentEnvs).finally(() => {
-                activeOperations--
-                checkDone()
-              })
-            }
             mockConsole.log(`Set env variable: ${key}`)
           },
           all: () => {
@@ -1426,16 +1486,9 @@ const App: React.FC = () => {
 
         context: {
           get: (varName: string) => {
-            let currentParent: Collection | undefined = undefined
-            for (const col of currentCollections) {
-              const requestsInCol = getAllRequests(col)
-              if (requestsInCol.some(r => r.id === request.id)) {
-                currentParent = col
-                break
-              }
-            }
-            if (!currentParent?.variables) return undefined
-            return currentParent.variables.find(v => v.key === varName && v.enabled)?.value
+            const target = currentCollections.find(c => c.id === parentCollection?.id)
+            if (!target?.variables) return undefined
+            return target.variables.find(v => v.key === varName && v.enabled)?.value
           },
           set: (key: string, value: string) => {
             if (!parentCollection) {
@@ -1451,15 +1504,6 @@ const App: React.FC = () => {
                 } else {
                   vars.push({ id: Math.random().toString(36).substring(2, 11), key, value: String(value), enabled: true })
                 }
-                activeOperations++
-                handleSaveContextVariables(c.id, vars).then(() => {
-                  mockConsole.log(`Set context variable: ${key}`)
-                }).catch(err => {
-                  mockConsole.error(`Failed to save variable ${key}: ${err.message}`)
-                }).finally(() => {
-                  activeOperations--
-                  checkDone()
-                })
                 return { ...c, variables: vars }
               }
               return c
@@ -1468,17 +1512,10 @@ const App: React.FC = () => {
             mockConsole.log(`Set context variable: ${key}`)
           },
           all: () => {
-            let currentParent: Collection | undefined = undefined
-            for (const col of currentCollections) {
-              const requestsInCol = getAllRequests(col)
-              if (requestsInCol.some(r => r.id === request.id)) {
-                currentParent = col
-                break
-              }
-            }
-            if (!currentParent?.variables) return {}
+            const target = currentCollections.find(c => c.id === parentCollection?.id)
+            if (!target?.variables) return {}
             const vars: Record<string, string> = {}
-            currentParent.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
+            target.variables.forEach(v => { if (v.enabled) vars[v.key] = v.value })
             return vars
           }
         },
@@ -1576,6 +1613,19 @@ const App: React.FC = () => {
       ])
       if (timer) clearTimeout(timer)
 
+      // Final save to disk after script finishes
+      if (window.ultraRpc) {
+        const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvIdRef.current
+        if (effectiveEnvId) {
+          const finalEnv = currentEnvs.find(e => e.id === effectiveEnvId)
+          if (finalEnv) window.ultraRpc.saveEnvironments(currentEnvs)
+        }
+        if (parentCollection) {
+          const finalColl = currentCollections.find(c => c.id === parentCollection.id)
+          if (finalColl) handleSaveContextVariables(finalColl.id, finalColl.variables || [])
+        }
+      }
+
       return { environments: currentEnvs, collections: currentCollections }
     } catch (err: any) {
       mockConsole.error(`Pre-request Runtime Error: ${err.message}`)
@@ -1651,13 +1701,6 @@ const App: React.FC = () => {
               return e
             })
             setEnvironments(currentEnvs)
-            if (window.ultraRpc) {
-              activeOperations++
-              window.ultraRpc.saveEnvironments(currentEnvs).finally(() => {
-                activeOperations--
-                checkDone()
-              })
-            }
             mockConsole.log(`Set env variable: ${varName}`)
           },
           all: () => {
@@ -1690,20 +1733,12 @@ const App: React.FC = () => {
                 } else {
                   vars.push({ id: Math.random().toString(36).substring(2, 11), key: varName, value: String(value), enabled: true })
                 }
-                activeOperations++
-                handleSaveContextVariables(c.id, vars).then(() => {
-                  mockConsole.log(`Set context variable: ${varName}`)
-                }).catch(err => {
-                  mockConsole.error(`Failed to save variable ${varName}: ${err.message}`)
-                }).finally(() => {
-                  activeOperations--
-                  checkDone()
-                })
                 return { ...c, variables: vars }
               }
               return c
             })
             setCollections(currentCollections)
+            mockConsole.log(`Set context variable: ${varName}`)
           },
           all: () => {
             const target = currentCollections.find(c => c.id === parentCollection?.id)
@@ -2052,6 +2087,16 @@ const App: React.FC = () => {
             <GitBranch size={18} />
           </button>
 
+          <button
+            className={`btn-ghost ${showAiInfoModal ? 'env-toggle-active' : ''}`}
+            style={{ padding: '6px' }}
+            onClick={() => setShowAiInfoModal(true)}
+            data-tooltip="AI Model Context Protocol"
+            data-tooltip-pos="left"
+          >
+            <Sparkles size={18} fill={showAiInfoModal ? 'currentColor' : 'none'} />
+          </button>
+
 
 
           {showSettingsPopup && (
@@ -2128,6 +2173,77 @@ const App: React.FC = () => {
                     }} />
                   </button>
                   <span style={{ fontSize: '11px', color: threeColumnLayout ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>3-Column</span>
+                </div>
+              </div>
+              <div className="settings-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                <span className="settings-label">MCP Server</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    className="layout-toggle"
+                    onClick={() => {
+                      const newValue = !mcpEnabled
+                      setMcpEnabled(newValue)
+                      saveAppSetting('mcpEnabled', newValue)
+                    }}
+                    style={{
+                      width: '34px',
+                      height: '18px',
+                      borderRadius: '10px',
+                      background: mcpEnabled ? 'var(--accent)' : 'var(--bg-tertiary)',
+                      border: '1px solid var(--border)',
+                      position: 'relative',
+                      transition: 'all 0.2s ease',
+                      padding: 0
+                    }}
+                  >
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      background: 'white',
+                      position: 'absolute',
+                      top: '2px',
+                      left: mcpEnabled ? '18px' : '2px',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }} />
+                  </button>
+                  <span style={{ fontSize: '11px', color: mcpEnabled ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>Enabled</span>
+                  <input
+                    type="number"
+                    value={mcpPort}
+                    onChange={(e) => {
+                      const newPort = parseInt(e.target.value) || 3000
+                      setMcpPort(newPort)
+                    }}
+                    onBlur={(e) => {
+                       const newPort = parseInt(e.target.value) || 3000
+                       saveAppSetting('mcpPort', newPort)
+                    }}
+                    disabled={!mcpEnabled}
+                    style={{
+                      width: '80px',
+                      fontSize: '11px',
+                      background: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      padding: '2px 4px',
+                      color: 'var(--text-primary)'
+                    }}
+                    title="MCP Port"
+                  />
+                  {mcpEnabled && (
+                    <div
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: '#10b981',
+                        boxShadow: '0 0 6px #10b981',
+                        marginLeft: 'auto'
+                      }}
+                      title="MCP Server Running"
+                    />
+                  )}
                 </div>
               </div>
               <div className="settings-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
@@ -2965,6 +3081,11 @@ const App: React.FC = () => {
         isOpen={showAboutModal}
         onClose={() => setShowAboutModal(false)}
         version={pkg.version}
+      />
+
+      <AiInfoModal
+        isOpen={showAiInfoModal}
+        onClose={() => setShowAiInfoModal(false)}
       />
 
       <LibraryModal

@@ -112,6 +112,7 @@ export interface UltraRpcApi {
   setThemeSource: (source: 'light' | 'dark' | 'system') => Promise<boolean>
   getShouldUseDark: () => Promise<boolean>
   onThemeUpdated: (callback: (isDark: boolean) => void) => () => void
+  onMcpAction: (callback: (event: { action: string; name: string; collectionId?: string }) => void) => () => void
   
   // Formatting
   formatCode: (args: { code: string; language: string }) => Promise<{ success: boolean; formatted?: string; error?: string }>

@@ -99,6 +99,14 @@ contextBridge.exposeInMainWorld('ultraRpc', {
     }
   },
 
+  onMcpAction: (callback: (event: { action: string; name: string; collectionId?: string }) => void) => {
+    const listener = (_: any, event: any) => callback(event)
+    ipcRenderer.on('mcp:action', listener)
+    return () => {
+      ipcRenderer.removeListener('mcp:action', listener)
+    }
+  },
+
   // ===== Formatting =====
   formatCode: (args: { code: string; language: string }) => ipcRenderer.invoke('code:format', args),
   // ===== Flow =====

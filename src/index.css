@@ -847,7 +847,7 @@ input:focus, select:focus, textarea:focus {
   position: absolute;
   bottom: 50px;
   left: 12px;
-  width: 300px;
+  width: 360px;
   padding: 12px;
   z-index: 1000;
   border-radius: 12px;
@@ -990,7 +990,8 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  max-height: 200px;
+  min-height: 120px;
+  max-height: 350px;
 }
 
 .console-header {

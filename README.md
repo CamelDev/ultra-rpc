@@ -390,6 +390,98 @@ The first time you try to access the vault, you will be prompted to grant access
 
 ---
 
+## 🤖 AI & Automation (MCP)
+
+UltraRPC features a built-in **Model Context Protocol (MCP)** server that allows AI coding assistants to interact directly with your API collections. When connected, your AI assistant can read your collections and automatically generate/add new REST requests directly into your workspace.
+
+### 1. Enable the MCP Server
+1. Open **Global Settings** (the gear icon next to environments).
+2. Toggle **MCP Server** to **Enabled**.
+3. The server runs on port `3000` by default (accessible at `/mcp` for modern clients or `/sse` for legacy bridges). We recommend using `127.0.0.1` instead of `localhost` in your config for reliability.
+
+### 2. Connect Your AI Assistant
+
+#### **Gemini CLI** (Recommended)
+Run the following command in your terminal:
+```bash
+gemini mcp add --transport http ultrarpc http://127.0.0.1:3000/mcp
+```
+*Alternatively, add it manually to your `~/.gemini/settings.json`:*
+```json
+{
+  "mcpServers": {
+    "ultrarpc": {
+      "url": "http://127.0.0.1:3000/mcp"
+    }
+  }
+}
+```
+
+#### **Claude Desktop / Claude Code**
+Currently, Claude Desktop and Claude Code connect to MCP via `stdio`. Because UltraRPC hosts an HTTP server, you need the `mcp-remote` package as a stdio↔SSE proxy bridge.
+
+Add this to your Claude config (`claude_desktop_config.json` or `~/.claude.json`):
+```json
+{
+  "mcpServers": {
+    "ultrarpc": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://127.0.0.1:3000/sse"
+      ]
+    }
+  }
+}
+```
+
+#### **GitHub Copilot CLI**
+To use UltraRPC's MCP server with GitHub Copilot (if supported in your environment via `stdio`), you can use the same proxy bridge approach as Claude, or configure the SSE endpoint directly if your Copilot extension supports raw HTTP/SSE MCP servers.
+
+#### **Codex**
+To add UltraRPC as an MCP server to Codex, use the built-in CLI to bridge the connection:
+
+```bash
+codex mcp add ultrarpc -- npx -y mcp-remote http://127.0.0.1:3000/sse
+```
+
+*Or manually add it to your `~/.codex/config.toml` (MacOS/Linux) or `%USERPROFILE%\.codex\config.toml` (Windows):*
+```toml
+[mcp_servers.ultrarpc]
+command = "npx"
+args = ["-y", "mcp-remote", "http://127.0.0.1:3000/sse"]
+```
+
+### **Debugging & Testing**
+
+**Quick Health Check** — verify the server is running and see active sessions:
+```bash
+curl http://127.0.0.1:3000/health
+```
+
+**MCP Inspector GUI** — visually explore tools and execute them manually:
+
+1. Run `npx @modelcontextprotocol/inspector` in a separate terminal.
+2. **Open the Inspector**: Navigate to [http://127.0.0.1:6274/](http://127.0.0.1:6274/) in your browser.
+3. **Verify Connection**: Ensure the **Transport Type** is set to `SSE` and the **URL** points to `http://127.0.0.1:3000/sse`.
+4. **Explore Tools**: Click **"List Tools"** to see all available UltraRPC tools. You can manually execute them here to verify the server is responding correctly before testing in Claude/Gemini.
+
+---
+
+### **3. Supported Operations**
+
+AI agents can perform the following actions through the UltraRPC MCP server:
+
+- **`list_collections`**: Discover all local collections and their IDs.
+- **`create_collection`**: Initialize new API collections on disk.
+- **`add_rest_request`**: Create new REST requests with headers, body, and params.
+- **`update_rest_request`**: Modify existing REST requests by their ID.
+- **`add_grpc_request`**: Create new gRPC calls with service, method, and payload.
+- **`update_grpc_request`**: Refine existing gRPC calls (useful for fixing payloads).
+
+---
+
 ## 🗺 Roadmap
 
 ### 🌐 REST Client

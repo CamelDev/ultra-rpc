@@ -25,6 +25,10 @@ export default defineConfig({
                 /^protobufjs\//,
                 'yaml',
                 'prettier',
+                'express',
+                'cors',
+                '@modelcontextprotocol/sdk',
+                /^@modelcontextprotocol\//
               ],
             },
           },

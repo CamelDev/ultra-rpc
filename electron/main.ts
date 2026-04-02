@@ -9,6 +9,8 @@ import { registerStorageHandlers } from './storage-handler'
 import { registerVaultHandlers } from './vault-handler'
 import { registerFormatHandlers } from './format-handler'
 import { registerFlowHandlers } from './flow-handler'
+import { startMcpServer } from './mcp-server'
+import { getSettingsPath } from './storage-handler'
 
 process.on('uncaughtException', (err) => {
   try {
@@ -189,6 +191,17 @@ try {
     app.whenReady().then(() => {
       console.log('>>> APP READY, CREATING WINDOW...')
       createWindow()
+
+      // Start MCP server after Electron is fully ready (app.getPath works here)
+      try {
+        const p = getSettingsPath()
+        if (fs.existsSync(p)) {
+          const s = JSON.parse(fs.readFileSync(p, 'utf-8'))
+          if (s.mcpEnabled) {
+            startMcpServer(s.mcpPort || 3000).catch(console.error)
+          }
+        }
+      } catch (e) { /* ignore */ }
     }).catch(err => {
       console.error('>>> app.whenReady failed:', err)
     })
