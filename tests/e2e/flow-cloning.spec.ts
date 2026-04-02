@@ -2,6 +2,7 @@ import { _electron as electron } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 import fs from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -12,7 +13,7 @@ test.describe('Flow Cloning Verification', () => {
 
   test.beforeEach(async () => {
     try {
-      const userDataDir = join(__dirname, '../../test-output/user-data/flow-cloning-test');
+      const userDataDir = join(tmpdir(), `ultrarpc-test-flow-cloning-${Date.now()}`);
       if (fs.existsSync(userDataDir)) {
         fs.rmSync(userDataDir, { recursive: true, force: true });
       }
@@ -73,7 +74,7 @@ test.describe('Flow Cloning Verification', () => {
     const flowRow = page.locator('.flow-item').filter({ hasText: 'New Flow' }).first();
     await flowRow.hover();
     
-    await flowRow.locator('.more-btn').click();
+    await flowRow.locator('.more-btn').click({ force: true });
     const cloneBtn = page.locator('.flow-context-menu button:has-text("Clone")');
     await expect(cloneBtn).toBeVisible({ timeout: 5000 });
     await cloneBtn.click();

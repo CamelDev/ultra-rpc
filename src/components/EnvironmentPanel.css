@@ -1,6 +1,36 @@
 .env-panel {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.env-panel-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 20px;
+}
+
+.env-panel-scroll-area::-webkit-scrollbar {
+  width: 10px;
+}
+
+.env-panel-scroll-area::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+
+.env-panel-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.env-panel-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .env-panel-header {
@@ -27,11 +57,12 @@
 }
 
 .env-panel-title {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
+  letter-spacing: 0.8px;
+  color: var(--text-primary);
+  opacity: 0.8;
 }
 
 .env-add-btn {
@@ -50,8 +81,29 @@
   border-bottom: 1px solid var(--border);
 }
 
-.env-item-active {
-  border-left: 2px solid var(--accent);
+.env-item.active {
+  border-left: 3px solid var(--accent);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.env-item.expanded {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.env-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  opacity: 0.3;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.env-item.active .env-status-dot {
+  background: var(--success);
+  opacity: 1;
+  box-shadow: 0 0 8px var(--success);
 }
 
 .env-item-header {
@@ -132,7 +184,7 @@
 
 .env-var-row {
   display: grid;
-  grid-template-columns: 24px 1fr 1fr 24px;
+  grid-template-columns: 20px 1fr 1fr 24px 24px;
   gap: 6px;
   align-items: center;
   transition: opacity 0.15s ease;
@@ -161,6 +213,10 @@
   padding: 0;
 }
 
+.light-theme .env-var-check {
+  border-color: #a1a1aa;
+}
+
 .env-var-check-on {
   background: var(--accent);
   border-color: var(--accent);
@@ -179,7 +235,8 @@
   color: var(--accent);
 }
 
-.env-var-delete {
+.env-var-delete,
+.env-var-vault-move {
   width: 24px;
   height: 24px;
   background: transparent;
@@ -195,8 +252,19 @@
   border-radius: 4px;
 }
 
-.env-var-row:hover .env-var-delete {
+.env-var-row:hover .env-var-delete,
+.env-var-row:hover .env-var-vault-move {
   opacity: 1;
+}
+
+.env-var-vault-move:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.env-var-vault-move:disabled {
+  opacity: 0 !important;
+  cursor: default;
 }
 
 .env-var-delete:hover {

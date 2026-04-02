@@ -2,6 +2,7 @@ import { _electron as electron } from '@playwright/test';
 import { test, expect } from '@playwright/test';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 import fs from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -12,7 +13,7 @@ test.describe('Folder Support', () => {
 
   test.beforeEach(async () => {
     try {
-      const userDataDir = join(__dirname, '../../test-output/user-data/folders');
+      const userDataDir = join(tmpdir(), `ultrarpc-test-folder-support-${Date.now()}`);
       if (fs.existsSync(userDataDir)) {
         fs.rmSync(userDataDir, { recursive: true, force: true });
       }

@@ -47,6 +47,10 @@
   padding: 0;
 }
 
+.light-theme .kv-check {
+  border-color: #a1a1aa;
+}
+
 .kv-check-on {
   background: var(--accent);
   border-color: var(--accent);

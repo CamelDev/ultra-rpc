@@ -28,7 +28,7 @@
   --text-primary: #09090b;
   --text-secondary: #52525b;
   --border: #e4e4e7;
-  --border-focus: #d4d4d8;
+  --border-focus: #a1a1aa;
   --glass: rgba(255, 255, 255, 0.8);
   --glass-border: rgba(0, 0, 0, 0.05);
   --accent-muted: rgba(59, 130, 246, 0.1);
@@ -137,7 +137,9 @@ body {
 }
 
 .sidebar-env-content {
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   flex: 1;
 }
 

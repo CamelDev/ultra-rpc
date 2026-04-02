@@ -140,6 +140,34 @@ const EnvironmentPanel: React.FC<Props> = ({
     setEditingName(null)
   }
 
+  const moveToVault = (envId: string, variable: KeyValuePair) => {
+    if (!variable.key) return
+
+    // 1. Remove from variables
+    const currentEnv = environments.find(e => e.id === envId)
+    if (!currentEnv) return
+
+    const newVariables = currentEnv.variables.filter(v => v.id !== variable.id)
+    // Always keep at least one empty row if list becomes empty
+    if (newVariables.length === 0) newVariables.push(emptyKV())
+
+    onChange(environments.map(env =>
+      env.id === envId ? { ...env, variables: newVariables } : env
+    ))
+
+    // 2. Add to vault
+    const currentVault = vaults[envId] || []
+    const newVaultEntry: VaultEntry = {
+      id: uid(),
+      key: variable.key,
+      value: variable.value
+    }
+    onVaultChange(envId, [...currentVault, newVaultEntry])
+
+    // 3. Expand vault UI
+    setVaultExpanded(prev => ({ ...prev, [envId]: true }))
+  }
+
   return (
     <div className="env-panel">
       <div className="env-panel-header">
@@ -158,222 +186,233 @@ const EnvironmentPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {environments.length === 0 && (
-        <div className="env-empty">
-          No environments yet. Create one to manage variables like BASE_URL and AUTH_TOKEN.
-        </div>
-      )}
-
-      {environments.map(env => (
-        <div
-          className={`env-item ${activeEnvId === env.id ? 'active' : ''} ${expandedId === env.id ? 'expanded' : ''}`}
-          key={env.id}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            onSetActive(env.id === activeEnvId ? null : env.id)
-          }}
-        >
-          <div className="env-item-header" onClick={() => setExpandedId(expandedId === env.id ? null : env.id)}>
-            <div className="env-status-dot" />
-            <ChevronDown
-              size={14}
-              className={`env-chevron ${expandedId === env.id ? 'env-chevron-open' : ''}`}
-            />
-            {editingName === env.id ? (
-              <input
-                className="env-name-input"
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                onKeyDown={e => {
-                  e.stopPropagation()
-                  if (e.key === 'Enter') saveRename(env.id)
-                }}
-                onClick={e => e.stopPropagation()}
-                autoFocus
-              />
-            ) : (
-              <span className="env-name">{env.name}</span>
-            )}
-            <div className="env-item-actions" onClick={e => e.stopPropagation()}>
-              {editingName === env.id ? (
-                <Tooltip text="Save name" position="top">
-                  <button className="btn-ghost env-action" onClick={() => saveRename(env.id)}>
-                    <Save size={13} />
-                  </button>
-                </Tooltip>
-              ) : (
-                <Tooltip text="Rename" position="top">
-                  <button className="btn-ghost env-action" onClick={() => startRename(env)}>
-                    <Edit2 size={13} />
-                  </button>
-                </Tooltip>
-              )}
-
-              <Tooltip text="Apply to all tabs" position="top">
-                <button className="btn-ghost env-action" onClick={() => {
-                  if (window.confirm(`Apply environment "${env.name}" to all opened tabs?`)) {
-                    onApplyToAllTabs(env.id)
-                  }
-                }}>
-                  <Globe size={13} />
-                </button>
-              </Tooltip>
-
-              <Tooltip text="Export UltraRPC Environment" position="top">
-                <button className="btn-ghost env-action" onClick={() => handleExport(env.id)}>
-                  <Share size={13} />
-                </button>
-              </Tooltip>
-
-              <Tooltip text="Delete Environment" position="top">
-                <button className="btn-ghost env-action env-delete" onClick={() => onDeleteRequest(env.id, env.name)}>
-                  <Trash2 size={13} />
-                </button>
-              </Tooltip>
-            </div>
+      <div className="env-panel-scroll-area">
+        {environments.length === 0 && (
+          <div className="env-empty">
+            No environments yet. Create one to manage variables like BASE_URL and AUTH_TOKEN.
           </div>
+        )}
 
-          {expandedId === env.id && (
-            <div className="env-item-body">
-              {/* SSL Verification Toggle */}
-              <div className="env-ssl-row">
-                <Tooltip
-                  text={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'}
-                  position="top"
-                >
-                  <button
-                    className={`env-ssl-toggle ${env.sslVerification !== false ? 'env-ssl-on' : 'env-ssl-off'}`}
-                    onClick={() => toggleSslVerification(env.id)}
-                  >
-                    {env.sslVerification !== false
-                      ? <><ShieldCheck size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-on">ON</span></>
-                      : <><ShieldOff size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-off">OFF</span></>}
+        {environments.map(env => (
+          <div
+            className={`env-item ${activeEnvId === env.id ? 'active' : ''} ${expandedId === env.id ? 'expanded' : ''}`}
+            key={env.id}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              onSetActive(env.id === activeEnvId ? null : env.id)
+            }}
+          >
+            <div className="env-item-header" onClick={() => setExpandedId(expandedId === env.id ? null : env.id)}>
+              <div className="env-status-dot" />
+              <ChevronDown
+                size={14}
+                className={`env-chevron ${expandedId === env.id ? 'env-chevron-open' : ''}`}
+              />
+              {editingName === env.id ? (
+                <input
+                  className="env-name-input"
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => {
+                    e.stopPropagation()
+                    if (e.key === 'Enter') saveRename(env.id)
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  autoFocus
+                />
+              ) : (
+                <span className="env-name">{env.name}</span>
+              )}
+              <div className="env-item-actions" onClick={e => e.stopPropagation()}>
+                {editingName === env.id ? (
+                  <Tooltip text="Save name" position="top">
+                    <button className="btn-ghost env-action" onClick={() => saveRename(env.id)}>
+                      <Save size={13} />
+                    </button>
+                  </Tooltip>
+                ) : (
+                  <Tooltip text="Rename" position="top">
+                    <button className="btn-ghost env-action" onClick={() => startRename(env)}>
+                      <Edit2 size={13} />
+                    </button>
+                  </Tooltip>
+                )}
+
+                <Tooltip text="Apply to all tabs" position="top">
+                  <button className="btn-ghost env-action" onClick={() => {
+                    if (window.confirm(`Apply environment "${env.name}" to all opened tabs?`)) {
+                      onApplyToAllTabs(env.id)
+                    }
+                  }}>
+                    <Globe size={13} />
+                  </button>
+                </Tooltip>
+
+                <Tooltip text="Export UltraRPC Environment" position="top">
+                  <button className="btn-ghost env-action" onClick={() => handleExport(env.id)}>
+                    <Share size={13} />
+                  </button>
+                </Tooltip>
+
+                <Tooltip text="Delete Environment" position="top">
+                  <button className="btn-ghost env-action env-delete" onClick={() => onDeleteRequest(env.id, env.name)}>
+                    <Trash2 size={13} />
                   </button>
                 </Tooltip>
               </div>
-
-              <div className="env-protocol-row">
-                <label className="env-protocol-label">Protocol</label>
-                <select
-                  className="env-protocol-select"
-                  value={env.protocol || 'auto'}
-                  onChange={(e) => updateProtocol(env.id, e.target.value as any)}
-                >
-                  <option value="auto">Auto</option>
-                  <option value="http1">HTTP/1.1</option>
-                  <option value="http2">HTTP/2</option>
-                </select>
-              </div>
-
-              {env.variables.map(v => (
-                <div
-                  className={['env-var-row', !v.enabled ? 'env-var-row-disabled' : ''].filter(Boolean).join(' ')}
-                  key={v.id}
-                >
-                  <Tooltip text={v.enabled ? 'Disable Variable' : 'Enable Variable'} position="top">
-                    <button
-                      className={`env-var-check ${v.enabled ? 'env-var-check-on' : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        updateVariable(env.id, v.id, 'enabled', !v.enabled)
-                      }}
-                    >
-                      {v.enabled && <Check size={12} />}
-                    </button>
-                  </Tooltip>
-                  <input
-                    className="env-var-input env-var-key"
-                    placeholder="VARIABLE_NAME"
-                    value={v.key}
-                    onChange={e => updateVariable(env.id, v.id, 'key', e.target.value)}
-                  />
-                  <input
-                    className="env-var-input env-var-value"
-                    placeholder="value"
-                    value={v.value}
-                    onChange={e => updateVariable(env.id, v.id, 'value', e.target.value)}
-                  />
-                  <Tooltip text="Remove Variable" position="left">
-                    <button className="env-var-delete" onClick={() => removeVariable(env.id, v.id)}>
-                      <Trash2 size={12} />
-                    </button>
-                  </Tooltip>
-                </div>
-              ))}
-              <button className="kv-add" onClick={() => addVariable(env.id)}>
-                <Plus size={14} /> Add variable
-              </button>
-
-              {/* Vault Section */}
-              <div className="vault-section">
-                <div
-                  className="vault-header"
-                  onClick={() => setVaultExpanded(prev => ({ ...prev, [env.id]: !prev[env.id] }))}
-                >
-                  <div className="vault-header-left">
-                    <Lock size={13} className="vault-lock-icon" />
-                    <span className="vault-title">Vault</span>
-                    <span className="vault-count">({vaults[env.id]?.length || 0})</span>
-                  </div>
-                  <ChevronDown
-                    size={14}
-                    className={`env-chevron ${vaultExpanded[env.id] ? 'env-chevron-open' : ''}`}
-                  />
-                </div>
-
-                {vaultExpanded[env.id] && !vaultAvailable && (
-                  <div className="vault-unavailable-warning">
-                    <ShieldOff size={14} />
-                    <span>Vault is disabled because encryption is unavailable on this system (access denied or not supported).</span>
-                  </div>
-                )}
-
-                {vaultExpanded[env.id] && (
-                  <div className="vault-content">
-                    {(vaults[env.id] || []).map(v => (
-                      <div className="vault-row" key={v.id}>
-                        <input
-                          className="env-var-input vault-key"
-                          placeholder="SECRET_KEY"
-                          value={v.key}
-                          onChange={e => updateVaultEntry(env.id, v.id, 'key', e.target.value)}
-                          disabled={!vaultAvailable}
-                        />
-                        <input
-                          className="env-var-input vault-value"
-                          type="password"
-                          placeholder="••••••••"
-                          autoComplete="off"
-                          spellCheck={false}
-                          value={v.value}
-                          onChange={e => updateVaultEntry(env.id, v.id, 'value', e.target.value)}
-                          disabled={!vaultAvailable}
-                        />
-                        <Tooltip text="Remove Secret" position="left">
-                          <button
-                            className="env-var-delete"
-                            onClick={() => deleteVaultEntry(env.id, v.id)}
-                            disabled={!vaultAvailable}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </Tooltip>
-                      </div>
-                    ))}
-                    <button
-                      className="kv-add vault-add"
-                      onClick={() => addVaultEntry(env.id)}
-                      disabled={!vaultAvailable}
-                    >
-                      <Plus size={14} /> Add secret
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
-          )}
-        </div>
-      ))}
+
+            {expandedId === env.id && (
+              <div className="env-item-body">
+                {/* SSL Verification Toggle */}
+                <div className="env-ssl-row">
+                  <Tooltip
+                    text={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'}
+                    position="top"
+                  >
+                    <button
+                      className={`env-ssl-toggle ${env.sslVerification !== false ? 'env-ssl-on' : 'env-ssl-off'}`}
+                      onClick={() => toggleSslVerification(env.id)}
+                    >
+                      {env.sslVerification !== false
+                        ? <><ShieldCheck size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-on">ON</span></>
+                        : <><ShieldOff size={13} /> SSL Verification<span className="env-ssl-badge env-ssl-badge-off">OFF</span></>}
+                    </button>
+                  </Tooltip>
+                </div>
+
+                <div className="env-protocol-row">
+                  <label className="env-protocol-label">Protocol</label>
+                  <select
+                    className="env-protocol-select"
+                    value={env.protocol || 'auto'}
+                    onChange={(e) => updateProtocol(env.id, e.target.value as any)}
+                  >
+                    <option value="auto">Auto</option>
+                    <option value="http1">HTTP/1.1</option>
+                    <option value="http2">HTTP/2</option>
+                  </select>
+                </div>
+
+                {env.variables.map(v => (
+                  <div
+                    className={['env-var-row', !v.enabled ? 'env-var-row-disabled' : ''].filter(Boolean).join(' ')}
+                    key={v.id}
+                  >
+                    <Tooltip text={v.enabled ? 'Disable Variable' : 'Enable Variable'} position="top">
+                      <button
+                        className={`env-var-check ${v.enabled ? 'env-var-check-on' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          updateVariable(env.id, v.id, 'enabled', !v.enabled)
+                        }}
+                      >
+                        {v.enabled && <Check size={12} />}
+                      </button>
+                    </Tooltip>
+                    <input
+                      className="env-var-input env-var-key"
+                      placeholder="VARIABLE_NAME"
+                      value={v.key}
+                      onChange={e => updateVariable(env.id, v.id, 'key', e.target.value)}
+                    />
+                    <input
+                      className="env-var-input env-var-value"
+                      placeholder="value"
+                      value={v.value}
+                      onChange={e => updateVariable(env.id, v.id, 'value', e.target.value)}
+                    />
+                    <Tooltip text="Move to Vault (Secure Storage)" position="left">
+                      <button
+                        className="env-var-vault-move"
+                        onClick={() => moveToVault(env.id, v)}
+                        disabled={!vaultAvailable || !v.key}
+                      >
+                        <Lock size={12} />
+                      </button>
+                    </Tooltip>
+                    <Tooltip text="Remove Variable" position="left">
+                      <button className="env-var-delete" onClick={() => removeVariable(env.id, v.id)}>
+                        <Trash2 size={12} />
+                      </button>
+                    </Tooltip>
+                  </div>
+                ))}
+                <button className="kv-add" onClick={() => addVariable(env.id)}>
+                  <Plus size={14} /> Add variable
+                </button>
+
+                {/* Vault Section */}
+                <div className="vault-section">
+                  <div
+                    className="vault-header"
+                    onClick={() => setVaultExpanded(prev => ({ ...prev, [env.id]: !prev[env.id] }))}
+                  >
+                    <div className="vault-header-left">
+                      <Lock size={13} className="vault-lock-icon" />
+                      <span className="vault-title">Vault</span>
+                      <span className="vault-count">({vaults[env.id]?.length || 0})</span>
+                    </div>
+                    <ChevronDown
+                      size={14}
+                      className={`env-chevron ${vaultExpanded[env.id] ? 'env-chevron-open' : ''}`}
+                    />
+                  </div>
+
+                  {vaultExpanded[env.id] && !vaultAvailable && (
+                    <div className="vault-unavailable-warning">
+                      <ShieldOff size={14} />
+                      <span>Vault is disabled because encryption is unavailable on this system (access denied or not supported).</span>
+                    </div>
+                  )}
+
+                  {vaultExpanded[env.id] && (
+                    <div className="vault-content">
+                      {(vaults[env.id] || []).map(v => (
+                        <div className="vault-row" key={v.id}>
+                          <input
+                            className="env-var-input vault-key"
+                            placeholder="SECRET_KEY"
+                            value={v.key}
+                            onChange={e => updateVaultEntry(env.id, v.id, 'key', e.target.value)}
+                            disabled={!vaultAvailable}
+                          />
+                          <input
+                            className="env-var-input vault-value"
+                            type="password"
+                            placeholder="••••••••"
+                            autoComplete="off"
+                            spellCheck={false}
+                            value={v.value}
+                            onChange={e => updateVaultEntry(env.id, v.id, 'value', e.target.value)}
+                            disabled={!vaultAvailable}
+                          />
+                          <Tooltip text="Remove Secret" position="left">
+                            <button
+                              className="env-var-delete"
+                              onClick={() => deleteVaultEntry(env.id, v.id)}
+                              disabled={!vaultAvailable}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </Tooltip>
+                        </div>
+                      ))}
+                      <button
+                        className="kv-add vault-add"
+                        onClick={() => addVaultEntry(env.id)}
+                        disabled={!vaultAvailable}
+                      >
+                        <Plus size={14} /> Add secret
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

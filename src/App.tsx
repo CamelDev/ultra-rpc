@@ -2273,7 +2273,7 @@ const App: React.FC = () => {
         {/* Environment Panel (Pinned at top) */}
         {showEnvPanel && (
           <div className="sidebar-env-container">
-            <div className="sidebar-env-content no-scrollbar">
+            <div className="sidebar-env-content">
               <EnvironmentPanel
                 environments={environments}
                 activeEnvId={(activeTab?.envId || activeEnvId)}
