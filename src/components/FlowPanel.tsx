@@ -4,7 +4,7 @@ import { Reorder } from 'framer-motion'
 import Tooltip from './Tooltip'
 import { 
   Search, GitBranch, Plus, Trash2, Folder, 
-  Edit2, Move, Copy, X, Download, 
+  Edit2, Move, Copy, X, Share, 
   MoreHorizontal, FolderSearch, Link
 } from 'lucide-react'
 import type { Collection, FlowDefinition } from '../types'
@@ -61,7 +61,7 @@ const FlowContextMenu: React.FC<{
         <button onClick={() => { onRename(); onClose(); }}><Edit2 size={12} /> Rename</button>
         <button onClick={() => { onClone(); onClose(); }}><Copy size={12} /> Clone</button>
         <button onClick={() => { onMove(); onClose(); }}><Move size={12} /> Move...</button>
-        <button onClick={() => { onExport(); onClose(); }}><Download size={12} /> Export</button>
+        <button onClick={() => { onExport(); onClose(); }}><Share size={12} /> Export</button>
         <div className="flow-context-divider" />
         <button onClick={() => { onReveal(); onClose(); }}><FolderSearch size={12} /> {fileManagerLabel()}</button>
         <div className="flow-context-divider" />

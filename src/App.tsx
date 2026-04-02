@@ -24,6 +24,7 @@ import FlowPanel from './components/FlowPanel'
 import type { FlowDefinition } from './types/flow'
 import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem, VaultEntry, Library } from './types'
 import { createEmptyRequest } from './lib/helpers'
+import IntroPage from './components/IntroPage'
 import pkg from '../package.json'
 import Toaster, { addToast } from './components/Toaster'
 
@@ -47,8 +48,7 @@ const App: React.FC = () => {
         console.error('Failed to restore tabs:', e)
       }
     }
-    const newReq = createEmptyRequest()
-    return [{ id: newReq.id, type: 'request', request: newReq, isDirty: false }]
+    return [] // Start with no tabs, showing intro page in background
   })
   const tabsRef = useRef<Tab[]>(tabs)
   const setTabs = useCallback((updater: React.SetStateAction<Tab[]>) => {
@@ -60,7 +60,7 @@ const App: React.FC = () => {
     setTabsState(next)
   }, [])
 
-  const [activeTabId, setActiveTabIdState] = useState(() => {
+  const [activeTabId, setActiveTabIdState] = useState<string>(() => {
     const savedId = localStorage.getItem('ultraRpcActiveTabId')
     const savedTabs = localStorage.getItem('ultraRpcTabs')
     if (savedId && savedTabs) {
@@ -79,7 +79,7 @@ const App: React.FC = () => {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed[0].id
       } catch { }
     }
-    return tabsRef.current[0].id // Fallback to the ID of the initial tab created above
+    return '' // No active tab
   })
   const activeTabIdRef = useRef<string>(activeTabId)
   const setActiveTabId = useCallback((id: string) => {
@@ -722,11 +722,34 @@ const App: React.FC = () => {
   }, [saveAppSetting])
 
   const addEmptyTab = () => {
-    const newReq = createEmptyRequest()
-    const newTab: Tab = { id: newReq.id, type: 'request', request: newReq, isDirty: false, envId: activeEnvId }
+    const id = Math.random().toString(36).substring(2, 11)
+    const newTab: Tab = { id, type: 'intro', isDirty: false, envId: activeEnvId }
     setTabs(prev => [...prev, newTab])
-    setActiveTabId(newReq.id)
+    setActiveTabId(id)
   }
+
+  const handleIntroAction = useCallback((type: 'REST' | 'GRPC', tabId: string) => {
+    const newReq = createEmptyRequest()
+    newReq.type = type
+    if (type === 'GRPC') {
+      newReq.method = 'POST' as any
+      newReq.url = ''
+    }
+
+    const latestTabs = tabsRef.current
+    const tabToUpdate = latestTabs.find(t => t.id === tabId)
+
+    if (tabToUpdate) {
+      setTabs(prev => prev.map(t => 
+        t.id === tabId ? { ...t, type: 'request', request: newReq, isDirty: false } : t
+      ))
+    } else {
+      const id = Math.random().toString(36).substring(2, 11)
+      const newTab: Tab = { id, type: 'request', request: newReq, isDirty: false, envId: activeEnvIdRef.current }
+      setTabs(prev => [...prev, newTab])
+      setActiveTabId(id)
+    }
+  }, [setTabs, setActiveTabId])
 
   const openRequestTab = useCallback((request: RequestConfig, fromHistory: boolean) => {
     const latestTabs = tabsRef.current
@@ -783,8 +806,8 @@ const App: React.FC = () => {
   }, [openRequestTab, addToast])
 
 
-  const removeTab = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
+  const removeTab = (e: React.MouseEvent | null, id: string) => {
+    if (e) e.stopPropagation()
     const latestTabs = tabsRef.current
     const tabToClose = latestTabs.find(t => t.id === id)
     if (tabToClose?.isDirty) {
@@ -794,13 +817,15 @@ const App: React.FC = () => {
     }
 
     const newTabs = latestTabs.filter(t => t.id !== id)
-    if (newTabs.length === 0) {
-      const newReq = createEmptyRequest()
-      setTabs([{ id: newReq.id, type: 'request', request: newReq, isDirty: false }])
-      setActiveTabId(newReq.id)
-    } else {
-      setTabs(newTabs)
-      if (activeTabIdRef.current === id) setActiveTabId(newTabs[newTabs.length - 1].id)
+    setTabs(newTabs)
+    
+    // If we closed the active tab, switch to the last one or clear
+    if (activeTabIdRef.current === id) {
+      if (newTabs.length > 0) {
+        setActiveTabId(newTabs[newTabs.length - 1].id)
+      } else {
+        setActiveTabId('')
+      }
     }
   }
 
@@ -823,7 +848,8 @@ const App: React.FC = () => {
     const activeColl = targetTab ? currentCollections.find(c => {
       const traverse = (children: CollectionItem[]): boolean => {
         for (const item of children) {
-          if (item.type === 'request' && item.request?.id === targetTab.request?.id) return true
+          const reqId = targetTab.type === 'request' ? targetTab.request?.id : null
+          if (item.type === 'request' && item.request?.id === reqId) return true
           if (item.type === 'folder' && item.children && traverse(item.children)) return true
         }
         return false
@@ -1246,6 +1272,15 @@ const App: React.FC = () => {
           handleSaveAll()
         } else {
           handleSaveActiveRequest()
+        }
+      }
+      
+      // Ctrl+W or Cmd+W to close active tab
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+        const activeId = activeTabIdRef.current
+        if (activeId) {
+          e.preventDefault()
+          removeTab(null, activeId)
         }
       }
 
@@ -1911,7 +1946,8 @@ const App: React.FC = () => {
     }
   }, [activeRequest?.type, activeConfigTab])
 
-  if (!activeTab) return null
+  // Remove early return null to allow rendering IntroPage when no tabs are open
+  // if (!activeTab) return null
 
   return (
     <div className="app-container">
@@ -2179,15 +2215,21 @@ const App: React.FC = () => {
                 as="div"
               >
                 <span className="tab-method" style={{
-                  color: methodColor(tab.type === 'flow' ? 'POST' : (tab.request?.type === 'GRPC' ? 'GRPC' : tab.request?.method || 'GET')),
+                  color: methodColor(
+                    tab.type === 'flow' ? 'POST' : 
+                    tab.type === 'request' ? (tab.request?.type === 'GRPC' ? 'GRPC' : tab.request?.method || 'GET') : 
+                    'GET'
+                  ),
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px'
                 }}>
                   {tab.type === 'flow' ? (
                     <><GitBranch size={12} /> FLOW</>
-                  ) : (
+                  ) : tab.type === 'request' ? (
                     tab.request?.type === 'GRPC' ? 'gRPC' : tab.request?.method
+                  ) : (
+                    'NEW'
                   )}
                 </span>
 
@@ -2195,7 +2237,9 @@ const App: React.FC = () => {
                   className="tab-title"
                   style={{ color: tab.isDirty ? 'var(--danger)' : 'var(--text-primary)' }}
                 >
-                  {tab.type === 'flow' ? (tab.flow?.name || 'New Flow') : (tab.request?.name || tab.request?.url || 'Untitled')}
+                  {tab.type === 'flow' ? (tab.flow?.name || 'New Flow') : 
+                   tab.type === 'request' ? (tab.request?.name || tab.request?.url || 'Untitled') : 
+                   'New Tab'}
                   {tab.isDirty ? '*' : ''}
                 </span>
 
@@ -2229,7 +2273,15 @@ const App: React.FC = () => {
               transition={{ duration: 0.15 }}
               className="request-container"
             >
-              {activeTab?.type === 'flow' && activeTab.flow ? (
+              {activeTab?.type === 'intro' || !activeTab ? (
+                <IntroPage 
+                  onNewRequest={(type) => handleIntroAction(type, activeTab?.id || '')} 
+                  onOpenCollection={() => {
+                    if (window.ultraRpc) window.ultraRpc.importCollection()
+                  }}
+                  onImportEnvironments={() => setShowEnvPanel(true)}
+                />
+              ) : activeTab?.type === 'flow' && activeTab.flow ? (
                 <FlowCanvas
                   flow={activeTab.flow}
                   onUpdate={(updates) => {

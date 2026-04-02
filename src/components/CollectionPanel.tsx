@@ -4,7 +4,7 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Upload,
+  Download,
   ChevronRight,
   ChevronDown,
   FolderSearch,
@@ -17,7 +17,7 @@ import {
   Folder,
   FolderPlus,
   MoreHorizontal,
-  Download,
+  Share,
   Link,
   Search,
 } from 'lucide-react'
@@ -330,7 +330,7 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
           <Zap size={12} /> Variables
         </button>
         <button onClick={() => { onExport(menu.node.realId); onClose() }}>
-          <Download size={12} /> Export
+          <Share size={12} /> Export
         </button>
         <button onClick={() => { onClone(menu.node.realId); onClose() }}>
           <Copy size={12} /> Clone
@@ -826,7 +826,7 @@ const CollectionPanel: React.FC<Props> = ({
            </Tooltip>
            <Tooltip text="Import collection" position="bottom">
              <button className="btn-ghost coll-btn" onClick={importCollection}>
-               <Upload size={14} />
+               <Download size={14} />
              </button>
            </Tooltip>
            <Tooltip text="New Folder" position="bottom">

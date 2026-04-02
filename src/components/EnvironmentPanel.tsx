@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, ChevronDown, Edit2, Save, FileUp, ShieldCheck, ShieldOff, Globe, Check, Lock, Download } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Edit2, Save, Download, ShieldCheck, ShieldOff, Globe, Check, Lock, Share } from 'lucide-react'
 import Tooltip from './Tooltip'
 import type { Environment, KeyValuePair, VaultEntry } from '../types'
 import { emptyKV } from '../lib/helpers'
@@ -145,14 +145,14 @@ const EnvironmentPanel: React.FC<Props> = ({
       <div className="env-panel-header">
         <span className="env-panel-title">Environments</span>
         <div className="env-panel-actions">
-          <Tooltip text="Import Environment" position="bottom">
-            <button className="btn-ghost env-action-btn" onClick={handleImport}>
-              <FileUp size={14} />
-            </button>
-          </Tooltip>
           <Tooltip text="Add Environment" position="bottom">
             <button className="btn-ghost env-action-btn" onClick={addEnvironment}>
               <Plus size={14} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Import Environment" position="bottom">
+            <button className="btn-ghost env-action-btn" onClick={handleImport}>
+              <Download size={14} />
             </button>
           </Tooltip>
         </div>
@@ -218,7 +218,7 @@ const EnvironmentPanel: React.FC<Props> = ({
 
               <Tooltip text="Export UltraRPC Environment" position="top">
                 <button className="btn-ghost env-action" onClick={() => handleExport(env.id)}>
-                  <Download size={13} />
+                  <Share size={13} />
                 </button>
               </Tooltip>
 
@@ -234,8 +234,8 @@ const EnvironmentPanel: React.FC<Props> = ({
             <div className="env-item-body">
               {/* SSL Verification Toggle */}
               <div className="env-ssl-row">
-                <Tooltip 
-                  text={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'} 
+                <Tooltip
+                  text={env.sslVerification !== false ? 'SSL verification is ON — click to disable' : 'SSL verification is OFF — click to enable'}
                   position="top"
                 >
                   <button
@@ -317,7 +317,7 @@ const EnvironmentPanel: React.FC<Props> = ({
                     className={`env-chevron ${vaultExpanded[env.id] ? 'env-chevron-open' : ''}`}
                   />
                 </div>
-                
+
                 {vaultExpanded[env.id] && !vaultAvailable && (
                   <div className="vault-unavailable-warning">
                     <ShieldOff size={14} />
@@ -357,8 +357,8 @@ const EnvironmentPanel: React.FC<Props> = ({
                         </Tooltip>
                       </div>
                     ))}
-                    <button 
-                      className="kv-add vault-add" 
+                    <button
+                      className="kv-add vault-add"
                       onClick={() => addVaultEntry(env.id)}
                       disabled={!vaultAvailable}
                     >

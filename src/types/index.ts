@@ -56,6 +56,7 @@ export type Tab = {
 } & (
   | { type: 'request', request: RequestConfig }
   | { type: 'flow', flow: FlowDefinition }
+  | { type: 'intro' }
 )
 
 // ===== Collections =====
