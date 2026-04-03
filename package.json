@@ -2,7 +2,7 @@
   "name": "ultrarpc",
   "productName": "UltraRPC",
   "private": true,
-  "version": "1.0.19",
+  "version": "1.0.18",
   "description": "A lightweight API client for REST and gRPC — like Postman, but with native gRPC support, server reflection, and file-based collections.",
   "author": "UltraRPC",
   "main": "dist-electron/main.js",

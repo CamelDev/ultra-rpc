@@ -78,6 +78,19 @@ export const RequestSelectorModal: React.FC<RequestSelectorModalProps> = ({
     }
   }, [collections, currentRequestId]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   const selectedCollection = useMemo(() => 
     collections.find(c => c.id === selectedCollectionId), 
     [collections, selectedCollectionId]

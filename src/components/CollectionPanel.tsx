@@ -54,6 +54,14 @@ const CreateCollectionModal: React.FC<CreateCollectionModalProps> = ({ onClose, 
   const [path, setPath] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const handleBrowse = async () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.pickFolder()
@@ -167,6 +175,14 @@ interface CreateFolderModalProps {
 const CreateFolderModal: React.FC<CreateFolderModalProps> = ({ onClose, onConfirm }) => {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const handleCreate = () => {
     if (!name.trim()) {

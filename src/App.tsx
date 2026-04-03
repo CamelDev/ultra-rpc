@@ -742,6 +742,8 @@ const App: React.FC = () => {
     loadHistory()
   }, [loadHistory, loadCollections])
 
+
+
   // ===== Helpers =====
   const activeTab = tabs.find(t => t.id === activeTabId)
   const activeRequest = activeTab?.type === 'request' ? activeTab.request! : createEmptyRequest()
@@ -1362,16 +1364,58 @@ const App: React.FC = () => {
     }
   }, [tabs, findCollectionByRequestId, loadCollections])
 
-  // Keyboard Shortcuts
+  // Keyboard Shortcuts (stable listener)
+  const handleSaveActiveRequestRef = useRef(handleSaveActiveRequest)
+  const handleSaveAllRef = useRef(handleSaveAll)
+  const activePopupsRef = useRef({
+    showSaveMenu,
+    confirmDelete,
+    editingCollection,
+    showSettingsPopup,
+    showAboutModal,
+    showAiInfoModal,
+    showLibraryModal,
+    showGrpcDiscovery,
+    showSaveFlowModal
+  })
+  
+  useEffect(() => {
+    handleSaveActiveRequestRef.current = handleSaveActiveRequest
+    handleSaveAllRef.current = handleSaveAll
+    activePopupsRef.current = {
+      showSaveMenu,
+      confirmDelete,
+      editingCollection,
+      showSettingsPopup,
+      showAboutModal,
+      showAiInfoModal,
+      showLibraryModal,
+      showGrpcDiscovery,
+      showSaveFlowModal
+    }
+  }, [
+    handleSaveActiveRequest, 
+    handleSaveAll,
+    showSaveMenu,
+    confirmDelete,
+    editingCollection,
+    showSettingsPopup,
+    showAboutModal,
+    showAiInfoModal,
+    showLibraryModal,
+    showGrpcDiscovery,
+    showSaveFlowModal
+  ])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl+S or Cmd+S
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
         if (e.shiftKey) {
-          handleSaveAll()
+          handleSaveAllRef.current()
         } else {
-          handleSaveActiveRequest()
+          handleSaveActiveRequestRef.current()
         }
       }
       
@@ -1384,22 +1428,26 @@ const App: React.FC = () => {
         }
       }
 
-      // ESC key to close modals
+      // ESC key to close local popups
       if (e.key === 'Escape') {
-        setShowSaveMenu(false)
-        setConfirmDelete(null)
-        setEditingCollection(null)
-        setShowSettingsPopup(false)
-        setShowAboutModal(false)
+        if (activePopupsRef.current.showSaveMenu) setShowSaveMenu(false)
+        if (activePopupsRef.current.confirmDelete) setConfirmDelete(null)
+        if (activePopupsRef.current.editingCollection) setEditingCollection(null)
+        if (activePopupsRef.current.showSettingsPopup) setShowSettingsPopup(false)
+        if (activePopupsRef.current.showAboutModal) setShowAboutModal(false)
+        if (activePopupsRef.current.showAiInfoModal) setShowAiInfoModal(false)
+        if (activePopupsRef.current.showLibraryModal) setShowLibraryModal(false)
+        if (activePopupsRef.current.showGrpcDiscovery) setShowGrpcDiscovery(false)
+        if (activePopupsRef.current.showSaveFlowModal) {
+          setShowSaveFlowModal(false)
+          setFlowToClone(null)
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSaveActiveRequest, handleSaveAll])
-
-
-
+  }, []) // Stable listener
 
   const handleFormatJson = useCallback(async () => {
     if (bodyEditorRef.current) {

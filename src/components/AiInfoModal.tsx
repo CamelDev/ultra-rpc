@@ -21,6 +21,22 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
   const mcpUrl = 'http://127.0.0.1:3000/mcp'
   const sseUrl = 'http://127.0.0.1:3000/sse'
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose()
+      }
+    }
+
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown)
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
   return (
     <AnimatePresence>
       {isOpen && (

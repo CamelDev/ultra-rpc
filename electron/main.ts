@@ -264,11 +264,13 @@ function createWindow() {
       },
       titleBarStyle: 'hidden',
       icon: join(process.env.VITE_PUBLIC!, process.platform === 'win32' ? 'icon-win.png' : 'icon.png'),
-      titleBarOverlay: {
-        color: isDark ? '#18181b' : '#f4f4f5',
-        symbolColor: isDark ? '#fafafa' : '#09090b',
-        height: 40,
-      },
+      ...(process.platform === 'win32' ? {
+        titleBarOverlay: {
+          color: isDark ? '#18181b' : '#f4f4f5',
+          symbolColor: isDark ? '#fafafa' : '#09090b',
+          height: 40,
+        }
+      } : {}),
       backgroundColor: isDark ? '#09090b' : '#ffffff',
     })
 

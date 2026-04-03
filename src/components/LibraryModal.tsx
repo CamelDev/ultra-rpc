@@ -251,6 +251,21 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     onClose()
   }, [onClose, dirtyIds])
 
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !editingId) {
+        handleClose()
+      }
+    }
+
+    if (isOpen) {
+      window.addEventListener('keydown', handleGlobalKeyDown)
+    }
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+    }
+  }, [isOpen, handleClose, editingId])
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
       e.preventDefault()

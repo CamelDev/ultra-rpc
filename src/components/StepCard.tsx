@@ -141,6 +141,21 @@ export const StepCard: React.FC<StepCardProps> = ({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modalData) {
+        setModalData(null);
+      }
+    };
+
+    if (modalData) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [modalData]);
+
   const statusColor = step.status === 'success' ? '#10b981' : 
                       step.status === 'error' ? '#ef4444' : 
                       step.status === 'running' ? '#3b82f6' : 
