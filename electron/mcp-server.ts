@@ -167,8 +167,10 @@ function createMcpServerInstance(): McpServer {
       params: z.array(z.object({ name: z.string(), value: z.string(), enabled: z.boolean().default(true) })).optional(),
       bodyType: z.enum(["none", "json", "text", "xml", "form", "multipart"]).optional().default("none"),
       body: z.string().optional(),
+      preRequestScript: z.string().optional().describe("JavaScript pre-request script using the ultra API."),
+      postResponseScript: z.string().optional().describe("JavaScript post-response script using the ultra API."),
     },
-    async ({ collectionId, name, method, url, headers, params, bodyType, body }) => {
+    async ({ collectionId, name, method, url, headers, params, bodyType, body, preRequestScript, postResponseScript }) => {
       console.log(`[MCP] tool:add_rest_request — collectionId="${collectionId}" name="${name}" method=${method} url="${url}"`);
       try {
         const collDir = getCollectionDir(collectionId);
@@ -178,11 +180,15 @@ function createMcpServerInstance(): McpServer {
         }
 
         const requestId = Math.random().toString(36).substring(2, 11);
-        const requestToSave = {
+        // Auto-infer bodyType as "json" when body is provided and type was not explicitly set
+        const resolvedBodyType = (bodyType === "none" || !bodyType) && body && body.trim() ? "json" : (bodyType || "none");
+        const requestToSave: Record<string, unknown> = {
           id: requestId, type: "REST", name, method, url,
           headers: headers || [], params: params || [],
-          bodyType: bodyType || "none", body: body || "",
+          bodyType: resolvedBodyType, body: body || "",
         };
+        if (preRequestScript) requestToSave.preRequestScript = preRequestScript;
+        if (postResponseScript) requestToSave.postResponseScript = postResponseScript;
 
         const newFilename = getUniqueFilename(collDir, name || "Untitled Request", ".json");
         const targetPath = path.join(collDir, newFilename);
@@ -213,8 +219,10 @@ function createMcpServerInstance(): McpServer {
       params: z.array(z.object({ name: z.string(), value: z.string(), enabled: z.boolean().default(true) })).optional(),
       bodyType: z.enum(["none", "json", "text", "xml", "form", "multipart"]).optional(),
       body: z.string().optional(),
+      preRequestScript: z.string().optional().describe("JavaScript pre-request script using the ultra API. Pass empty string to clear."),
+      postResponseScript: z.string().optional().describe("JavaScript post-response script using the ultra API. Pass empty string to clear."),
     },
-    async ({ collectionId, requestId, name, method, url, headers, params, bodyType, body }) => {
+    async ({ collectionId, requestId, name, method, url, headers, params, bodyType, body, preRequestScript, postResponseScript }) => {
       console.log(`[MCP] tool:update_rest_request — collectionId="${collectionId}" requestId="${requestId}"`);
       try {
         const collDir = getCollectionDir(collectionId);
@@ -231,16 +239,28 @@ function createMcpServerInstance(): McpServer {
 
         console.log(`[MCP] update_rest_request — found file: ${filePath}`);
         const currentContent = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-        const updatedRequest = {
+
+        // Auto-infer bodyType as "json" when body is being set and no explicit bodyType was given
+        const incomingBody = body !== undefined ? body : currentContent.body;
+        const resolvedBodyType = bodyType !== undefined
+          ? bodyType
+          : (currentContent.bodyType === "none" && incomingBody && incomingBody.trim() ? "json" : currentContent.bodyType);
+
+        const updatedRequest: Record<string, unknown> = {
           ...currentContent,
           name: name !== undefined ? name : currentContent.name,
           method: method !== undefined ? method : currentContent.method,
           url: url !== undefined ? url : currentContent.url,
           headers: headers !== undefined ? headers : currentContent.headers,
           params: params !== undefined ? params : currentContent.params,
-          bodyType: bodyType !== undefined ? bodyType : currentContent.bodyType,
+          bodyType: resolvedBodyType,
           body: body !== undefined ? body : currentContent.body,
+          preRequestScript: preRequestScript !== undefined ? preRequestScript : currentContent.preRequestScript,
+          postResponseScript: postResponseScript !== undefined ? postResponseScript : currentContent.postResponseScript,
         };
+        // Remove script keys if they ended up as empty string (treat empty = clear)
+        if (!updatedRequest.preRequestScript) delete updatedRequest.preRequestScript;
+        if (!updatedRequest.postResponseScript) delete updatedRequest.postResponseScript;
 
         let currentPath = filePath;
         if (name !== undefined && name !== currentContent.name) {
@@ -254,7 +274,7 @@ function createMcpServerInstance(): McpServer {
         }
 
         fs.writeFileSync(currentPath, JSON.stringify(updatedRequest, null, 2));
-        notifyRenderer({ action: 'update_rest_request', name: updatedRequest.name, collectionId })
+        notifyRenderer({ action: 'update_rest_request', name: updatedRequest.name as string, collectionId })
 
         return { content: [{ type: "text", text: JSON.stringify({ success: true, requestId }, null, 2) }] };
       } catch (err: any) {
