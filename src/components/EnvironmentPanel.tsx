@@ -90,7 +90,9 @@ const EnvironmentPanel: React.FC<Props> = ({
     }))
   }
 
-  const removeVariable = (envId: string, varId: string) => {
+  const removeVariable = (envId: string, varId: string, key: string) => {
+    const label = key ? `"${key}"` : 'this variable'
+    if (!window.confirm(`Delete ${label}?`)) return
     onChange(environments.map(env => {
       if (env.id !== envId) return env
       const vars = env.variables.filter(v => v.id !== varId)
@@ -127,6 +129,9 @@ const EnvironmentPanel: React.FC<Props> = ({
 
   const deleteVaultEntry = (envId: string, entryId: string) => {
     const current = vaults[envId] ?? []
+    const entry = current.find(e => e.id === entryId)
+    const label = entry?.key ? `"${entry.key}"` : 'this secret'
+    if (!window.confirm(`Permanently delete vault key ${label}? This cannot be undone.`)) return
     onVaultChange(envId, current.filter(e => e.id !== entryId))
   }
 
@@ -332,7 +337,7 @@ const EnvironmentPanel: React.FC<Props> = ({
                       </button>
                     </Tooltip>
                     <Tooltip text="Remove Variable" position="left">
-                      <button className="env-var-delete" onClick={() => removeVariable(env.id, v.id)}>
+                      <button className="env-var-delete" onClick={() => removeVariable(env.id, v.id, v.key)}>
                         <Trash2 size={12} />
                       </button>
                     </Tooltip>

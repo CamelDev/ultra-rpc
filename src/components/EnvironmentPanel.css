@@ -243,7 +243,7 @@
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.45;
   transition: var(--transition);
   display: flex;
   align-items: center;
@@ -419,6 +419,14 @@
   grid-template-columns: 1fr 1fr 24px;
   gap: 6px;
   align-items: center;
+}
+
+.vault-row .env-var-delete {
+  opacity: 0.45;
+}
+
+.vault-row:hover .env-var-delete {
+  opacity: 1;
 }
 
 .vault-key {

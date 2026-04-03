@@ -51,7 +51,7 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
             <div className="modal-header">
               <div className="ai-header-title">
                 <Sparkles size={20} className="icon-pulse-purple" />
-                <h3>AI Model Context Protocol (MCP)</h3>
+                <h3>AI Assistant - Model Context Protocol (MCP) setup</h3>
               </div>
               <button className="btn-ghost" onClick={onClose}>
                 <X size={20} />
@@ -65,9 +65,9 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
                 </div>
                 <h2>Supercharge Your AI Assistant</h2>
                 <p>
-                  UltraRPC hosts a built-in MCP server that allows AI agents like 
-                  <strong> Claude</strong>, <strong>Gemini</strong>, and <strong>Codex</strong> to 
-                  interact directly with your local API collections.
+                  UltraRPC hosts a built-in MCP server that allows AI agents like
+                  <strong> Claude</strong>, <strong>Gemini</strong>, and <strong>Codex</strong> to
+                  interact directly with your UltraRPC resources.
                 </p>
               </section>
 
@@ -78,13 +78,19 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
                     <h4>1. Enable Server</h4>
                   </div>
                   <p>
-                    Go to <strong>Global Settings</strong> (gear icon) and toggle 
+                    Go to <strong>Global Settings</strong> (gear icon) and toggle
                     <strong> MCP Server</strong> to Enabled. The default port is <code>3000</code>.
                   </p>
                   <div className="url-box">
                     <span>{activeTab === 'gemini' ? mcpUrl : sseUrl}</span>
                     <button onClick={() => copyToClipboard(activeTab === 'gemini' ? mcpUrl : sseUrl, 'url')}>
                       {copied === 'url' ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                  <div className="mcp-inspector-link">
+                    <button onClick={() => window.ultraRpc.openExternal('http://localhost:6274')}>
+                      Open Local MCP Inspector (localhost:6274)
+                      <ExternalLink size={14} />
                     </button>
                   </div>
                 </section>
@@ -94,21 +100,21 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
                     <Terminal size={16} />
                     <h4>2. Connect Agents</h4>
                   </div>
-                  
+
                   <div className="agent-tabs-header">
-                    <button 
+                    <button
                       className={`agent-tab-btn ${activeTab === 'gemini' ? 'active' : ''}`}
                       onClick={() => setActiveTab('gemini')}
                     >
                       Gemini CLI
                     </button>
-                    <button 
+                    <button
                       className={`agent-tab-btn ${activeTab === 'claude' ? 'active' : ''}`}
                       onClick={() => setActiveTab('claude')}
                     >
                       Claude Desktop / Code
                     </button>
-                    <button 
+                    <button
                       className={`agent-tab-btn ${activeTab === 'codex' ? 'active' : ''}`}
                       onClick={() => setActiveTab('codex')}
                     >
@@ -137,7 +143,7 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
                         <p>Both Claude Desktop and <strong>Claude Code</strong> use <code>stdio</code>. Add this bridge to your config (<code>claude_desktop_config.json</code> or <code>~/.claude.json</code>):</p>
                         <div className="code-block">
                           <pre>
-{`{
+                            {`{
   "mcpServers": {
     "ultrarpc": {
       "command": "npx",

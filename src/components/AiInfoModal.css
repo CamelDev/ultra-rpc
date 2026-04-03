@@ -119,6 +119,41 @@
 
 .url-box button:hover { color: var(--accent); }
 
+.mcp-inspector-link {
+  display: flex !important;
+  justify-content: flex-start !important;
+  margin-top: 12px !important;
+}
+
+.mcp-inspector-link button {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  color: var(--text-muted) !important;
+  padding: 8px 12px !important;
+  width: 100% !important;
+  justify-content: space-between !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.mcp-inspector-link button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--accent) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.mcp-inspector-link button svg {
+  color: var(--accent) !important;
+}
+
 .agent-tabs-header {
   display: flex;
   gap: 8px;
