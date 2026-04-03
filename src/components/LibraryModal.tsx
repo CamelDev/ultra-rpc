@@ -78,15 +78,27 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
   const sidebarWidthRef = useRef(sidebarWidth)
   useEffect(() => { sidebarWidthRef.current = sidebarWidth }, [sidebarWidth])
 
+  const wasOpenRef = useRef(false)
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
+      // Full initialization on OPEN
       setLocalLibs(libraries)
       setSelectedId(initialSelectedId || libraries[0]?.id || null)
       setFileContents({})
       setDirtyIds(new Set())
       setSize({ width: initialWidth, height: initialHeight })
       resetValidation()
+    } else if (isOpen && wasOpenRef.current) {
+      // Partial sync while ALREADY OPEN (e.g. from external source)
+      // We only update localLibs, but we don't wipe fileContents or change selection
+      // unless the selectedId no longer exists in libraries
+      setLocalLibs(libraries)
+      if (selectedId && !libraries.find(l => l.id === selectedId)) {
+        setSelectedId(libraries[0]?.id || null)
+      }
     }
+    wasOpenRef.current = isOpen
   }, [isOpen, libraries, initialWidth, initialHeight, initialSelectedId])
 
   // Proper resize handler
