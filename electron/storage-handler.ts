@@ -1,9 +1,10 @@
-import { ipcMain, dialog, app, shell, safeStorage, BrowserWindow } from 'electron'
+import { ipcMain, dialog, app, shell, BrowserWindow } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import { getVaultPath } from './vault-handler'
+import { getVaultPath, getDecryptedVaultEntries } from './vault-handler'
 import { VaultEntry } from '../src/types'
 import { parseBrunoCollection } from './bruno-importer'
+import { startMcpServer, stopMcpServer } from './mcp-server'
 
 // Default storage root: user's home/.ultrarpc
 export const getStorageRoot = () => {
@@ -2199,19 +2200,7 @@ export function registerStorageHandlers() {
       if (!env) return { success: false, error: 'Environment not found' }
 
       // Get vault entries
-      let vaultEntries: VaultEntry[] = []
-      const vPath = getVaultPath(envId)
-      if (fs.existsSync(vPath)) {
-        try {
-          const encrypted = fs.readFileSync(vPath)
-          if (safeStorage.isEncryptionAvailable()) {
-            const decrypted = safeStorage.decryptString(encrypted)
-            vaultEntries = JSON.parse(decrypted)
-          }
-        } catch (e) {
-          console.error('Failed to read vault for export:', e)
-        }
-      }
+      const vaultEntries = await getDecryptedVaultEntries(envId)
 
       // Sanitize vault entries (clear values)
       const sanitizedVault = vaultEntries.map(entry => ({
