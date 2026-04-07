@@ -546,6 +546,8 @@ export const StepCard: React.FC<StepCardProps> = ({
                             )}
                           </div>
 
+                          {/* Row 2: Operator + Right Operand */}
+                          <div className="assertion-operator-row">
                           {/* Operator */}
                           <select 
                             value={assertion.operator}
@@ -649,6 +651,7 @@ export const StepCard: React.FC<StepCardProps> = ({
                                 )}
                               </>
                             )}
+                          </div>
                           </div>
                         </div>
                         <button 
