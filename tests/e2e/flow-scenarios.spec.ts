@@ -234,4 +234,57 @@ test.describe('Flow Runner Comprehensive Scenarios', () => {
 
     console.log('Scenario 2 Passed!');
   });
+
+  test('Scenario 3: Verify Step Execution Counts for Manual Runs', async () => {
+    test.setTimeout(180000);
+    await setupCollectionAndRequest();
+    
+    console.log('Opening Flow Runner for Scenario 3...');
+    const flowRunnerBtn = page.locator('button[data-tooltip="Flow Runner"]');
+    await expect(flowRunnerBtn).toBeEnabled({ timeout: 15000 });
+    await flowRunnerBtn.click({ force: true });
+    await page.waitForSelector('.flow-panel', { timeout: 15000 });
+
+    console.log('Creating Flow...');
+    const newFlowBtn = page.locator('.flow-panel-actions button[title="New Flow"]');
+    await expect(newFlowBtn).toBeVisible({ timeout: 5000 });
+    await newFlowBtn.click();
+    
+    await page.waitForSelector('.modal-body input', { state: 'visible' });
+    await page.fill('.modal-body input', 'Index Tracking Flow');
+    await page.click('button:has-text("Create Flow")');
+
+    const addStepBtn = page.locator('.btn-add-step');
+
+    // 1. Script Step 1
+    await addStepBtn.click();
+    await page.click('.add-step-dropdown button:has-text("Script")');
+    const step1 = page.locator('.step-card.script').nth(0);
+    await step1.locator('.cm-content').fill('ultra.context.set("s1_runs", Number(ultra.context.get("s1_runs") || 0) + 1);');
+
+    // 2. Script Step 2
+    await addStepBtn.click();
+    await page.click('.add-step-dropdown button:has-text("Script")');
+    const step2 = page.locator('.step-card.script').nth(1);
+    await step2.locator('.cm-content').fill('ultra.context.set("s2_runs", Number(ultra.context.get("s2_runs") || 0) + 1);');
+
+    console.log('Run Step 1 manually...');
+    await step1.locator('button.run-step-btn').click();
+    await expect(step1).toHaveClass(/success/, { timeout: 30000 });
+
+    console.log('Run Step 2 manually...');
+    await step2.locator('button.run-step-btn').click();
+    await expect(step2).toHaveClass(/success/, { timeout: 30000 });
+
+    // Verify executions by checking logs (if bug exists, step 1 would run again)
+    // The log drawer auto-expands on log, so we can just wait for the entries.
+    
+    await expect(page.locator('.log-entry', { hasText: 'Variable set: s1_runs = 1' })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.log-entry', { hasText: 'Variable set: s2_runs = 1' })).toBeVisible({ timeout: 5000 });
+    
+    // Ensure step 1 did not run a second time
+    await expect(page.locator('.log-entry', { hasText: 'Variable set: s1_runs = 2' })).toHaveCount(0);
+
+    console.log('Scenario 3 Passed!');
+  });
 });

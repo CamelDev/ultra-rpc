@@ -541,8 +541,8 @@ const App: React.FC = () => {
       update_rest_request: '✏️ REST request updated',
       add_grpc_request:    '➕ gRPC request added',
       update_grpc_request: '✏️ gRPC request updated',
-      create_environment:  '🌍 Environment created',
-      update_environment:  '🌍 Environment updated',
+      add_flow:            '🌊 Flow added',
+      update_flow:         '✏️ Flow updated',
     }
 
     const playMcpChime = () => {

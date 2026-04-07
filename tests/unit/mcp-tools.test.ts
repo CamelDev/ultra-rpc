@@ -345,3 +345,138 @@ describe("update_rest_request — script fields", () => {
     );
   });
 });
+
+function buildAddFlowPayload(args: {
+  id: string;
+  name: string;
+  requests: string[];
+}): Record<string, unknown> {
+  return {
+    id: args.id,
+    steps: args.requests.map(reqId => ({
+      id: Math.random().toString(36).substring(2, 11),
+      type: "request",
+      name: "Request Step",
+      enabled: true,
+      config: { requestId: reqId }
+    })),
+    settings: {
+      timeoutMs: 30000,
+      onFailure: "stop",
+      repeat: 1
+    },
+    variables: {}
+  };
+}
+
+describe("add_flow", () => {
+  it("creates a flow with correct defaults and steps", () => {
+    const payload = buildAddFlowPayload({
+      id: "abc-flow",
+      name: "My Flow",
+      requests: ["req-1", "req-2"],
+    });
+
+    expect(payload.id).toBe("abc-flow");
+    
+    // Check steps
+    const steps = payload.steps as any[];
+    expect(steps.length).toBe(2);
+    expect(steps[0].type).toBe("request");
+    expect(steps[0].config.requestId).toBe("req-1");
+    expect(steps[1].type).toBe("request");
+    expect(steps[1].config.requestId).toBe("req-2");
+
+    // Check default settings
+    const settings = payload.settings as any;
+    expect(settings.timeoutMs).toBe(30000);
+    expect(settings.onFailure).toBe("stop");
+    expect(settings.repeat).toBe(1);
+    
+    // Variables object initialized
+    expect(payload.variables).toEqual({});
+  });
+
+  it("persists flow correctly through JSON file round-trip", () => {
+    const payload = buildAddFlowPayload({
+      id: "test-flow",
+      name: "Test Flow",
+      requests: ["abc"],
+    });
+    
+    const saved = writeAndRead(payload);
+    expect(saved.id).toBe("test-flow");
+    expect((saved.steps as any[]).length).toBe(1);
+    expect((saved.steps as any[])[0].config.requestId).toBe("abc");
+  });
+});
+
+function buildUpdateFlowPayload(
+  currentContent: Record<string, unknown>,
+  patch: {
+    name?: string;
+    requests?: string[];
+  }
+): Record<string, unknown> {
+  const updatedFlow: Record<string, unknown> = {
+    ...currentContent,
+    name: patch.name !== undefined ? patch.name : currentContent.name,
+  };
+  
+  if (patch.requests !== undefined) {
+    updatedFlow.steps = patch.requests.map(reqId => ({
+      id: Math.random().toString(36).substring(2, 11),
+      type: "request",
+      name: "Request Step",
+      enabled: true,
+      config: { requestId: reqId }
+    }));
+  }
+  
+  return updatedFlow;
+}
+
+describe("update_flow", () => {
+  it("updates the flow name while keeping existing steps", () => {
+    const current = buildAddFlowPayload({
+      id: "flow-123",
+      name: "Old Flow",
+      requests: ["req-1", "req-2"],
+    });
+
+    const updated = buildUpdateFlowPayload(current, { name: "New Flow" });
+    expect(updated.name).toBe("New Flow");
+    expect((updated.steps as any[]).length).toBe(2);
+    expect((updated.steps as any[])[0].config.requestId).toBe("req-1");
+  });
+
+  it("updates the flow requests, replacing the old steps sequence", () => {
+    const current = buildAddFlowPayload({
+      id: "flow-123",
+      name: "Ignore Name",
+      requests: ["req-1"],
+    });
+
+    const updated = buildUpdateFlowPayload(current, { requests: ["req-3", "req-4", "req-5"] });
+    expect((updated.steps as any[]).length).toBe(3);
+    expect((updated.steps as any[])[0].config.requestId).toBe("req-3");
+    expect((updated.steps as any[])[2].config.requestId).toBe("req-5");
+  });
+
+  it("can update both name and requests simultaneously", () => {
+    const current = buildAddFlowPayload({
+      id: "flow-123",
+      name: "Old Name",
+      requests: ["old-req"],
+    });
+
+    const updated = buildUpdateFlowPayload(current, {
+      name: "New Name",
+      requests: ["new-req-1", "new-req-2"],
+    });
+    
+    expect(updated.name).toBe("New Name");
+    expect((updated.steps as any[]).length).toBe(2);
+    expect((updated.steps as any[])[0].config.requestId).toBe("new-req-1");
+  });
+});

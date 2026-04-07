@@ -28,7 +28,7 @@ let currentPort = 0;
 // the UI can refresh the collection panel and show a toast.
 
 export interface McpActionEvent {
-  action: 'create_collection' | 'add_rest_request' | 'update_rest_request' | 'add_grpc_request' | 'update_grpc_request' | 'create_environment' | 'update_environment';
+  action: 'create_collection' | 'add_rest_request' | 'update_rest_request' | 'add_grpc_request' | 'update_grpc_request' | 'add_flow' | 'update_flow';
   name: string;
   collectionId?: string;
 }
@@ -396,6 +396,57 @@ function createMcpServerInstance(): McpServer {
     }
   );
 
+  // ─── Tool: Add Flow ─────────────────────────────────────────────────────
+
+  mcp.tool(
+    "add_flow",
+    "Create a new automated flow from existing requests.",
+    {
+      collectionId: z.string().describe("The ID of the collection to add the flow to."),
+      name: z.string().describe("A human-readable name for the flow."),
+      requests: z.array(z.string()).describe("A list of request IDs to execute sequentially in this flow."),
+    },
+    async ({ collectionId, name, requests }) => {
+      console.log(`[MCP] tool:add_flow — collectionId="${collectionId}" name="${name}" requests=[${requests.join(",")}]`);
+      try {
+        const collDir = getCollectionDir(collectionId);
+        if (!collDir) {
+          console.warn(`[MCP] add_flow — collection not found: ${collectionId}`);
+          return { content: [{ type: "text", text: `Collection not found: ${collectionId}` }], isError: true };
+        }
+
+        const flowId = Math.random().toString(36).substring(2, 11);
+        const flowToSave = {
+          id: flowId,
+          steps: requests.map(reqId => ({
+            id: Math.random().toString(36).substring(2, 11),
+            type: "request",
+            name: "Request Step",
+            enabled: true,
+            config: { requestId: reqId }
+          })),
+          settings: {
+            timeoutMs: 30000,
+            onFailure: "stop",
+            repeat: 1
+          },
+          variables: {}
+        };
+
+        const newFilename = getUniqueFilename(collDir, name || "Untitled Flow", ".flow.json", undefined, true);
+        const targetPath = path.join(collDir, newFilename);
+        fs.writeFileSync(targetPath, JSON.stringify(flowToSave, null, 2));
+        updateIdMap(collDir, flowId, newFilename);
+        notifyRenderer({ action: 'add_flow', name, collectionId });
+
+        return { content: [{ type: "text", text: JSON.stringify({ success: true, flowId }, null, 2) }] };
+      } catch (err: any) {
+        console.error("[MCP] add_flow error:", err);
+        return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
   // ─── Tool: List Environments ───────────────────────────────────────────
 
   mcp.tool("list_environments", "List all available environments (excluding vault secrets)", {}, async () => {
@@ -417,116 +468,7 @@ function createMcpServerInstance(): McpServer {
     }
   });
 
-  // ─── Tool: Create Environment ───────────────────────────────────────────
 
-  mcp.tool(
-    "create_environment",
-    "Create a new environment (does not support vault secrets).",
-    {
-      name: z.string().describe("The name of the environment."),
-      variables: z.array(z.object({
-        id: z.string().optional(),
-        key: z.string(),
-        value: z.string(),
-        enabled: z.boolean().default(true)
-      })).optional().describe("Non-sensitive variables."),
-      sslVerification: z.boolean().optional().default(true).describe("Enable/disable SSL verification."),
-      protocol: z.enum(["auto", "http1", "http2"]).optional().default("auto").describe("Preferred HTTP protocol."),
-    },
-    async ({ name, variables, sslVerification, protocol }) => {
-      console.log(`[MCP] tool:create_environment — name="${name}"`);
-      try {
-        const envPath = getEnvPath();
-        let envs: any[] = [];
-        if (fs.existsSync(envPath)) {
-          envs = JSON.parse(fs.readFileSync(envPath, "utf-8"));
-        }
-
-        const newEnvId = randomUUID();
-        const newEnv = {
-          id: newEnvId,
-          name,
-          variables: (variables || []).map(v => ({
-            id: v.id || randomUUID(),
-            key: v.key,
-            value: v.value,
-            enabled: v.enabled
-          })),
-          isActive: false,
-          sslVerification: sslVerification !== undefined ? sslVerification : true,
-          protocol: protocol || "auto"
-        };
-
-        envs.push(newEnv);
-        fs.writeFileSync(envPath, JSON.stringify(envs, null, 2));
-        console.log(`[MCP] create_environment — created id="${newEnvId}"`);
-        notifyRenderer({ action: 'create_environment', name });
-
-        return { content: [{ type: "text", text: JSON.stringify({ success: true, id: newEnvId, name }) }] };
-      } catch (err: any) {
-        console.error("[MCP] create_environment error:", err);
-        return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
-      }
-    }
-  );
-
-  // ─── Tool: Update Environment ───────────────────────────────────────────
-
-  mcp.tool(
-    "update_environment",
-    "Update an existing environment by ID.",
-    {
-      id: z.string().describe("The ID of the environment to update."),
-      name: z.string().optional().describe("New name for the environment."),
-      variables: z.array(z.object({
-        id: z.string().optional(),
-        key: z.string(),
-        value: z.string(),
-        enabled: z.boolean().default(true)
-      })).optional().describe("Updated non-sensitive variables (replaces entire list)."),
-      sslVerification: z.boolean().optional().describe("Update SSL verification setting."),
-      protocol: z.enum(["auto", "http1", "http2"]).optional().describe("Update preferred HTTP protocol."),
-    },
-    async ({ id, name, variables, sslVerification, protocol }) => {
-      console.log(`[MCP] tool:update_environment — id="${id}"`);
-      try {
-        const envPath = getEnvPath();
-        if (!fs.existsSync(envPath)) {
-          return { content: [{ type: "text", text: "No environments found." }], isError: true };
-        }
-
-        let envs = JSON.parse(fs.readFileSync(envPath, "utf-8"));
-        const index = envs.findIndex((e: any) => e.id === id);
-        if (index === -1) {
-          return { content: [{ type: "text", text: `Environment not found: ${id}` }], isError: true };
-        }
-
-        const currentEnv = envs[index];
-        const updatedEnv = {
-          ...currentEnv,
-          name: name !== undefined ? name : currentEnv.name,
-          variables: variables !== undefined ? variables.map(v => ({
-            id: v.id || randomUUID(),
-            key: v.key,
-            value: v.value,
-            enabled: v.enabled
-          })) : currentEnv.variables,
-          sslVerification: sslVerification !== undefined ? sslVerification : currentEnv.sslVerification,
-          protocol: protocol !== undefined ? protocol : currentEnv.protocol,
-        };
-
-        envs[index] = updatedEnv;
-        fs.writeFileSync(envPath, JSON.stringify(envs, null, 2));
-        console.log(`[MCP] update_environment — updated id="${id}"`);
-        notifyRenderer({ action: 'update_environment', name: updatedEnv.name });
-
-        return { content: [{ type: "text", text: JSON.stringify({ success: true, id, name: updatedEnv.name }) }] };
-      } catch (err: any) {
-        console.error("[MCP] update_environment error:", err);
-        return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
-      }
-    }
-  );
 
   return mcp;
 }

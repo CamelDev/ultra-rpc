@@ -204,16 +204,8 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
                     <h5>list_environments</h5>
                     <p>Lists all saved environments (excluding vault secrets).</p>
                   </div>
-                  <div className="op-card">
-                    <div className="op-tag">Tool</div>
-                    <h5>create_environment</h5>
-                    <p>Creates a new environment with variables and settings.</p>
-                  </div>
-                  <div className="op-card">
-                    <div className="op-tag">Tool</div>
-                    <h5>update_environment</h5>
-                    <p>Modifies an existing environment by ID.</p>
-                  </div>
+
+
                   <div className="op-card">
                     <div className="op-tag">Tool</div>
                     <h5>add_rest_request</h5>
@@ -233,6 +225,16 @@ const AiInfoModal: React.FC<AiInfoModalProps> = ({ isOpen, onClose }) => {
                     <div className="op-tag">Tool</div>
                     <h5>update_grpc_request</h5>
                     <p>Updates an existing gRPC request by ID in a specific collection.</p>
+                  </div>
+                  <div className="op-card">
+                    <div className="op-tag">Tool</div>
+                    <h5>add_flow</h5>
+                    <p>Creates a new automated flow from existing requests.</p>
+                  </div>
+                  <div className="op-card">
+                    <div className="op-tag">Tool</div>
+                    <h5>update_flow</h5>
+                    <p>Modifies existing automated flow steps or name by ID.</p>
                   </div>
                 </div>
               </section>
