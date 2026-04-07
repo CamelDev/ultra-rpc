@@ -677,7 +677,7 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
 
             const responses: any[] = []
             call.on('data', (response: any) => {
-              const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
+              const responseObj = responseType.toObject(response, { longs: String, enums: String, defaults: true, keepCase: true, bytes: String })
               responses.push(responseObj)
             })
 
@@ -752,7 +752,7 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
                     },
                   })
                 } else {
-                  const responseObj = responseType.toObject(responseBody, { longs: String, enums: String, defaults: true, oneofs: true, keepCase: true, bytes: String })
+                  const responseObj = responseType.toObject(responseBody, { longs: String, enums: String, defaults: true, keepCase: true, bytes: String })
                   const body = JSON.stringify(responseObj, null, 2)
                   resolve({
                     success: true,
