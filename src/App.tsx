@@ -3219,12 +3219,13 @@ const App: React.FC = () => {
                 contextVariables={collections.find(c => c.id === editingCollection.id)?.variables || []}
                 vaultEntries={activeVaultEntries}
                 theme={resolvedTheme}
+                confirmDelete={true}
               />
             </div>
 
             <div className="modal-footer">
               <button className="btn-primary" onClick={() => setEditingCollection(null)}>
-                Save & Close
+                Close
               </button>
             </div>
           </motion.div>

@@ -14,6 +14,7 @@ interface Props {
   contextVariables?: any[]
   vaultEntries?: any[]
   theme?: 'dark' | 'light'
+  confirmDelete?: boolean
 }
 
 const KeyValueEditor: React.FC<Props> = ({
@@ -25,12 +26,19 @@ const KeyValueEditor: React.FC<Props> = ({
   contextVariables,
   vaultEntries,
   theme = 'dark',
+  confirmDelete = false,
 }) => {
   const update = (id: string, field: keyof KeyValuePair, value: string | boolean) => {
     onChange(pairs.map(p => (p.id === id ? { ...p, [field]: value } : p)))
   }
 
   const remove = (id: string) => {
+    if (confirmDelete) {
+      const pair = pairs.find(p => p.id === id)
+      if (pair && pair.key.trim()) {
+        if (!window.confirm(`Delete variable "${pair.key}"?`)) return
+      }
+    }
     const updated = pairs.filter(p => p.id !== id)
     onChange(updated.length === 0 ? [emptyKV()] : updated)
   }

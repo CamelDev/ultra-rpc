@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Editor, { type EditorHandle } from './Editor'
 import type { Library } from '../types'
-import { AlertTriangle, Plus, Link, Save, Trash2, FilePlus, FolderSearch, ShieldCheck, Pencil, Code, Copy, Check, X } from 'lucide-react'
+import { AlertTriangle, Plus, Link, Save, Trash2, FilePlus, FolderSearch, ShieldCheck, Pencil, Code, Copy, Check, X, Search } from 'lucide-react'
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { useScriptValidation } from '../hooks/useScriptValidation'
 import ValidationBanner from './ValidationBanner'
@@ -61,6 +61,16 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set())
   const [collisions, setCollisions] = useState<Record<string, string[]>>({})
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  
+  const filteredLibs = useMemo(() => {
+    if (!searchTerm.trim()) return localLibs
+    const term = searchTerm.toLowerCase()
+    return localLibs.filter(lib => 
+      lib.name.toLowerCase().includes(term) || 
+      lib.filePath.toLowerCase().includes(term)
+    )
+  }, [localLibs, searchTerm])
   
   const selectedLib = localLibs.find(l => l.id === selectedId)
   const collisionKeys = Object.keys(collisions)
@@ -68,6 +78,7 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
   
   const { validationStatus, validationError, validate, resetValidation } = useScriptValidation()
   const editorRef = useRef<EditorHandle>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Resizing state
   const [size, setSize] = useState({ width: initialWidth, height: initialHeight })
@@ -241,6 +252,8 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     const res = await window.ultraRpc?.writeFileContents(lib.filePath, content)
     if (res?.success) {
       setDirtyIds(prev => { const s = new Set(prev); s.delete(selectedId); return s })
+      // Notify parent so it re-scans library method maps (ultra.lib.*) for Cmd+Click navigation
+      onSave([...localLibs])
     }
   }
 
@@ -255,6 +268,15 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen && !editingId) {
         handleClose()
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f' && isOpen) {
+        // If the focused element is inside the editor, let the editor handle its own search
+        const isFocusInEditor = document.activeElement?.closest('.library-editor')
+        if (!isFocusInEditor) {
+          e.preventDefault()
+          searchInputRef.current?.focus()
+          searchInputRef.current?.select()
+        }
       }
     }
 
@@ -405,6 +427,9 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
           <button className="btn-ghost" onClick={handleLink}>
             <Link size={14} /> Link Script
           </button>
+          <button className="btn-ghost" onClick={() => { searchInputRef.current?.focus(); searchInputRef.current?.select(); }}>
+            <Search size={14} /> Search Scripts
+          </button>
           <div style={{ flex: 1 }} />
           <button 
             className={`btn-ghost ${validationStatus === 'success' ? 'val-success' : validationStatus === 'error' ? 'val-error' : ''}`} 
@@ -421,6 +446,14 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
             title="Prettify code (Shift+Alt+F)"
           >
             <Code size={14} /> Format
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={() => editorRef.current?.openSearch()}
+            disabled={!selectedId}
+            title="Search in editor (Cmd+F)"
+          >
+            <Search size={14} /> Search in Text
           </button>
           <button
             className={`btn-ghost ${copiedId === selectedId ? 'val-success' : ''}`}
@@ -450,12 +483,27 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* Left panel: script list */}
           <div className="library-sidebar" style={{ width: `${sidebarWidth}px` }}>
-            {localLibs.length === 0 && (
+            <div className="library-sidebar-search">
+              <Search size={14} className="search-icon" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search scripts..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button className="search-clear" onClick={() => setSearchTerm('')}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {filteredLibs.length === 0 && (
               <div style={{ padding: '20px', color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'center' }}>
-                No scripts yet.
+                {searchTerm ? 'No scripts found' : 'No scripts yet'}
               </div>
             )}
-            {localLibs.map(lib => (
+            {filteredLibs.map(lib => (
               <div
                 key={lib.id}
                 className={`library-item ${selectedId === lib.id ? 'selected' : ''}`}
@@ -594,6 +642,7 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
                   language="javascript"
                   onKeyDown={handleKeyDown}
                   theme={theme}
+                  enableSearch={true}
                 />
               </div>
             ) : (

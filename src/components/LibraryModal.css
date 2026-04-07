@@ -95,6 +95,55 @@
   background: rgba(0, 0, 0, 0.05);
 }
 
+.library-sidebar-search {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+  z-index: 5;
+}
+
+.library-sidebar-search .search-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.library-sidebar-search input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+}
+
+.library-sidebar-search input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.library-sidebar-search .search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.library-sidebar-search .search-clear:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 .library-splitter {
   width: 4px;
   cursor: col-resize;

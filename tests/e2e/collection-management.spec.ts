@@ -159,7 +159,7 @@ test.describe('Collection Management', () => {
       await setCMValue(keySelector, 'coll_key');
       await setCMValue(valSelector, 'coll_val');
       
-      await modal.locator('.modal-footer button:has-text("Save & Close")').click();
+      await modal.locator('.modal-footer button:has-text("Close")').click();
       await page.waitForSelector('.modal-overlay', { state: 'hidden' });
       
       // Verify persistence
@@ -173,7 +173,7 @@ test.describe('Collection Management', () => {
       await expect(updatedModal.locator('.kv-row').first()).toContainText('coll_key');
       await expect(updatedModal.locator('.kv-row').first()).toContainText('coll_val');
       
-      await updatedModal.locator('.modal-footer button:has-text("Save & Close")').click();
+      await updatedModal.locator('.modal-footer button:has-text("Close")').click();
       console.log('Collection variables verified!');
 
       // 8. Postman Collection Import

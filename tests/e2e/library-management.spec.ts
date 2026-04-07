@@ -267,4 +267,71 @@ ultra.lib.test = (phase) => {
     expect(foundPre).toBe(true);
     expect(foundPost).toBe(true);
   });
+
+  test('Go to Definition should work for newly added ultra.lib methods after content save', async () => {
+    // Regression test: when a new method is added to a library script and saved,
+    // the libraryMethodMap must refresh so that Cmd+Click "Go to Definition" opens
+    // the library modal navigated to the correct script.
+    test.setTimeout(120000);
+
+    // 1. Create a library script with an initial method
+    const libPath = join(userDataDir, 'goto-def-test.js');
+    writeFileSync(libPath, 'ultra.lib.initialMethod = () => "initial";', 'utf-8');
+
+    await electronApp.evaluate(async (params: any, filePath: string) => {
+      const { dialog } = params;
+      dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [filePath] }) as any;
+    }, libPath);
+
+    await openLibraryModal();
+    await window.click('.library-toolbar button:has-text("Link Script")');
+
+    const libItem = window.locator('.library-item', { hasText: 'goto-def-test.js' });
+    await expect(libItem).toBeVisible({ timeout: 10000 });
+    await libItem.click();
+
+    // 2. Edit the script to ADD a new method (newlyAdded)
+    await window.click('.library-editor .cm-content');
+    await window.keyboard.press('ControlOrMeta+A');
+    await window.keyboard.press('Backspace');
+    await window.keyboard.type(
+      'ultra.lib.initialMethod = () => "initial";\nultra.lib.newlyAdded = () => "new";',
+      { delay: 5 }
+    );
+
+    // 3. Save the script content — this must refresh the libraryMethodMap in App.tsx
+    await window.click('.library-toolbar button.btn-primary:has-text("Save")');
+
+    // Wait for dirty indicator to disappear (save succeeded)
+    await expect(window.locator('.library-toolbar button.btn-primary:has-text("Save")')).toBeDisabled({ timeout: 5000 });
+
+    // 4. Close the library modal
+    await window.click('.library-modal button:has-text("Close")');
+    await expect(window.locator('.library-modal')).not.toBeVisible({ timeout: 5000 });
+
+    // 5. Create a new request tab and go to Pre-request script
+    await window.click('.tab-add');
+    await wait(500);
+    await window.click('button:has-text("Pre-request")');
+    await window.waitForSelector('.script-editor', { timeout: 5000 });
+    await wait(300);
+
+    // Type a call to the NEWLY added method
+    await window.click('.script-editor .cm-content');
+    await window.keyboard.type('ultra.lib.newlyAdded();');
+    await wait(500);
+
+    // 6. Cmd+Click on the ultra.lib.newlyAdded token → should open library modal
+    // The library link is decorated with class cm-library-link
+    const libraryLink = window.locator('.script-editor .cm-library-link').last();
+    await expect(libraryLink).toBeVisible({ timeout: 5000 });
+
+    // Cmd+Click (meta+click on mac, ctrl+click on others) to trigger Go to Definition
+    await libraryLink.click({ modifiers: ['Meta', 'Control'], force: true });
+
+    // 7. The library modal should open, navigated to goto-def-test.js
+    await expect(window.locator('.library-modal')).toBeVisible({ timeout: 10000 });
+    const selectedLibItem = window.locator('.library-item.selected');
+    await expect(selectedLibItem).toContainText('goto-def-test.js', { timeout: 5000 });
+  });
 });
