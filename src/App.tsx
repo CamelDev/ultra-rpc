@@ -4,7 +4,7 @@ import {
   Info, FolderOpen,
   Search,
   WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder, Code,
-  GitBranch, Sparkles
+  GitBranch, Sparkles, Target
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import { useScriptValidation } from './hooks/useScriptValidation'
@@ -14,7 +14,7 @@ import InterpolatedInput from './components/InterpolatedInput'
 import type { EditorHandle } from './components/Editor'
 import ResponseViewer from './components/ResponseViewer'
 import EnvironmentPanel from './components/EnvironmentPanel'
-import CollectionPanel from './components/CollectionPanel'
+import CollectionPanel, { type CollectionPanelHandle } from './components/CollectionPanel'
 import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
 import AboutModal from './components/AboutModal'
@@ -58,6 +58,7 @@ const App: React.FC = () => {
     return [] // Start with no tabs, showing intro page in background
   })
   const tabsRef = useRef<Tab[]>(tabs)
+  const collectionPanelRef = useRef<CollectionPanelHandle>(null)
   const setTabs = useCallback((updater: React.SetStateAction<Tab[]>) => {
     const next = typeof updater === 'function'
       ? (updater as any)(tabsRef.current)
@@ -2062,11 +2063,18 @@ const App: React.FC = () => {
     }
   }, [activeRequest?.type, activeConfigTab])
 
+  const handleLocateInTree = (reqId: string) => {
+    if (sidebarWidth < 100) setSidebarWidth(300)
+    setShowHistoryPanel(false)
+    setShowFlowPanel(false)
+    collectionPanelRef.current?.locateNode(reqId)
+  }
+
   // Remove early return null to allow rendering IntroPage when no tabs are open
   // if (!activeTab) return null
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${resolvedTheme}-theme`}>
       {/* ===== SIDEBAR ===== */}
       <aside className="sidebar" style={{ width: sidebarWidth }}>
         <div className="title-bar" style={{ paddingLeft: navigator.userAgent.includes('Mac') ? '80px' : '16px' }}>
@@ -2352,6 +2360,7 @@ const App: React.FC = () => {
 
           {/* Collections Panel */}
           <CollectionPanel
+            ref={collectionPanelRef}
             collections={collections}
             onRefresh={loadCollections}
             onOpenRequest={handleOpenRequestFromCollection}
@@ -2444,7 +2453,7 @@ const App: React.FC = () => {
                   <X size={12} />
                 </button>
                 {activeTabId === tab.id && (
-                  <motion.div layoutId="activeTab" className="tab-indicator" />
+                  <div className="tab-indicator" />
                 )}
               </Reorder.Item>
             ))}
@@ -2463,11 +2472,8 @@ const App: React.FC = () => {
               : { height: activeTab?.type === 'flow' ? '100%' : `${requestPanelHeight}px` }
             }
           >
-            <motion.div
+            <div
               key={activeTabId}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.15 }}
               className="request-container"
             >
               {activeTab?.type === 'intro' || !activeTab ? (
@@ -2571,9 +2577,21 @@ const App: React.FC = () => {
                     <div className="header-field-group">
                       <span className="header-field-label">Collection</span>
                       {activeRequestCollection ? (
-                        <div className="collection-label-wrapper" title={`Part of collection: ${activeRequestCollection.name}`}>
-                          <Folder size={12} className="collection-label-icon" />
-                          <span className="collection-label-text">{activeRequestCollection.name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div className="collection-label-wrapper" title={`Part of collection: ${activeRequestCollection.name}`}>
+                            <Folder size={12} className="collection-label-icon" />
+                            <span className="collection-label-text">{activeRequestCollection.name}</span>
+                          </div>
+                          <button
+                            className="locate-in-tree-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLocateInTree(activeRequest.id);
+                            }}
+                            title="Locate in Collection Tree"
+                          >
+                            <Target size={14} />
+                          </button>
                         </div>
                       ) : (
                         <div className="collection-label-wrapper unassigned">
@@ -3103,7 +3121,7 @@ const App: React.FC = () => {
                   <p>No active tab. Create or open a request.</p>
                 </div>
               )}
-            </motion.div>
+            </div>
           </div>
 
           {(activeTab?.type !== 'flow') && (

@@ -305,8 +305,33 @@
   position: relative;
 }
 
+.tree-node.root-node {
+  background: rgba(139, 92, 246, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  margin-top: 4px;
+}
+
+.tree-node.root-node .tree-node-name {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+}
+
+.tree-node.root-node .coll-count {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.tree-node.root-node .collection-icon {
+  color: var(--accent);
+}
+
 .tree-node:hover {
   background: rgba(255, 255, 255, 0.03);
+}
+
+.tree-node.root-node:hover {
+  background: rgba(139, 92, 246, 0.08);
 }
 
 .tree-node.selected {
@@ -379,11 +404,6 @@
   align-items: center;
   justify-content: center;
   opacity: 0.85;
-}
-
-.collection-icon {
-  color: #a78bfa;
-  /* Soft purple */
 }
 
 .folder-icon {

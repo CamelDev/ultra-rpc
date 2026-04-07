@@ -617,6 +617,27 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
 }
 
+.locate-in-tree-btn {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  opacity: 0.8;
+}
+
+.locate-in-tree-btn:hover {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+}
+
 .header-field-group {
   display: flex;
   align-items: center;

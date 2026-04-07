@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Plus,
@@ -26,6 +26,10 @@ import { useTreeOpenState } from '../hooks/useTreeOpenState'
 import Tooltip from './Tooltip'
 import './CollectionPanel.css'
 import type { Collection, RequestConfig, KeyValuePair, Environment } from '../types'
+
+export interface CollectionPanelHandle {
+  locateNode: (id: string) => void
+}
 
 interface Props {
   collections: Collection[]
@@ -374,7 +378,7 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-const CollectionPanel: React.FC<Props> = ({
+const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
   collections,
   onRefresh,
   onOpenRequest,
@@ -388,7 +392,7 @@ const CollectionPanel: React.FC<Props> = ({
   onCloneCollection,
   onOpenFlow,
   onImportEnvironments,
-}) => {
+}, ref) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nameInput, setNameInput] = useState('')
   const nameInputRef = useRef('')
@@ -400,6 +404,16 @@ const CollectionPanel: React.FC<Props> = ({
   const [searchTerm, setSearchTerm] = useState('')
 
   const { treeRef, initialOpenState, onToggle } = useTreeOpenState()
+
+  useImperativeHandle(ref, () => ({
+    locateNode: (id: string) => {
+      if (treeRef.current) {
+        treeRef.current.open(id);
+        treeRef.current.scrollTo(id);
+        treeRef.current.select(id);
+      }
+    }
+  }));
 
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [treeHeight, setTreeHeight] = useState(400)
@@ -688,7 +702,7 @@ const CollectionPanel: React.FC<Props> = ({
         <div
           ref={dragHandle as (el: HTMLDivElement | null) => void}
           style={style}
-          className={`tree-node ${node.isSelected ? 'selected' : ''}`}
+          className={`tree-node ${node.isSelected ? 'selected' : ''} ${isCollection ? 'root-node' : ''}`}
           data-id={node.data.realId}
           data-type={node.data.type}
           onClick={() => {
@@ -701,7 +715,7 @@ const CollectionPanel: React.FC<Props> = ({
           }}
           onContextMenu={openContextMenu}
         >
-          <div className="tree-node-content" style={{ paddingLeft: node.level * 6 }}>
+          <div className="tree-node-content" style={{ paddingLeft: 12 + node.level * 12 }}>
             {(isCollection || isFolder) && (
               <div className="tree-node-chevron" onClick={(e) => {
                 e.stopPropagation()
@@ -713,9 +727,9 @@ const CollectionPanel: React.FC<Props> = ({
             )}
             {!isCollection && !isFolder && <div style={{ width: 0 }} />}
 
-            {(isCollection || isFolder) && (
+            {isFolder && (
               <div className="tree-node-icon">
-                <Folder size={16} className={isCollection ? 'collection-icon' : 'folder-icon'} />
+                <Folder size={16} className="folder-icon" />
               </div>
             )}
 
@@ -940,6 +954,6 @@ const CollectionPanel: React.FC<Props> = ({
       )}
     </div>
   )
-}
+})
 
 export default CollectionPanel

@@ -208,7 +208,6 @@ const EnvironmentPanel: React.FC<Props> = ({
             }}
           >
             <div className="env-item-header" onClick={() => setExpandedId(expandedId === env.id ? null : env.id)}>
-              <div className="env-status-dot" />
               <ChevronDown
                 size={14}
                 className={`env-chevron ${expandedId === env.id ? 'env-chevron-open' : ''}`}
