@@ -129,9 +129,9 @@ export interface UltraRpcApi {
     showInFolder: (args: { collectionId: string; flowId: string }) => Promise<{ success: boolean; error?: string }>
     export: (args: { collectionId: string; flowId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   }
-  saveFlow: (args: { collectionId: string; flow: import('./flow').FlowDefinition; parentId?: string }) => Promise<{ success: boolean; error?: string }>
+  saveFlow: (args: { collectionId: string; flow: import('./flow').FlowDefinition; parentId?: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   saveFlowToPath: (args: { folderPath: string; flow: import('./flow').FlowDefinition }) => Promise<{ success: boolean; collectionId?: string; path?: string; error?: string }>
-  saveFlowStandalone: (args: { path: string; flow: import('./flow').FlowDefinition }) => Promise<{ success: boolean; error?: string }>
+  saveFlowStandalone: (args: { path: string; flow: import('./flow').FlowDefinition }) => Promise<{ success: boolean; path?: string; error?: string }>
   listFlows: () => Promise<{ success: boolean; flows?: { flow: import('./flow').FlowDefinition; collectionId?: string; collectionName?: string; path: string }[]; error?: string }>
   linkFlow: () => Promise<{ success: boolean; flow?: import('./flow').FlowDefinition; path?: string; error?: string }>
   saveFlowOrder: (args: { order: string[] }) => Promise<{ success: boolean; error?: string }>

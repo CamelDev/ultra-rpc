@@ -1046,16 +1046,18 @@ const App: React.FC = () => {
       if (colId) {
         const res = await window.ultraRpc.saveFlow({ collectionId: colId, flow: currentTab.flow })
         if (res.success) {
-          setTabs(prev => prev.map(t => t.id === tabId ? { ...t, isDirty: false, owningCollectionId: colId } : t))
+          setTabs(prev => prev.map(t => t.id === tabId ? { ...t, isDirty: false, owningCollectionId: colId, ...(res.path ? { path: res.path } : {}) } : t))
           addToast({ type: 'success', message: 'Flow Saved' })
+          loadFlows()
         } else {
           addToast({ type: 'error', message: res.error || 'Failed to save flow' })
         }
       } else if (currentTab.path) {
         const res = await window.ultraRpc.saveFlowStandalone({ path: currentTab.path, flow: currentTab.flow })
         if (res.success) {
-          setTabs(prev => prev.map(t => t.id === tabId ? { ...t, isDirty: false } : t))
+          setTabs(prev => prev.map(t => t.id === tabId ? { ...t, isDirty: false, ...(res.path ? { path: res.path } : {}) } : t))
           addToast({ type: 'success', message: 'Flow Saved' })
+          loadFlows()
         } else {
           addToast({ type: 'error', message: res.error || 'Failed to save flow' })
         }
@@ -1103,7 +1105,7 @@ const App: React.FC = () => {
       setSelectedCollectionId(null)
       setShowSaveMenu(true)
     }
-  }, [saveToCollection, loadCollections, findCollectionByRequestId])
+  }, [saveToCollection, loadCollections, findCollectionByRequestId, loadFlows])
 
   const findCollectionIdByItemId = (itemId: string) => {
     const coll = collections.find(c => {
@@ -1288,25 +1290,29 @@ const App: React.FC = () => {
     if (dirtyFlows.length === 0) return
 
     const timer = setTimeout(async () => {
+      let updatedFlows = false
       for (const tab of dirtyFlows) {
         if (tab.type !== 'flow' || !tab.flow) continue
         const colId = tab.owningCollectionId || findCollectionByFlowId?.(tab.flow.id)?.id
         if (colId) {
           const res = await window.ultraRpc.saveFlow({ collectionId: colId, flow: tab.flow })
           if (res.success) {
-            setTabs(prev => prev.map(t => (t.id === tab.id && t.type === 'flow') ? { ...t, isDirty: false } : t))
+            setTabs(prev => prev.map(t => (t.id === tab.id && t.type === 'flow') ? { ...t, isDirty: false, ...(res.path ? { path: res.path } : {}) } : t))
+            updatedFlows = true
           }
         } else if (tab.path) {
           const res = await window.ultraRpc.saveFlowStandalone({ path: tab.path, flow: tab.flow })
           if (res.success) {
-            setTabs(prev => prev.map(t => (t.id === tab.id && t.type === 'flow') ? { ...t, isDirty: false } : t))
+            setTabs(prev => prev.map(t => (t.id === tab.id && t.type === 'flow') ? { ...t, isDirty: false, ...(res.path ? { path: res.path } : {}) } : t))
+            updatedFlows = true
           }
         }
       }
+      if (updatedFlows) loadFlows()
     }, 1000)
 
     return () => clearTimeout(timer)
-  }, [tabs, findCollectionByFlowId, setTabs])
+  }, [tabs, findCollectionByFlowId, setTabs, loadFlows])
   const handleLinkFlow = async () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.linkFlow()
@@ -1327,6 +1333,8 @@ const App: React.FC = () => {
     if (dirtyTabs.length === 0) return
 
     const savedIds: string[] = []
+    const newPaths: Record<string, string> = {}
+    let updatedFlows = false
 
     for (const t of dirtyTabs) {
       if (t.type === 'request' && t.request) {
@@ -1340,11 +1348,19 @@ const App: React.FC = () => {
         const colId = t.owningCollectionId || findCollectionByFlowId(t.flow.id)?.id
         if (colId) {
           const res = await window.ultraRpc.saveFlow({ collectionId: colId, flow: t.flow })
-          if (res.success) savedIds.push(t.id)
+          if (res.success) {
+            savedIds.push(t.id)
+            updatedFlows = true
+            if (res.path) newPaths[t.id] = res.path
+          }
           else addToast({ type: 'error', message: `Failed to save flow ${t.flow.name}: ${res.error}` })
         } else if (t.path) {
           const res = await window.ultraRpc.saveFlowStandalone({ path: t.path, flow: t.flow })
-          if (res.success) savedIds.push(t.id)
+          if (res.success) {
+            savedIds.push(t.id)
+            updatedFlows = true
+            if (res.path) newPaths[t.id] = res.path
+          }
           else addToast({ type: 'error', message: `Failed to save flow ${t.flow.name}: ${res.error}` })
         }
       }
@@ -1353,11 +1369,12 @@ const App: React.FC = () => {
     if (savedIds.length > 0) {
       setTabs(prev => prev.map(t => {
         if (savedIds.includes(t.id)) {
-          return { ...t, isDirty: false }
+          return { ...t, isDirty: false, ...(newPaths[t.id] ? { path: newPaths[t.id] } : {}) }
         }
         return t
       }))
       loadCollections()
+      if (updatedFlows) loadFlows()
     }
 
     if (savedIds.length > 0) {
@@ -1531,6 +1548,8 @@ const App: React.FC = () => {
               return e
             })
             setEnvironments(currentEnvs)
+            // Ensure environmentsRef is also updated immediately for any concurrent scripts or UI
+            environmentsRef.current = currentEnvs
             mockConsole.log(`Set env variable: ${key}`)
           },
           all: () => {
@@ -1568,6 +1587,8 @@ const App: React.FC = () => {
               return c
             })
             setCollections(currentCollections)
+            // Ensure collectionsRef is also updated immediately for any concurrent scripts or UI
+            collectionsRef.current = currentCollections
             mockConsole.log(`Set context variable: ${key}`)
           },
           all: () => {
@@ -1693,11 +1714,11 @@ const App: React.FC = () => {
     }
   }
 
-  const runPostResponseScript = async (request: RequestConfig, response: ResponseData, tabId: string, tabEnvId: string | null | undefined, environmentsOverride?: Environment[]) => {
+  const runPostResponseScript = async (request: RequestConfig, response: ResponseData, tabId: string, tabEnvId: string | null | undefined, environmentsOverride?: Environment[], collectionsOverride?: Collection[]) => {
     if (!request.postResponseScript || !request.postResponseScript.trim()) return
 
     // Use local copies to avoid race conditions with React state updates
-    let currentCollections = [...collectionsRef.current]
+    let currentCollections = collectionsOverride || [...collectionsRef.current]
     let currentEnvs = environmentsOverride || [...environmentsRef.current]
     const parentCollection = currentCollections.find(c => getAllRequests(c).some(r => r.id === request.id))
 
@@ -1760,6 +1781,8 @@ const App: React.FC = () => {
               return e
             })
             setEnvironments(currentEnvs)
+            // Ensure environmentsRef is also updated immediately for any concurrent scripts or UI
+            environmentsRef.current = currentEnvs
             mockConsole.log(`Set env variable: ${varName}`)
           },
           all: () => {
@@ -1797,6 +1820,8 @@ const App: React.FC = () => {
               return c
             })
             setCollections(currentCollections)
+            // Ensure collectionsRef is also updated immediately for any concurrent scripts or UI
+            collectionsRef.current = currentCollections
             mockConsole.log(`Set context variable: ${varName}`)
           },
           all: () => {
@@ -1897,6 +1922,19 @@ const App: React.FC = () => {
         })
       ])
       if (timer) clearTimeout(timer)
+
+      // Final save to disk after script finishes
+      if (window.ultraRpc) {
+        const effectiveEnvId = tabEnvId !== undefined ? tabEnvId : activeEnvIdRef.current
+        if (effectiveEnvId) {
+          const finalEnv = currentEnvs.find(e => e.id === effectiveEnvId)
+          if (finalEnv) window.ultraRpc.saveEnvironments(currentEnvs)
+        }
+        if (parentCollection) {
+          const finalColl = currentCollections.find(c => c.id === parentCollection.id)
+          if (finalColl) handleSaveContextVariables(finalColl.id, finalColl.variables || [])
+        }
+      }
     } catch (err: any) {
       mockConsole.error(`Post-response Runtime Error: ${err.message}`)
       setScriptErrors(prev => ({ ...prev, [tabId]: `Post-response Script Error: ${err.message}` }))
@@ -1965,7 +2003,7 @@ const App: React.FC = () => {
         if (result.success && result.data) {
           statusCode = result.data.status
           setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-          await runPostResponseScript(currentTab.request, result.data, tabId, currentTab.envId, scriptResult?.environments)
+          await runPostResponseScript(currentTab.request, result.data, tabId, currentTab.envId, scriptResult?.environments, scriptResult?.collections)
         } else {
           throw new Error(result.error || 'gRPC call failed')
         }
@@ -2000,7 +2038,7 @@ const App: React.FC = () => {
           if (result.success && result.data) {
             statusCode = result.data.status
             setResponses(prev => ({ ...prev, [tabId]: result.data! }))
-            await runPostResponseScript(currentTab.request, result.data, tabId, currentTab.envId, scriptResult?.environments)
+            await runPostResponseScript(currentTab.request, result.data, tabId, currentTab.envId, scriptResult?.environments, scriptResult?.collections)
           } else {
             throw new Error(result.error || 'Request failed')
           }
@@ -2020,7 +2058,7 @@ const App: React.FC = () => {
             ...prev,
             [tabId]: respData,
           }))
-          await runPostResponseScript(currentTab.request, respData, tabId, currentTab.envId, scriptResult?.environments)
+          await runPostResponseScript(currentTab.request, respData, tabId, currentTab.envId, scriptResult?.environments, scriptResult?.collections)
         }
       } catch (err: any) {
         setErrors(prev => ({ ...prev, [tabId]: err.message }))

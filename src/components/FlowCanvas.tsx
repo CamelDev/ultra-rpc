@@ -252,8 +252,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       baselineVariablesRef.current = flow.variables || {};
     }
 
-    const baseline = baselineVariablesRef.current || {};
-    const targetFlow = { ...(flowOverride || flow), steps: flowOverride ? flowOverride.steps : mergedSteps, variables: { ...baseline } };
+    const currentVars = flowOverride?.variables || flow.variables || {};
+    const targetFlow = { ...(flowOverride || flow), steps: flowOverride ? flowOverride.steps : mergedSteps, variables: { ...currentVars } };
 
     setIsRunning(true);
     setIsStopping(false);
@@ -335,8 +335,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       baselineVariablesRef.current = flow.variables || {};
     }
 
-    const baseline = baselineVariablesRef.current || {};
-    const targetFlow = { ...flow, steps: mergedSteps, variables: { ...baseline } };
+    const currentVars = flow.variables || {};
+    const targetFlow = { ...flow, steps: mergedSteps, variables: { ...currentVars } };
 
     setIsRunning(true);
     setIsStopping(false);

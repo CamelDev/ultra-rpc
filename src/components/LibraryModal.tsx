@@ -202,15 +202,28 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     setCollisions(detectCollisions(scripts))
   }, [localLibs, fileContents])
 
-  const confirmSwitchAway = useCallback((targetId: string) => {
-    if (selectedId && dirtyIds.has(selectedId)) {
-      if (!confirm('You have unsaved changes. Discard and switch?')) return false
-      setDirtyIds(prev => { const s = new Set(prev); s.delete(selectedId); return s })
+  const confirmSwitchAway = useCallback(async (targetId: string) => {
+    if (selectedId && targetId !== selectedId && dirtyIds.has(selectedId)) {
+      if (!confirm('You have unsaved changes in this script. Would you like to SAVE them before switching?')) {
+        return false // Cancel aborts the switch
+      }
+      const lib = localLibs.find(l => l.id === selectedId)
+      if (lib) {
+        const content = fileContents[selectedId] ?? ''
+        const res = await window.ultraRpc?.writeFileContents(lib.filePath, content)
+        if (res?.success) {
+          setDirtyIds(prev => { const s = new Set(prev); s.delete(selectedId); return s })
+          onSave([...localLibs])
+        } else {
+          alert('Failed to save file. Aborting switch.')
+          return false
+        }
+      }
     }
     setSelectedId(targetId)
     resetValidation()
     return true
-  }, [selectedId, dirtyIds, resetValidation])
+  }, [selectedId, dirtyIds, resetValidation, localLibs, fileContents, onSave])
 
   const handleNew = async () => {
     const res = await window.ultraRpc?.saveNewJsFile()
@@ -257,12 +270,23 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
     }
   }
 
-  const handleClose = useCallback(() => {
+  const handleClose = useCallback(async () => {
     if (dirtyIds.size > 0) {
-      if (!confirm(`You have unsaved changes in ${dirtyIds.size} script(s). Are you sure you want to close?`)) return
+      if (!confirm(`You have unsaved changes in ${dirtyIds.size} script(s).\n\nClick OK to SAVE all changes and close.`)) {
+        return // Cancel aborts closing
+      }
+      for (const id of Array.from(dirtyIds)) {
+        const lib = localLibs.find(l => l.id === id)
+        if (lib) {
+          const content = fileContents[id] ?? ''
+          await window.ultraRpc?.writeFileContents(lib.filePath, content)
+        }
+      }
+      setDirtyIds(new Set())
+      onSave([...localLibs])
     }
     onClose()
-  }, [onClose, dirtyIds])
+  }, [onClose, dirtyIds, localLibs, fileContents, onSave])
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {

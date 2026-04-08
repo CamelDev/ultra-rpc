@@ -15,8 +15,9 @@ interface Props {
   highlightJson?: boolean
   highlightJs?: boolean
   wrapLines?: boolean
-  onKeyDown?: (e: React.KeyboardEvent) => void
-  disabled?: boolean
+  onKeyDown?: (e: React.KeyboardEvent) => void,
+  onBlur?: () => void,
+  disabled?: boolean,
   theme?: 'dark' | 'light'
   style?: React.CSSProperties
   enableSearch?: boolean
@@ -36,6 +37,7 @@ const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedI
     highlightJs = false,
     wrapLines = true,
     onKeyDown,
+    onBlur,
     disabled = false,
     theme = 'dark',
     style,
@@ -59,6 +61,7 @@ const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedI
           contextVariables={contextVariables}
           vaultEntries={vaultEntries}
           onKeyDown={onKeyDown}
+          onBlur={onBlur}
           theme={theme}
           enableSearch={enableSearch}
           onFollowDefinition={onFollowDefinition}

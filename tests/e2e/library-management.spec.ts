@@ -334,4 +334,83 @@ ultra.lib.test = (phase) => {
     const selectedLibItem = window.locator('.library-item.selected');
     await expect(selectedLibItem).toContainText('goto-def-test.js', { timeout: 5000 });
   });
+
+  test('should prompt to save when switching scripts or closing modal with unsaved changes', async () => {
+    test.setTimeout(120000);
+
+    // 1. Setup two scripts
+    const script1Path = join(userDataDir, 'script1.js');
+    writeFileSync(script1Path, 'ultra.lib.one = 1;', 'utf-8');
+    const script2Path = join(userDataDir, 'script2.js');
+    writeFileSync(script2Path, 'ultra.lib.two = 2;', 'utf-8');
+
+    await electronApp.evaluate(async (params: any, filePaths: string[]) => {
+      const { dialog } = params;
+      let callCount = 0;
+      dialog.showOpenDialog = () => {
+        const filePath = filePaths[callCount++];
+        return Promise.resolve({ canceled: false, filePaths: [filePath] }) as any;
+      };
+    }, [script1Path, script2Path]);
+
+    await openLibraryModal();
+    // Link script 1
+    await window.click('.library-toolbar button:has-text("Link Script")');
+    await expect(window.locator('.library-item', { hasText: 'script1.js' })).toBeVisible({ timeout: 10000 });
+
+    // Link script 2
+    await window.click('.library-toolbar button:has-text("Link Script")');
+    await expect(window.locator('.library-item', { hasText: 'script2.js' })).toBeVisible({ timeout: 10000 });
+
+    // 2. Select script 1 and modify it
+    await window.locator('.library-item', { hasText: 'script1.js' }).click();
+    // Wait for the script content to load
+    await expect(window.locator('.library-editor .cm-content')).toContainText('ultra.lib.one', { timeout: 10000 });
+    await window.click('.library-editor .cm-content');
+    await window.keyboard.type('// edited\\n', { delay: 10 });
+
+    // 3. Try to switch to script 2
+    let dialogMessage = '';
+    let dialogAccepted = false;
+    window.once('dialog', async (dialog: any) => {
+      dialogMessage = dialog.message();
+      dialogAccepted = true;
+      await dialog.accept(); // OK = Save
+    });
+
+    await window.locator('.library-item', { hasText: 'script2.js' }).click();
+    
+    // Switch should succeed because we accepted
+    await expect(window.locator('.library-item.selected')).toContainText('script2.js', { timeout: 10000 });
+    expect(dialogAccepted).toBe(true);
+    expect(dialogMessage).toContain('SAVE them before switching');
+
+    // Verify it saved
+    const content1 = readFileSync(script1Path, 'utf-8');
+    expect(content1).toContain('// edited');
+
+    // 4. Test closing modal with unsaved changes
+    await window.locator('.library-item', { hasText: 'script2.js' }).click();
+    await expect(window.locator('.library-editor .cm-content')).toContainText('ultra.lib.two', { timeout: 10000 });
+    await window.click('.library-editor .cm-content');
+    await window.keyboard.type('// edited 2\\n', { delay: 10 });
+
+    let closeDialogMessage = '';
+    let closeDialogAccepted = false;
+    window.once('dialog', async (dialog: any) => {
+      closeDialogMessage = dialog.message();
+      closeDialogAccepted = true;
+      await dialog.accept(); // OK = Save & Close
+    });
+
+    await window.click('.library-modal button:has-text("Close")');
+    await expect(window.locator('.library-modal')).not.toBeVisible({ timeout: 10000 });
+    
+    expect(closeDialogAccepted).toBe(true);
+    expect(closeDialogMessage).toContain('SAVE all changes and close');
+
+    // Verify it saved
+    const content2 = readFileSync(script2Path, 'utf-8');
+    expect(content2).toContain('// edited 2');
+  });
 });

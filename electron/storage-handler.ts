@@ -1004,7 +1004,7 @@ export function registerStorageHandlers() {
         registerFlowPath(targetPath)
       }
 
-      return { success: true }
+      return { success: true, path: targetPath }
     } catch (err: any) {
       console.error('[storage] saveFlow Error:', err)
       return { success: false, error: err.message }
@@ -1014,15 +1014,26 @@ export function registerStorageHandlers() {
   ipcMain.handle('storage:saveFlowStandalone', async (_event, args: { path: string; flow: any }) => {
     try {
       const { path: filePath, flow } = args
+      
+      const dir = path.dirname(filePath)
+      const extension = ''
+      const newFilename = getUniqueFilename(dir, flow.name || 'Untitled Flow.json', extension, filePath, true)
+      const targetPath = path.join(dir, newFilename)
+
+      if (filePath !== targetPath) {
+        fs.renameSync(filePath, targetPath)
+        unregisterFlowPath(filePath)
+        registerFlowPath(targetPath)
+      }
+      
       const flowToSave = { ...flow }
       delete flowToSave.name
-      fs.writeFileSync(filePath, JSON.stringify(flowToSave, null, 2))
+      fs.writeFileSync(targetPath, JSON.stringify(flowToSave, null, 2))
       
       // Update ID map if it's inside a collection folder
-      const dir = path.dirname(filePath)
-      updateIdMap(dir, flow.id, path.basename(filePath))
+      updateIdMap(dir, flow.id, newFilename)
       
-      return { success: true }
+      return { success: true, path: targetPath }
     } catch (err: any) {
       console.error('[storage] saveFlowStandalone Error:', err)
       return { success: false, error: err.message }

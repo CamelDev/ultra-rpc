@@ -151,8 +151,9 @@ interface Props {
   activeEnv?: Environment | null
   contextVariables?: any[]
   vaultEntries?: VaultEntry[]
-  onKeyDown?: (e: React.KeyboardEvent) => void
-  onFollowDefinition?: (name: string) => void
+  onKeyDown?: (e: React.KeyboardEvent) => void,
+  onBlur?: () => void,
+  onFollowDefinition?: (name: string) => void,
   theme?: 'dark' | 'light'
   enableSearch?: boolean
   onSelectPath?: (path: string) => void
@@ -176,6 +177,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   contextVariables,
   vaultEntries,
   onKeyDown,
+  onBlur,
   onFollowDefinition,
   theme = 'dark',
   enableSearch = false,
@@ -357,7 +359,10 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       }),
       EditorView.domEventHandlers({
         focus: () => setIsFocused(true),
-        blur: () => setIsFocused(false),
+        blur: () => {
+          setIsFocused(false)
+          if (onBlur) onBlur()
+        },
         keydown: (e) => {
           if (onKeyDown) onKeyDown(e as any)
           if (singleLine && e.key === 'Enter') {

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Plus, Trash2, Check } from 'lucide-react'
 import type { KeyValuePair, Environment } from '../types'
 import { emptyKV } from '../lib/helpers'
@@ -28,6 +28,8 @@ const KeyValueEditor: React.FC<Props> = ({
   theme = 'dark',
   confirmDelete = false,
 }) => {
+  const [focusedId, setFocusedId] = useState<string | null>(null)
+
   const update = (id: string, field: keyof KeyValuePair, value: string | boolean) => {
     onChange(pairs.map(p => (p.id === id ? { ...p, [field]: value } : p)))
   }
@@ -63,26 +65,35 @@ const KeyValueEditor: React.FC<Props> = ({
           >
             {pair.enabled && <Check size={12} />}
           </button>
-          <InterpolatedInput
+          <input
             className="kv-input kv-key"
             placeholder={keyPlaceholder}
             value={pair.key}
-            onChange={(val) => update(pair.id, 'key', val)}
-            activeEnv={activeEnv}
-            contextVariables={contextVariables}
-            vaultEntries={vaultEntries}
-            theme={theme}
+            onChange={(e) => update(pair.id, 'key', e.target.value)}
           />
-          <InterpolatedInput
-            className="kv-input kv-value"
-            placeholder={valuePlaceholder}
-            value={pair.value}
-            onChange={(val) => update(pair.id, 'value', val)}
-            activeEnv={activeEnv}
-            contextVariables={contextVariables}
-            vaultEntries={vaultEntries}
-            theme={theme}
-          />
+          <div className="kv-value-container">
+            {focusedId === pair.id ? (
+              <InterpolatedInput
+                className="kv-input kv-value"
+                placeholder={valuePlaceholder}
+                value={pair.value}
+                onChange={(val) => update(pair.id, 'value', val)}
+                onBlur={() => setFocusedId(null)}
+                activeEnv={activeEnv}
+                contextVariables={contextVariables}
+                vaultEntries={vaultEntries}
+                theme={theme}
+              />
+            ) : (
+              <input
+                className="kv-input kv-value"
+                placeholder={valuePlaceholder}
+                value={pair.value}
+                onFocus={() => setFocusedId(pair.id)}
+                readOnly
+              />
+            )}
+          </div>
           <button className="kv-delete" onClick={() => remove(pair.id)}>
             <Trash2 size={14} />
           </button>
