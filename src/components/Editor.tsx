@@ -470,7 +470,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition, onSelectPath])
+  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition, onSelectPath, onBlur])
 
   // Initialize view once on mount
   const initialValue = useRef(value)
