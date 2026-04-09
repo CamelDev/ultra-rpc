@@ -246,9 +246,9 @@ test.describe('Environment & Variable Resolution', () => {
     await setCMValue('.address-bar .address-input', '{{BASE_URL}}/echo');
 
     await window.locator('button.config-tab:has-text("Headers")').first().click();
-    // First header row key/value
-    await setCMValue('.kv-row:nth-child(2) .kv-key', 'Authorization');
-    await setCMValue('.kv-row:nth-child(2) .kv-value', 'Bearer {{AUTH_TOKEN}}');
+    await window.locator('.kv-editor .kv-row').first().locator('.kv-key').fill('Authorization');
+    await window.locator('.kv-editor .kv-row').first().locator('input.kv-value').click();
+    await setCMValue('.kv-editor .kv-row .kv-value', 'Bearer {{AUTH_TOKEN}}');
 
     await window.locator('button.config-tab:has-text("Body")').first().click();
     await window.locator('.method-select').first().selectOption('POST');
@@ -285,7 +285,7 @@ test.describe('Environment & Variable Resolution', () => {
     console.log('--- Phase 4: gRPC SSL Verification ---');
 
     console.log('Adding new tab for gRPC...');
-    await window.locator('button.tab-add').click();
+    await window.locator('button.tab-add:not(.tab-groups-btn)').first().click();
     await wait(1000);
 
     await ensurePanelOpen('Environments', '.env-panel');

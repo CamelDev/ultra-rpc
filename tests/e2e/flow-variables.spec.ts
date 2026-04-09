@@ -110,8 +110,9 @@ test.describe('Flow Variable Persistence', () => {
     
     // 7. Verify the variable exists with correct value
     console.log('Verifying variable...');
-    const varRow = window.locator('.kv-row').filter({ hasText: 'test_var' });
-    await expect(varRow.locator('.kv-value .cm-content')).toHaveText('hello_world');
+    const varRow = window.locator('.kv-row').first();
+    await expect(varRow.locator('.kv-key')).toHaveValue('test_var', { timeout: 10000 });
+    await expect(varRow.locator('input.kv-value')).toHaveValue('hello_world');
     console.log('Variable verified successfully!');
   });
 });

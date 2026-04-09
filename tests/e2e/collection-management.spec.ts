@@ -156,8 +156,10 @@ test.describe('Collection Management', () => {
       const keySelector = '.modal-content .kv-row .kv-key';
       const valSelector = '.modal-content .kv-row .kv-value';
       
-      await setCMValue(keySelector, 'coll_key');
+      await modal.locator('.kv-row .kv-key').first().fill('coll_key');
+      await modal.locator('.kv-row .kv-value').first().click();
       await setCMValue(valSelector, 'coll_val');
+
       
       await modal.locator('.modal-footer button:has-text("Close")').click();
       await page.waitForSelector('.modal-overlay', { state: 'hidden' });
@@ -170,8 +172,8 @@ test.describe('Collection Management', () => {
       
       // Look for the text in the CM editor
       const updatedModal = page.locator('.modal-content');
-      await expect(updatedModal.locator('.kv-row').first()).toContainText('coll_key');
-      await expect(updatedModal.locator('.kv-row').first()).toContainText('coll_val');
+      await expect(updatedModal.locator('.kv-row').first().locator('.kv-key')).toHaveValue('coll_key');
+      await expect(updatedModal.locator('.kv-row').first().locator('input.kv-value')).toHaveValue('coll_val');
       
       await updatedModal.locator('.modal-footer button:has-text("Close")').click();
       console.log('Collection variables verified!');

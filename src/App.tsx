@@ -4,7 +4,7 @@ import {
   Info, FolderOpen,
   Search,
   WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder, Code,
-  GitBranch, Sparkles, Target
+  GitBranch, Sparkles, Target, Layers, ChevronRight, ChevronDown
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import { useScriptValidation } from './hooks/useScriptValidation'
@@ -23,7 +23,8 @@ import LibraryModal from './components/LibraryModal'
 import { FlowCanvas } from './components/FlowCanvas'
 import FlowPanel from './components/FlowPanel'
 import type { FlowDefinition } from './types/flow'
-import type { Tab, RequestConfig, ResponseData, Environment, Collection, CollectionItem, VaultEntry, Library } from './types'
+import type { Tab, TabGroup, RequestConfig, ResponseData, Environment, Collection, CollectionItem, VaultEntry, Library } from './types'
+import TabGroupsModal from './components/TabGroupsModal'
 import { createEmptyRequest } from './lib/helpers'
 import IntroPage from './components/IntroPage'
 import pkg from '../package.json'
@@ -117,6 +118,20 @@ const App: React.FC = () => {
   const [showSettingsPopup, setShowSettingsPopup] = useState(false)
   const [showAboutModal, setShowAboutModal] = useState(false)
   const [showAiInfoModal, setShowAiInfoModal] = useState(false)
+
+  // ===== Tab Groups =====
+  const [tabGroups, setTabGroups] = useState<TabGroup[]>(() => {
+    try {
+      const saved = localStorage.getItem('ultraRpcTabGroups')
+      if (saved) return JSON.parse(saved)
+    } catch { }
+    return []
+  })
+  const [showTabGroupsModal, setShowTabGroupsModal] = useState(false)
+  // Context menu state for tab right-click grouping
+  const [tabContextMenu, setTabContextMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
+  // Inline rename state — which group header is being edited
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
 
   // ===== Environments =====
   const [collections, setCollectionsState] = useState<Collection[]>([])
@@ -384,6 +399,11 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('ultraRpcActiveTabId', activeTabId)
   }, [activeTabId])
+
+  // Persist tab groups
+  useEffect(() => {
+    localStorage.setItem('ultraRpcTabGroups', JSON.stringify(tabGroups))
+  }, [tabGroups])
 
   useEffect(() => {
     if (tabs.length === 0 && window.ultraRpc?.isTest) {
@@ -930,6 +950,61 @@ const App: React.FC = () => {
         setActiveTabId('')
       }
     }
+  }
+
+  // ===== Tab Group Helpers =====
+  const GROUP_COLORS = [
+    '#3b82f6', '#a855f7', '#ec4899', '#ef4444', '#f97316',
+    '#f59e0b', '#22c55e', '#14b8a6', '#06b6d4', '#6366f1',
+  ]
+  const nextGroupColor = (existingGroups: TabGroup[]) => {
+    const used = new Set(existingGroups.map(g => g.color))
+    for (const c of GROUP_COLORS) { if (!used.has(c)) return c }
+    return GROUP_COLORS[existingGroups.length % GROUP_COLORS.length]
+  }
+
+  /**
+   * Add a tab to an existing group, or create a new group with it.
+   * groupId === '__new__' creates a brand-new group containing just this tab.
+   */
+  const addTabToGroup = (tabId: string, groupId: string) => {
+    if (groupId === '__new__') {
+      const newGroup: TabGroup = {
+        id: Math.random().toString(36).substring(2, 11),
+        name: `Group ${tabGroups.length + 1}`,
+        color: nextGroupColor(tabGroups),
+        isHidden: false,
+        isCollapsed: false,
+      }
+      setTabGroups(prev => [...prev, newGroup])
+      setTabs(prev => prev.map(t => t.id === tabId ? { ...t, groupId: newGroup.id } : t))
+      // Immediately enter rename mode so user can name the group
+      setTimeout(() => setEditingGroupId(newGroup.id), 50)
+    } else {
+      setTabs(prev => prev.map(t => t.id === tabId ? { ...t, groupId } : t))
+    }
+    setTabContextMenu(null)
+  }
+
+  const removeTabFromGroup = (tabId: string) => {
+    setTabs(prev => prev.map(t => t.id === tabId ? { ...t, groupId: undefined } : t))
+    setTabContextMenu(null)
+  }
+
+  const handleUpdateGroup = (groupId: string, updates: Partial<TabGroup>) => {
+    setTabGroups(prev => prev.map(g => g.id === groupId ? { ...g, ...updates } : g))
+  }
+
+  const handleDeleteGroup = (groupId: string) => {
+    // Ungroup all member tabs, then remove the group
+    setTabs(prev => prev.map(t => t.groupId === groupId ? { ...t, groupId: undefined } : t))
+    setTabGroups(prev => prev.filter(g => g.id !== groupId))
+  }
+
+  const toggleGroupCollapse = (groupId: string) => {
+    setTabGroups(prev => prev.map(g =>
+      g.id === groupId ? { ...g, isCollapsed: !g.isCollapsed } : g
+    ))
   }
 
   const interpolate = (
@@ -2448,55 +2523,147 @@ const App: React.FC = () => {
             className="tab-bar no-scrollbar"
             as="div"
           >
-            {tabs.map(tab => (
-              <Reorder.Item
-                key={tab.id}
-                value={tab}
-                id={tab.id}
-                onClick={() => setActiveTabId(tab.id)}
-                className={`tab-item ${activeTabId === tab.id ? 'tab-active' : ''}`}
-                data-dirty={tab.isDirty ? 'true' : 'false'}
-                as="div"
-              >
-                <span className="tab-method" style={{
-                  color: methodColor(
-                    tab.type === 'flow' ? 'POST' : 
-                    tab.type === 'request' ? (tab.request?.type === 'GRPC' ? 'GRPC' : tab.request?.method || 'GET') : 
-                    'GET'
-                  ),
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  {tab.type === 'flow' ? (
-                    <><GitBranch size={12} /> FLOW</>
-                  ) : tab.type === 'request' ? (
-                    tab.request?.type === 'GRPC' ? 'gRPC' : tab.request?.method
-                  ) : (
-                    'NEW'
-                  )}
-                </span>
+            {(() => {
+              // Build a flattened render list, injecting group-header pseudo-items
+              const renderedGroupIds = new Set<string>()
 
-                <span
-                  className="tab-title"
-                  style={{ color: tab.isDirty ? 'var(--danger)' : 'var(--text-primary)' }}
-                >
-                  {tab.type === 'flow' ? (tab.flow?.name || 'New Flow') : 
-                   tab.type === 'request' ? (tab.request?.name || tab.request?.url || 'Untitled') : 
-                   'New Tab'}
-                  {tab.isDirty ? '*' : ''}
-                </span>
+              return tabs.flatMap(tab => {
+                const group = tab.groupId ? tabGroups.find(g => g.id === tab.groupId) : undefined
 
-                <button className="tab-close" onClick={(e) => removeTab(e, tab.id)}>
-                  <X size={12} />
-                </button>
-                {activeTabId === tab.id && (
-                  <div className="tab-indicator" />
-                )}
-              </Reorder.Item>
-            ))}
+                // If tab's group is hidden, skip the tab entirely
+                if (group?.isHidden) return []
+
+                const elements: React.ReactNode[] = []
+
+                // Inject group header before the first tab of each group
+                if (group && !renderedGroupIds.has(group.id)) {
+                  renderedGroupIds.add(group.id)
+                  const isEditing = editingGroupId === group.id
+                  elements.push(
+                    <div
+                      key={`grp-header-${group.id}`}
+                      className="tab-group-header"
+                      style={{ '--group-color': group.color } as React.CSSProperties}
+                      onClick={() => { if (!isEditing) toggleGroupCollapse(group.id) }}
+                      title={isEditing ? '' : (group.isCollapsed ? `Expand "${group.name}"` : `Collapse "${group.name}". Double-click to rename.`)}
+                    >
+                      <div
+                        className="tab-group-header-pill"
+                        onDoubleClick={(e) => {
+                          e.stopPropagation()
+                          setEditingGroupId(group.id)
+                        }}
+                      >
+                        {isEditing ? (
+                          <input
+                            className="tab-group-rename-input"
+                            defaultValue={group.name}
+                            autoFocus
+                            onFocus={e => e.target.select()}
+                            onClick={e => e.stopPropagation()}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === 'Escape') {
+                                const val = (e.target as HTMLInputElement).value.trim()
+                                if (val) handleUpdateGroup(group.id, { name: val })
+                                setEditingGroupId(null)
+                              }
+                            }}
+                            onBlur={e => {
+                              const val = e.target.value.trim()
+                              if (val) handleUpdateGroup(group.id, { name: val })
+                              setEditingGroupId(null)
+                            }}
+                            style={{ '--group-color': group.color } as React.CSSProperties}
+                          />
+                        ) : (
+                          <span className="tab-group-header-label">{group.name}</span>
+                        )}
+                        {!isEditing && (group.isCollapsed
+                          ? <ChevronRight size={11} className="tab-group-header-chevron" />
+                          : <ChevronDown size={11} className="tab-group-header-chevron" />
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+
+                // If group is collapsed, skip the tab (but we still rendered the header above)
+                if (group?.isCollapsed) return elements
+
+                elements.push(
+                  <Reorder.Item
+                    key={tab.id}
+                    value={tab}
+                    id={tab.id}
+                    onClick={() => setActiveTabId(tab.id)}
+                    onContextMenu={(e: React.MouseEvent) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setTabContextMenu({ tabId: tab.id, x: e.clientX, y: e.clientY })
+                    }}
+                    className={`tab-item ${activeTabId === tab.id ? 'tab-active' : ''}`}
+                    data-dirty={tab.isDirty ? 'true' : 'false'}
+                    data-group-id={tab.groupId || ''}
+                    as="div"
+                    style={group ? {
+                      '--group-color': group.color,
+                      borderTop: `4px solid ${group.color}`,
+                      background: `color-mix(in srgb, ${group.color} 6%, transparent)`,
+                    } as React.CSSProperties : undefined}
+                  >
+                    <span className="tab-method" style={{
+                      color: methodColor(
+                        tab.type === 'flow' ? 'POST' : 
+                        tab.type === 'request' ? (tab.request?.type === 'GRPC' ? 'GRPC' : tab.request?.method || 'GET') : 
+                        'GET'
+                      ),
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      {tab.type === 'flow' ? (
+                        <><GitBranch size={12} /> FLOW</>
+                      ) : tab.type === 'request' ? (
+                        tab.request?.type === 'GRPC' ? 'gRPC' : tab.request?.method
+                      ) : (
+                        'NEW'
+                      )}
+                    </span>
+
+                    <span
+                      className="tab-title"
+                      style={{ color: tab.isDirty ? 'var(--danger)' : 'var(--text-primary)' }}
+                    >
+                      {tab.type === 'flow' ? (tab.flow?.name || 'New Flow') : 
+                       tab.type === 'request' ? (tab.request?.name || tab.request?.url || 'Untitled') : 
+                       'New Tab'}
+                      {tab.isDirty ? '*' : ''}
+                    </span>
+
+                    <button className="tab-close" onClick={(e) => removeTab(e, tab.id)}>
+                      <X size={12} />
+                    </button>
+                    {activeTabId === tab.id && (
+                      <div className="tab-indicator" />
+                    )}
+                  </Reorder.Item>
+                )
+
+                return elements
+              })
+            })()}
             <button className="tab-add" onClick={() => addEmptyTab()}>
               <Plus size={16} />
+            </button>
+            <button
+              className={`tab-add tab-groups-btn ${tabGroups.length > 0 ? 'tab-groups-btn-active' : ''}`}
+              onClick={() => setShowTabGroupsModal(true)}
+              title="Manage tab groups"
+            >
+              <Layers size={14} />
+              {tabGroups.length > 0 && (
+                <span className="tab-groups-badge">{tabGroups.length}</span>
+              )}
             </button>
           </Reorder.Group>
         </header>
@@ -3625,6 +3792,83 @@ const App: React.FC = () => {
         </div>
       )}
       <Toaster />
+
+      {/* Tab Groups Modal */}
+      {showTabGroupsModal && (
+        <TabGroupsModal
+          groups={tabGroups}
+          tabCountPerGroup={tabGroups.reduce((acc, g) => {
+            acc[g.id] = tabs.filter(t => t.groupId === g.id).length
+            return acc
+          }, {} as Record<string, number>)}
+          onUpdateGroup={handleUpdateGroup}
+          onDeleteGroup={handleDeleteGroup}
+          onClose={() => setShowTabGroupsModal(false)}
+        />
+      )}
+      {/* Tab Right-Click Context Menu */}
+      {tabContextMenu && (() => {
+        const ctxTab = tabs.find(t => t.id === tabContextMenu.tabId)
+        const ctxGroup = ctxTab?.groupId ? tabGroups.find(g => g.id === ctxTab.groupId) : null
+        return (
+          <>
+            {/* Click-away backdrop */}
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+              onClick={() => setTabContextMenu(null)}
+            />
+            <div
+              className="tab-context-menu"
+              style={{ top: tabContextMenu.y, left: tabContextMenu.x, zIndex: 9999 }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Group section header */}
+              <div className="tab-ctx-section-label">Tab Group</div>
+
+              {/* Add to new group */}
+              <button
+                className="tab-ctx-item"
+                onClick={() => addTabToGroup(tabContextMenu.tabId, '__new__')}
+              >
+                <span className="tab-ctx-dot" style={{ background: 'var(--accent)' }} />
+                New group
+              </button>
+
+              {/* Add to existing group */}
+              {tabGroups.length > 0 && (
+                <>
+                  <div className="tab-ctx-divider" />
+                  <div className="tab-ctx-section-label">Add to group</div>
+                  {tabGroups.map(g => (
+                    <button
+                      key={g.id}
+                      className={`tab-ctx-item ${ctxTab?.groupId === g.id ? 'tab-ctx-item-active' : ''}`}
+                      onClick={() => addTabToGroup(tabContextMenu.tabId, g.id)}
+                    >
+                      <span className="tab-ctx-dot" style={{ background: g.color }} />
+                      {g.name}
+                      {ctxTab?.groupId === g.id && <span style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.6 }}>current</span>}
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* Remove from group */}
+              {ctxGroup && (
+                <>
+                  <div className="tab-ctx-divider" />
+                  <button
+                    className="tab-ctx-item tab-ctx-item-danger"
+                    onClick={() => removeTabFromGroup(tabContextMenu.tabId)}
+                  >
+                    Remove from group
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }

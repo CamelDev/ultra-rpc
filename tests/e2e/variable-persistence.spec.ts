@@ -84,9 +84,9 @@ test.describe('Variable Persistence Suite', () => {
     
     const varRows = window.locator('.kv-row');
     await expect(varRows).toHaveCount(2);
-    await expect(varRows.nth(0).locator('.kv-key')).toContainText('var_one');
-    await expect(varRows.nth(0).locator('.kv-value')).toContainText('val_one');
-    await expect(varRows.nth(1).locator('.kv-key')).toContainText('var_two');
-    await expect(varRows.nth(1).locator('.kv-value')).toContainText('val_two');
+    await expect(varRows.nth(0).locator('.kv-key')).toHaveValue('var_one');
+    await expect(varRows.nth(0).locator('input.kv-value')).toHaveValue('val_one');
+    await expect(varRows.nth(1).locator('.kv-key')).toHaveValue('var_two');
+    await expect(varRows.nth(1).locator('input.kv-value')).toHaveValue('val_two');
   });
 });

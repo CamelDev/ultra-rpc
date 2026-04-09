@@ -327,6 +327,194 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-primary);
 }
 
+/* Drop target highlight when dragging over another tab */
+.tab-drop-target {
+  background: rgba(59, 130, 246, 0.08) !important;
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+/* ===== Tab Group Header ===== */
+.tab-group-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px 0 6px;
+  height: 100%;
+  cursor: pointer;
+  color: var(--group-color, var(--accent));
+  user-select: none;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+  position: relative;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.tab-group-header:hover {
+  opacity: 0.85;
+}
+
+/* Colored pill wrapping the label + chevron */
+.tab-group-header-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 6px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--group-color, var(--accent)) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--group-color, var(--accent)) 35%, transparent);
+  transition: background 0.15s ease;
+}
+
+.tab-group-header:hover .tab-group-header-pill {
+  background: color-mix(in srgb, var(--group-color, var(--accent)) 26%, transparent);
+}
+
+.tab-group-header-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--group-color, var(--accent));
+}
+
+.tab-group-header-chevron {
+  opacity: 0.8;
+  flex-shrink: 0;
+  color: var(--group-color, var(--accent));
+}
+
+/* Inline rename input inside the pill */
+.tab-group-rename-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  letter-spacing: 0.3px;
+  color: var(--group-color, var(--accent));
+  width: 72px;
+  min-width: 40px;
+  caret-color: var(--group-color, var(--accent));
+}
+
+.tab-group-rename-input:focus {
+  box-shadow: none;
+  border-color: transparent;
+}
+
+
+/* ===== Tab Groups Button (Layers icon beside +) ===== */
+.tab-groups-btn {
+  position: relative;
+  padding: 0 12px;
+  gap: 4px;
+}
+
+.tab-groups-btn-active {
+  color: var(--accent) !important;
+}
+
+.tab-groups-btn-active:hover {
+  color: var(--accent) !important;
+  background: var(--accent-muted) !important;
+}
+
+.tab-groups-badge {
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--accent);
+  color: white;
+  border-radius: 8px;
+  padding: 1px 5px;
+  line-height: 1.4;
+  letter-spacing: 0.3px;
+}
+
+
+/* ===== Tab Context Menu (right-click → group) ===== */
+.tab-context-menu {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-focus);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  padding: 4px;
+  min-width: 180px;
+  max-width: 240px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: ctx-appear 0.12s ease;
+}
+
+@keyframes ctx-appear {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.tab-ctx-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 5px 10px 3px;
+  user-select: none;
+}
+
+.tab-ctx-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
+}
+
+.tab-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.1s ease;
+  cursor: pointer;
+}
+
+.tab-ctx-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.tab-ctx-item-active {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.tab-ctx-item-active:hover {
+  background: var(--accent-muted);
+}
+
+.tab-ctx-item-danger {
+  color: var(--danger);
+}
+
+.tab-ctx-item-danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.tab-ctx-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* ===== Request Section ===== */
 .request-section {
   flex: 1;

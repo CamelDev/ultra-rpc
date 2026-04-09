@@ -82,12 +82,14 @@ test.describe('Flow Reset — Manual Variables', () => {
     const firstRow = kvSection.locator('.kv-row').first();
     await expect(firstRow).toBeVisible({ timeout: 10000 });
 
-    const keyEditor = firstRow.locator('.kv-key .cm-content');
+    const keyInput = firstRow.locator('.kv-key');
+    await expect(keyInput).toBeVisible({ timeout: 5000 });
+    await keyInput.fill('my_var');
+
+    const valueInputUnfocused = firstRow.locator('input.kv-value');
+    await expect(valueInputUnfocused).toBeVisible({ timeout: 5000 });
+    await valueInputUnfocused.click();
     const valueEditor = firstRow.locator('.kv-value .cm-content');
-
-    await expect(keyEditor).toBeVisible({ timeout: 5000 });
-    await keyEditor.fill('my_var');
-
     await expect(valueEditor).toBeVisible({ timeout: 5000 });
     await valueEditor.fill('hello');
 
@@ -102,10 +104,8 @@ test.describe('Flow Reset — Manual Variables', () => {
     await page.waitForSelector('.flow-settings-drawer', { timeout: 10000 });
 
     // There should be a row whose key editor contains 'my_var'
-    const persistedRow = page.locator('.flow-settings-drawer .kv-row').filter({
-      has: page.locator('.kv-key .cm-content', { hasText: 'my_var' })
-    });
-    await expect(persistedRow).toBeVisible({ timeout: 5000 });
+    const persistedRow = page.locator('.flow-settings-drawer .kv-row').first();
+    await expect(persistedRow.locator('.kv-key')).toHaveValue('my_var');
 
     // Close drawer
     await page.locator('.drawer-header .icon-btn').click();
@@ -143,14 +143,12 @@ test.describe('Flow Reset — Manual Variables', () => {
     await page.waitForSelector('.flow-settings-drawer', { timeout: 10000 });
 
     // Row should still contain 'my_var' because it's baseline
-    const preservedRow = page.locator('.flow-settings-drawer .kv-row').filter({
-      has: page.locator('.kv-key .cm-content', { hasText: 'my_var' })
-    });
-    await expect(preservedRow).toBeVisible({ timeout: 5000 });
+    const preservedRow = page.locator('.flow-settings-drawer .kv-row').first();
+    await expect(preservedRow.locator('.kv-key')).toHaveValue('my_var');
 
     // b) The drawer should still show the baseline variable row
     const allRows = page.locator('.flow-settings-drawer .kv-row');
-    const keyContent = await allRows.nth(0).locator('.kv-key .cm-content').textContent();
+    const keyContent = await allRows.nth(0).locator('.kv-key').inputValue();
     expect(keyContent?.trim() ?? '').toBe('my_var');
 
     console.log('✓ Reset test passed — baseline variables are preserved after reset!');

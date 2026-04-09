@@ -16,6 +16,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 ### Core Feature Automation Checklist
 
 #### Workspace & UI State
+- [x] Browser-style tab grouping, custom colors, renaming, and expand/collapse (`tab-groups.spec.ts`)
 - [x] Tab persistence across application restarts (`workspace-ui.spec.ts`)
 - [x] Active tab restoration (`workspace-ui.spec.ts`)
 - [x] Unsaved changes (dirty state) tracking and prompt (`workspace-ui.spec.ts`)
@@ -49,6 +50,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] Collection-level variable editing and persistence (`collection-management.spec.ts`)
 - [x] Postman Collection v2.1 Import (`collection-management.spec.ts`)
 - [x] Bruno Collection Import (`bruno-import.spec.ts`)
+- [x] Additional Formats Import (`import-formats.spec.ts`)
 - [x] Collection tree search and filtering (`collection-search.spec.ts`)
 - [x] Request renaming during save flow (`save-modal-name.spec.ts`)
 
@@ -57,6 +59,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] Per-tab environment assignment (`environment-workspace.spec.ts`)
 - [x] Apply environment to all tabs (`environment-propagation.spec.ts`)
 - [x] Variable interpolation (`environment-workspace.spec.ts`)
+- [x] Advanced variable persistence logic (`variable-persistence.spec.ts`)
 - [x] SSL/TLS verification toggle (`environment-workspace.spec.ts`)
 - [x] Postman Environment Import (`environment-workspace.spec.ts`)
 - [x] Workspace state saved (`environment-workspace.spec.ts`)
@@ -73,6 +76,8 @@ Playwright is our primary tool for testing the Electron application, verifying U
 #### 🔄 Flow Runner (Orchestration)
 - [x] Create, rename, reorder, and delete flows (`flow-management.spec.ts`)
 - [x] Step variable persistence via `ultra.context.set` (`flow-variables.spec.ts`)
+- [x] Flow sub-flow linking and referencing (`flow-linking.spec.ts`)
+- [x] Flow advanced features scenarios (`flow-advanced-features.spec.ts`)
 - [x] Cloning and Exporting flows (`flow-panel-advanced.spec.ts` & `flow-cloning.spec.ts`)
 - [x] Navigation from flow step to Request Tab (`flow-edit-request.spec.ts`)
 - [x] Reset flow state with baseline preservation (`flow-reset.spec.ts`)
@@ -85,6 +90,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 
 #### 🛡️ Vault & Security
 - [x] Vault access denial handling (`vault-denial.spec.ts`)
+- [x] Vault data moving/transfer handling (`vault-move.spec.ts`)
 - [x] Conditional deletion logic (`conditional-deletion.spec.ts`)
 
 ---

@@ -201,6 +201,7 @@ Manage reusable JavaScript scripts that can be shared across all your API reques
   ```
 
 ### 🎨 Premium UI
+- **Browser-Style Tab Groups** — visually organize related requests with custom colors, inline renaming, and Chrome-like expand/collapse functionality. Manage groups easily via drag-and-drop.
 - **Resizable Split Layout**: Independent scrolling for request config and response viewer
 - **Three-Column View**: Toggle a side-by-side layout (Request vs Response) in Settings for better visibility on wide monitors.
 - **Unsaved Changes Tracking**: Visual indicators for modified tabs and native "Abandon changes?" prompts
@@ -499,8 +500,6 @@ AI agents can perform the following actions through the UltraRPC MCP server:
 ### ⚡ gRPC Client
 - [ ] **Metadata (Headers) Helpers** (Dedicated UI for common gRPC metadata)
 
-### 📁 Collections & Management
-- [x] **Flow Runner** (Visual request chaining and execution)
 
 ### 🤖 Scripting & Variables
 - [ ] **Visual Test Results** (Dedicated UI for assertion summaries)
@@ -509,7 +508,6 @@ AI agents can perform the following actions through the UltraRPC MCP server:
 - [ ] **Response Visualizers** (Custom HTML/CSS rendering for data visualization)
 
 ### 🎨 UX & Reliability
-- [ ] **Global Search** (Searching across history, and tabs)
 - [ ] **Response Diffing** (Compare two different responses visually)
 - [ ] **Large Response Handling** (Optimized rendering for 10MB+ JSON payloads)
 - [ ] **Code Generation** (Copy request as cURL, Fetch, or Python code)

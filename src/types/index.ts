@@ -47,12 +47,22 @@ export interface ResponseData {
 import type { FlowDefinition } from './flow'
 export type { FlowDefinition } from './flow'
 
+// ===== Tab Groups =====
+export interface TabGroup {
+  id: string
+  name: string
+  color: string
+  isHidden: boolean      // Hidden completely from tab bar (managed via modal)
+  isCollapsed: boolean   // Chrome-like collapse/expand in the tab bar
+}
+
 export type Tab = {
   id: string
   isDirty?: boolean
   owningCollectionId?: string
   envId?: string | null
   path?: string
+  groupId?: string       // Links a tab to its group. If undefined, the tab is ungrouped.
 } & (
   | { type: 'request', request: RequestConfig }
   | { type: 'flow', flow: FlowDefinition }

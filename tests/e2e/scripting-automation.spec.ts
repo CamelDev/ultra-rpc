@@ -118,7 +118,7 @@ test.describe('Scripting & Automation Suite', () => {
     await window.click('.coll-context-menu button:has-text("Variables")');
     
     const varRow = window.locator('.kv-row').first();
-    await expect(varRow.locator('.kv-key')).toContainText('last_status', { timeout: 10000 });
-    await expect(varRow.locator('.kv-value')).toContainText('success', { timeout: 10000 });
+    await expect(varRow.locator('.kv-key')).toHaveValue('last_status', { timeout: 10000 });
+    await expect(varRow.locator('input.kv-value')).toHaveValue('success', { timeout: 10000 });
   });
 });
