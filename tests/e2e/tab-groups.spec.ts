@@ -426,4 +426,48 @@ test.describe('Tab Groups', () => {
     await app.close();
   });
 
+  test('Rename a group via modal', async () => {
+    const { app, window } = await launchApp(getDataDir('rename-modal'));
+
+    // Create group on tab 0
+    await rightClickTab(window, 0);
+    await window.click('.tab-ctx-item:has-text("New group")');
+    await window.waitForTimeout(300);
+    await window.keyboard.press('Enter');
+    await window.waitForTimeout(200);
+
+    // Open modal
+    await window.locator('button.tab-groups-btn').click();
+    await window.waitForSelector('.tab-groups-modal');
+
+    // Click rename (edit icon)
+    await window.locator('.tab-groups-modal .tab-group-rename-btn').first().click();
+    await window.waitForTimeout(200);
+
+    // Type a new name and confirm with Enter
+    const input = window.locator('.tab-groups-modal input.tab-group-rename-input');
+    await expect(input).toBeVisible();
+    await input.fill('');
+    await input.type('Modal Renamed Group');
+    await window.keyboard.press('Enter');
+    await window.waitForTimeout(200);
+
+    // Group name in modal should be updated
+    await expect(window.locator('.tab-groups-modal .tab-group-name').first()).toHaveText('Modal Renamed Group');
+
+    // Close via X button
+    await window.click('.tab-groups-modal .modal-close-btn, .tab-groups-modal button:has(svg.lucide-x)');
+    await window.waitForTimeout(200);
+    
+    // Group name in main tab bar should be updated
+    await expect(window.locator('.tab-group-header-label')).toHaveText('Modal Renamed Group');
+
+    // Persisted in localStorage
+    const groups = await getTabGroups(window);
+    expect(groups[0].name).toBe('Modal Renamed Group');
+
+    await app.close();
+  });
+
 });
+

@@ -363,7 +363,7 @@ ultra.lib.test = (phase) => {
     await expect(window.locator('.library-item', { hasText: 'script2.js' })).toBeVisible({ timeout: 10000 });
 
     // 2. Select script 1 and modify it
-    await window.locator('.library-item', { hasText: 'script1.js' }).click();
+    await window.locator('.library-item', { hasText: 'script1.js' }).locator('.library-item-name').click();
     // Wait for the script content to load
     await expect(window.locator('.library-editor .cm-content')).toContainText('ultra.lib.one', { timeout: 10000 });
     await window.click('.library-editor .cm-content');
@@ -378,7 +378,7 @@ ultra.lib.test = (phase) => {
       await dialog.accept(); // OK = Save
     });
 
-    await window.locator('.library-item', { hasText: 'script2.js' }).click();
+    await window.locator('.library-item', { hasText: 'script2.js' }).locator('.library-item-name').click();
     
     // Switch should succeed because we accepted
     await expect(window.locator('.library-item.selected')).toContainText('script2.js', { timeout: 10000 });
@@ -390,7 +390,7 @@ ultra.lib.test = (phase) => {
     expect(content1).toContain('// edited');
 
     // 4. Test closing modal with unsaved changes
-    await window.locator('.library-item', { hasText: 'script2.js' }).click();
+    await window.locator('.library-item', { hasText: 'script2.js' }).locator('.library-item-name').click();
     await expect(window.locator('.library-editor .cm-content')).toContainText('ultra.lib.two', { timeout: 10000 });
     await window.click('.library-editor .cm-content');
     await window.keyboard.type('// edited 2\\n', { delay: 10 });

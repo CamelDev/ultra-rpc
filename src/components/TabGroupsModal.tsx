@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, Trash2, Eye, EyeOff, Layers } from 'lucide-react'
+import { X, Trash2, Eye, EyeOff, Layers, Edit2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { TabGroup } from '../types'
 import './TabGroupsModal.css'
@@ -33,6 +33,8 @@ const TabGroupsModal: React.FC<TabGroupsModalProps> = ({
   onClose,
 }) => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
 
   const handleDeleteClick = (groupId: string) => {
     setConfirmDeleteId(groupId)
@@ -84,7 +86,63 @@ const TabGroupsModal: React.FC<TabGroupsModalProps> = ({
                       className="tab-group-color-dot"
                       style={{ background: group.color }}
                     />
-                    <span className="tab-group-name">{group.name}</span>
+                    {editingGroupId === group.id ? (
+                      <input
+                        className="tab-group-rename-input"
+                        autoFocus
+                        value={editingName}
+                        onChange={e => setEditingName(e.target.value)}
+                        onBlur={() => {
+                          if (editingName.trim() && editingName.trim() !== group.name) {
+                            onUpdateGroup(group.id, { name: editingName.trim() })
+                          }
+                          setEditingGroupId(null)
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur()
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingGroupId(null)
+                          }
+                        }}
+                        style={{
+                          background: 'var(--bg-tertiary)',
+                          border: '1px solid var(--border-color)',
+                          color: 'var(--text-primary)',
+                          borderRadius: '4px',
+                          padding: '2px 6px',
+                          fontSize: '13px',
+                          width: '120px',
+                          outline: 'none',
+                          marginRight: '8px'
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <span 
+                          className="tab-group-name" 
+                          title="Double-click to rename"
+                          onDoubleClick={() => {
+                            setEditingGroupId(group.id)
+                            setEditingName(group.name)
+                          }}
+                        >
+                          {group.name}
+                        </span>
+                        <button
+                          className="btn-ghost tab-group-action-btn tab-group-rename-btn"
+                          title="Rename group"
+                          onClick={() => {
+                            setEditingGroupId(group.id)
+                            setEditingName(group.name)
+                          }}
+                          style={{ marginLeft: '4px', padding: '2px', opacity: 0.6 }}
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      </>
+                    )}
                     <span className="tab-group-count">
                       {tabCountPerGroup[group.id] ?? 0} tab{(tabCountPerGroup[group.id] ?? 0) !== 1 ? 's' : ''}
                     </span>
