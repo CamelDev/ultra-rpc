@@ -15,6 +15,12 @@ import {
   Layers,
 } from 'lucide-react'
 import Editor from './Editor'
+import {
+  streamingLabel,
+  getServiceShortName,
+  getPackageName,
+  splitTypeName,
+} from '../lib/proto-helpers'
 import './ProtoDefinitionModal.css'
 
 interface SampleVariant {
@@ -56,34 +62,6 @@ interface Selection {
   method: MethodInfo | null
 }
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function streamingLabel(m: MethodInfo): { label: string; cls: string } {
-  if (m.clientStreaming && m.serverStreaming)
-    return { label: 'bidi stream', cls: 'proto-badge-bidi' }
-  if (m.clientStreaming) return { label: 'client stream', cls: 'proto-badge-client' }
-  if (m.serverStreaming) return { label: 'server stream', cls: 'proto-badge-server' }
-  return { label: 'unary', cls: 'proto-badge-unary' }
-}
-
-function getServiceShortName(fullName: string) {
-  const parts = fullName.split('.')
-  return parts[parts.length - 1]
-}
-
-function getPackageName(fullName: string) {
-  const parts = fullName.split('.')
-  parts.pop()
-  return parts.join('.') || '(root)'
-}
-
-/** Tokenise a proto type name into its short + package parts */
-function splitTypeName(fullName: string): { pkg: string; short: string } {
-  const clean = fullName.startsWith('.') ? fullName.slice(1) : fullName
-  const idx = clean.lastIndexOf('.')
-  if (idx === -1) return { pkg: '', short: clean }
-  return { pkg: clean.slice(0, idx), short: clean.slice(idx + 1) }
-}
 
 /** Render a coloured type chip */
 function TypeChip({ typeName }: { typeName: string }) {

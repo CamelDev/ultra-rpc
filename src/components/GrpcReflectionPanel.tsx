@@ -28,9 +28,9 @@ interface Props {
   interpolate: (text: string) => string
   // Interpolation context
   activeEnv?: any
-  contextVariables?: Record<string, string>
+  contextVariables?: any
   vaultEntries?: any[]
-  theme?: string
+  theme?: any
 }
 
 const GrpcReflectionPanel: React.FC<Props> = ({ 

@@ -10,6 +10,10 @@ service GreetingService {
 
 message HelloRequest {
   string name = 1;
+  oneof contact {
+    string email = 2;
+    string phone = 3;
+  }
 }
 
 message HelloResponse {
