@@ -22,7 +22,18 @@ export interface UltraRpcApi {
   grpcReflect: (args: { host: string; insecure: boolean; headers: Record<string, string>; protoPath?: string }) => Promise<{ success: boolean; services?: string[]; error?: string }>
   grpcMethods: (args: { host: string; insecure: boolean; headers: Record<string, string>; serviceName: string; protoPath?: string }) => Promise<{
     success: boolean
-    methods?: { name: string; fullName: string; requestType: string; responseType: string; clientStreaming: boolean; serverStreaming: boolean; sampleBody?: string }[]
+    methods?: { 
+      name: string; 
+      fullName: string; 
+      requestType: string; 
+      responseType: string; 
+      clientStreaming: boolean; 
+      serverStreaming: boolean; 
+      sampleBody?: string;
+      responseSampleBody?: string;
+      requestVariants?: { name: string; body: string }[];
+      responseVariants?: { name: string; body: string }[];
+    }[]
     error?: string
   }>
   grpcCall: (args: { host: string; insecure: boolean; headers: Record<string, string>; service: string; method: string; payload: string; protoPath?: string; timeoutMs?: number }) => Promise<{

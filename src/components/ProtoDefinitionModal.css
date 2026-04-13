@@ -603,6 +603,67 @@
   border: 1px solid var(--border);
 }
 
+/* oneof variants selection */
+.proto-variants-row-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proto-variants-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.proto-variants-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.proto-variants-list {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 2px;
+}
+
+.proto-variant-tab {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.16s;
+  white-space: nowrap;
+}
+
+.proto-variant-tab:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.proto-variant-tab-active {
+  background: var(--bg-primary) !important;
+  color: var(--success) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
 /* streaming info */
 .proto-streaming-info {
   background: rgba(245, 158, 11, 0.06);

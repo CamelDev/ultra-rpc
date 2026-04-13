@@ -17,6 +17,12 @@ import {
 import Editor from './Editor'
 import './ProtoDefinitionModal.css'
 
+interface SampleVariant {
+  name: string
+  body: string
+  oneofName?: string
+}
+
 interface MethodInfo {
   name: string
   fullName: string
@@ -26,6 +32,8 @@ interface MethodInfo {
   serverStreaming: boolean
   sampleBody?: string
   responseSampleBody?: string
+  requestVariants?: SampleVariant[]
+  responseVariants?: SampleVariant[]
 }
 
 interface Props {
@@ -141,6 +149,8 @@ const ProtoDefinitionModal: React.FC<Props> = ({
   })
   const [selection, setSelection] = useState<Selection | null>(null)
   const [schemaTab, setSchemaTab] = useState<'request' | 'response'>('request')
+  const [activeRequestVariant, setActiveRequestVariant] = useState<string>('')
+  const [activeResponseVariant, setActiveResponseVariant] = useState<string>('')
   const searchRef = useRef<HTMLInputElement>(null)
 
   // Focus search on open
@@ -192,7 +202,6 @@ const ProtoDefinitionModal: React.FC<Props> = ({
         loadMethods(svc)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const toggleService = (svc: string) => {
@@ -211,6 +220,19 @@ const ProtoDefinitionModal: React.FC<Props> = ({
   const selectMethod = (svc: string, method: MethodInfo) => {
     setSelection({ service: svc, method })
     setSchemaTab('request') // reset tab when switching methods
+    
+    // Default to first variant if available
+    if (method.requestVariants && method.requestVariants.length > 0) {
+      setActiveRequestVariant(method.requestVariants[0].name)
+    } else {
+      setActiveRequestVariant('')
+    }
+    
+    if (method.responseVariants && method.responseVariants.length > 0) {
+      setActiveResponseVariant(method.responseVariants[0].name)
+    } else {
+      setActiveResponseVariant('')
+    }
   }
 
   const selectService = (svc: string) => {
@@ -332,10 +354,14 @@ const ProtoDefinitionModal: React.FC<Props> = ({
     const m = selection.method
     const { label, cls } = streamingLabel(m)
 
-    const activeBody = schemaTab === 'response'
-      ? (m.responseSampleBody || '{}')
-      : (m.sampleBody || '{}')
-    const activeTypeName = schemaTab === 'response' ? m.responseType : m.requestType
+    const isResponse = schemaTab === 'response'
+    const variants = isResponse ? m.responseVariants : m.requestVariants
+    const activeVariantName = isResponse ? activeResponseVariant : activeRequestVariant
+    const setActiveVariant = isResponse ? setActiveResponseVariant : setActiveRequestVariant
+    
+    const activeVariant = variants?.find(v => v.name === activeVariantName) || variants?.[0]
+    const activeBody = activeVariant ? activeVariant.body : (isResponse ? (m.responseSampleBody || '{}') : (m.sampleBody || '{}'))
+    const activeTypeName = isResponse ? m.responseType : m.requestType
 
     return (
       <div className="proto-detail-method">
@@ -372,6 +398,38 @@ const ProtoDefinitionModal: React.FC<Props> = ({
           </button>
         </div>
 
+        {/* Variants selection if multiple oneof options exist */}
+        {variants && variants.length > 1 && (
+          <div className="proto-variants-row-stack">
+            {Object.entries(
+              variants.reduce((acc, v) => {
+                const key = v.oneofName || 'Default'
+                if (!acc[key]) acc[key] = []
+                acc[key].push(v)
+                return acc
+              }, {} as Record<string, SampleVariant[]>)
+            ).map(([oneofName, vs]) => (
+              <div key={oneofName} className="proto-variants-row">
+                <div className="proto-variants-label">
+                  <Layers size={13} />
+                  <span>{oneofName}</span>
+                </div>
+                <div className="proto-variants-list">
+                  {vs.map(v => (
+                    <button
+                      key={v.name}
+                      className={`proto-variant-tab ${activeVariantName === v.name ? 'proto-variant-tab-active' : ''}`}
+                      onClick={() => setActiveVariant(v.name)}
+                    >
+                      {v.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Active type full name */}
         <div className="proto-active-type-row">
           <span className="proto-pkg-label">type</span>
@@ -398,9 +456,9 @@ const ProtoDefinitionModal: React.FC<Props> = ({
 
         {/* Schema body with syntax highlighting */}
         <SampleBodyViewer
-          key={schemaTab}
+          key={`${schemaTab}-${activeVariantName}`}
           json={activeBody}
-          label={schemaTab === 'request' ? 'Request Structure' : 'Response Structure'}
+          label={isResponse ? 'Response Structure' : 'Request Structure'}
         />
 
         {/* Use button (only for request) */}
@@ -408,7 +466,7 @@ const ProtoDefinitionModal: React.FC<Props> = ({
           <button
             className="proto-use-btn"
             onClick={() => {
-              onSelectMethod(selection.service, m.name, m.sampleBody)
+              onSelectMethod(selection.service, m.name, activeBody)
               onClose()
             }}
           >

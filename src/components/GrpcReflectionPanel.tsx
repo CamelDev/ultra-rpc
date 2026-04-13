@@ -165,23 +165,25 @@ const GrpcReflectionPanel: React.FC<Props> = ({
 
   return (
     <div className="reflect-panel">
-      {/* 1. Mode Toggle on TOP */}
-      <div className="reflect-mode-toggle">
-        <button 
-          type="button"
-          className={`reflect-mode-btn ${grpcReflection ? 'active' : ''}`}
-          onClick={() => onGrpcReflectionChange(true)}
-        >
-          <Server size={13} /> Server Reflection
-        </button>
-        <button 
-          type="button"
-          className={`reflect-mode-btn ${!grpcReflection ? 'active' : ''}`}
-          onClick={() => onGrpcReflectionChange(false)}
-        >
-          <FileType size={13} /> Proto File
-        </button>
-      </div>
+      {/* 1. Mode Toggle on TOP - Hide during/after discovery */}
+      {!discovered && !loading && (
+        <div className="reflect-mode-toggle">
+          <button 
+            type="button"
+            className={`reflect-mode-btn ${grpcReflection ? 'active' : ''}`}
+            onClick={() => onGrpcReflectionChange(true)}
+          >
+            <Server size={13} /> Server Reflection
+          </button>
+          <button 
+            type="button"
+            className={`reflect-mode-btn ${!grpcReflection ? 'active' : ''}`}
+            onClick={() => onGrpcReflectionChange(false)}
+          >
+            <FileType size={13} /> Proto File
+          </button>
+        </div>
+      )}
 
       <div className="reflect-header">
         <div className="reflect-header-info">

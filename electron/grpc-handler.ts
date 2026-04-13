@@ -247,7 +247,8 @@ function generateSampleBody(
   messageTypes: Map<string, any>, 
   enumTypes: Map<string, any>, 
   typeName: string, 
-  visited: Set<string>
+  visited: Set<string>,
+  options: { oneofSelection?: Record<number, string> } = {}
 ): Record<string, any> {
   const getMsg = (name: string) => {
     if (!name) return null
@@ -264,7 +265,30 @@ function generateSampleBody(
 
   const result: Record<string, any> = {}
 
+  // Pre-calculate which fields to include for each oneof at this level to ensure a "real" (valid) sample.
+  const fieldsToInclude = new Set<string>()
+  const processedOneofs = new Set<number>()
+
   for (const field of msg.field) {
+    if (field.oneofIndex !== undefined && field.oneofIndex !== null && !field.proto3Optional) {
+      if (processedOneofs.has(field.oneofIndex)) continue
+      
+      const selectedFieldName = options.oneofSelection?.[field.oneofIndex]
+      if (selectedFieldName) {
+        fieldsToInclude.add(selectedFieldName)
+      } else {
+        // Default behavior: pick the first field in the oneof
+        fieldsToInclude.add(field.name)
+      }
+      processedOneofs.add(field.oneofIndex)
+    } else {
+      fieldsToInclude.add(field.name)
+    }
+  }
+
+  for (const field of msg.field) {
+    if (!fieldsToInclude.has(field.name)) continue
+
     const name = field.jsonName || field.name
     let value: any
 
@@ -311,13 +335,15 @@ function generateSampleBody(
       case 17: // TYPE_SINT32
         value = 1; break
       case 14: // TYPE_ENUM
-        const enm = enumTypes.get(field.typeName)
-        if (enm && enm.value && enm.value.length > 0) {
-          value = enm.value[0].name
-        } else {
-          value = 0
+        {
+          const enm = enumTypes.get(field.typeName)
+          if (enm && enm.value && enm.value.length > 0) {
+            value = enm.value[0].name
+          } else {
+            value = 0
+          }
         }
-        break
+        break;
       case 8: // TYPE_BOOL
         value = true; break
       case 9: // TYPE_STRING
@@ -1095,12 +1121,32 @@ export function registerGrpcHandlers() {
           const methods: { name: string; fullName: string; requestType: string; responseType: string; clientStreaming: boolean; serverStreaming: boolean; sampleBody: string }[] = []
           const targetShortName = args.serviceName.split('.').pop()
           
-          const generateProtoSample = (type: any, visited: Set<string>): Record<string, any> => {
+          const generateProtoSample = (type: any, visited: Set<string>, options: { oneofSelection?: Record<string, string> } = {}): Record<string, any> => {
             if (!type || visited.has(type.fullName)) return {}
             visited.add(type.fullName)
             const result: Record<string, any> = {}
 
+            // Pre-calculate fields to include for oneof consistency
+            const fieldsToInclude = new Set<string>()
+            const processedOneofs = new Set<string>()
+
             for (const field of type.fieldsArray) {
+              if (field.oneof) {
+                if (processedOneofs.has(field.oneof.name)) continue
+                const selectedFieldName = options.oneofSelection?.[field.oneof.name]
+                if (selectedFieldName) {
+                  fieldsToInclude.add(selectedFieldName)
+                } else {
+                  fieldsToInclude.add(field.name) // Default: first field
+                }
+                processedOneofs.add(field.oneof.name)
+              } else {
+                fieldsToInclude.add(field.name)
+              }
+            }
+
+            for (const field of type.fieldsArray) {
+              if (!fieldsToInclude.has(field.name)) continue
               // Map support for protobufjs (MapField)
               if (field.map) {
                 const sampleKey = field.keyType === 'string' ? 'sample_key' : '1'
@@ -1147,29 +1193,59 @@ export function registerGrpcHandlers() {
             return result
           }
 
-          const service = root.lookupService(args.serviceName) || root.lookupService(targetShortName!)
-          if (service) {
-            for (const mName of Object.keys(service.methods)) {
-              const m = service.methods[mName]
-              m.resolve()
-              const inputType = root.lookupType(m.requestType)
-              const outputType = root.lookupType(m.responseType)
-              const sampleBody = generateProtoSample(inputType, new Set())
-              const responseSampleBody = generateProtoSample(outputType, new Set())
-              
-              methods.push({
-                name: mName,
-                fullName: `${args.serviceName}/${mName}`,
-                requestType: m.requestType,
-                responseType: m.responseType,
-                clientStreaming: m.requestStream || false,
-                serverStreaming: m.responseStream || false,
-                sampleBody: JSON.stringify(sampleBody, null, 2),
-                responseSampleBody: JSON.stringify(responseSampleBody, null, 2),
-              })
-            }
-          }
-          return { success: true, methods }
+              const service = root.lookupService(args.serviceName) || root.lookupService(targetShortName!)
+              if (service) {
+                for (const mName of Object.keys(service.methods)) {
+                  const m = service.methods[mName]
+                  m.resolve()
+                  const inputType = root.lookupType(m.requestType)
+                  const outputType = root.lookupType(m.responseType)
+
+                  const getVariants = (type: any) => {
+                    const variants: { name: string; body: string }[] = []
+                    
+                    // Detect top-level oneofs that have more than 1 field (actual choices)
+                    if (type.oneofsArray && type.oneofsArray.length > 0) {
+                      for (const oneof of type.oneofsArray) {
+                        // Skip synthetic oneofs for proto3 optional (usually start with underscore)
+                        if (oneof.name.startsWith('_')) continue
+
+                        if (oneof.fieldsArray.length > 1) {
+                          for (const field of oneof.fieldsArray) {
+                            const body = JSON.stringify(generateProtoSample(type, new Set(), { 
+                              oneofSelection: { [oneof.name]: field.name } 
+                            }), null, 2)
+                            variants.push({ name: field.name, oneofName: oneof.name, body })
+                          }
+                        }
+                      }
+                    }
+                    
+                    // If no multi-field oneofs found, provide a Default variant
+                    if (variants.length === 0) {
+                      variants.push({ name: 'Default', body: JSON.stringify(generateProtoSample(type, new Set()), null, 2) })
+                    }
+                    return variants
+                  }
+
+                  const requestVariants = getVariants(inputType)
+                  const responseVariants = getVariants(outputType)
+                  
+                  methods.push({
+                    name: mName,
+                    fullName: `${args.serviceName}/${mName}`,
+                    requestType: m.requestType,
+                    responseType: m.responseType,
+                    clientStreaming: m.requestStream || false,
+                    serverStreaming: m.responseStream || false,
+                    sampleBody: requestVariants[0]?.body || '{}',
+                    responseSampleBody: responseVariants[0]?.body || '{}',
+                    requestVariants,
+                    responseVariants,
+                  })
+                }
+              }
+              return { success: true, methods }
         } catch (err: any) {
              return { success: false, error: err.message || 'Failed to parse proto file for methods' }
         }
@@ -1239,23 +1315,56 @@ export function registerGrpcHandlers() {
                   if (svc.method) {
                     for (const m of svc.method) {
                       const cleanType = (t: string) => t?.startsWith('.') ? t.slice(1) : (t || '')
-                      const inputType = cleanType(m.inputType)
+                      
+                      const getVariants = (typeName: string) => {
+                        const variants: { name: string; body: string }[] = []
+                        const msg = messageTypes.get(typeName) || messageTypes.get(`.${typeName}`)
+                        
+                        if (msg && msg.oneofDecl && msg.oneofDecl.length > 0) {
+                          for (let i = 0; i < msg.oneofDecl.length; i++) {
+                            const oneofName = msg.oneofDecl[i]?.name || `index_${i}`
+                            // Skip synthetic oneofs for proto3 optional
+                            if (oneofName.startsWith('_')) continue
+
+                            // Find fields for this oneof group
+                            const oneofFields = (msg.field || []).filter((f: any) => f.oneofIndex === i && !f.proto3Optional)
+                            
+                            // Only offer variants for oneof groups with more than one field (actual choices)
+                            if (oneofFields.length > 1) {
+                              for (const f of oneofFields) {
+                                const body = JSON.stringify(generateSampleBody(messageTypes, enumTypes, typeName, new Set(), {
+                                  oneofSelection: { [i]: f.name }
+                                }), null, 2)
+                                variants.push({ name: f.name, oneofName, body })
+                              }
+                            }
+                          }
+                        }
+
+                        // If no multi-field oneofs found, provide a Default variant
+                        if (variants.length === 0) {
+                          variants.push({ 
+                            name: 'Default', 
+                            body: JSON.stringify(generateSampleBody(messageTypes, enumTypes, typeName, new Set()), null, 2) 
+                          })
+                        }
+                        return variants
+                      }
+
+                      const requestVariants = getVariants(m.inputType)
+                      const responseVariants = getVariants(m.outputType)
 
                       methods.push({
                         name: m.name,
                         fullName: `${svcFullName}/${m.name}`,
-                        requestType: inputType,
+                        requestType: cleanType(m.inputType),
                         responseType: cleanType(m.outputType),
                         clientStreaming: m.clientStreaming || false,
                         serverStreaming: m.serverStreaming || false,
-                        sampleBody: JSON.stringify(
-                          generateSampleBody(messageTypes, enumTypes, m.inputType, new Set()),
-                          null, 2
-                        ),
-                        responseSampleBody: JSON.stringify(
-                          generateSampleBody(messageTypes, enumTypes, m.outputType, new Set()),
-                          null, 2
-                        ),
+                        sampleBody: requestVariants[0]?.body || '{}',
+                        responseSampleBody: responseVariants[0]?.body || '{}',
+                        requestVariants,
+                        responseVariants,
                       })
                     }
                   }
