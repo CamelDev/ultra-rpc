@@ -10,7 +10,8 @@ import {
   type DecorationSet, 
   ViewPlugin, 
   ViewUpdate, 
-  Decoration
+  Decoration,
+  tooltips
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search'
@@ -326,6 +327,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       variablePlugin,
       libraryLinkPlugin,
       autocompletion({ override: [variableCompletionSource] }),
+      tooltips({ parent: document.body }),
       (wrapLines && !singleLine) ? EditorView.lineWrapping : [],
       EditorView.theme({
         '&': { height: '100%', backgroundColor: 'transparent' },
