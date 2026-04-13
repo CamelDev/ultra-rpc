@@ -211,46 +211,126 @@ message ErrorResponse {
 
 // Protobuf field type numbers → default values for sample body generation
 // See: https://protobuf.dev/programming-guides/proto3/#scalar
-function generateSampleBody(messageTypes: Map<string, any>, typeName: string, visited: Set<string>): Record<string, any> {
-  const msg = messageTypes.get(typeName)
+// Helper to recursively index all message and enum types from descriptors
+function indexDescriptorTypes(pkg: string, msg: any, messageTypes: Map<string, any>, enumTypes: Map<string, any>) {
+  const name = msg.name
+  const fullName = pkg ? `${pkg}.${name}` : name
+  
+  messageTypes.set(fullName, msg)
+  messageTypes.set(`.${fullName}`, msg)
+  
+  if (msg.nestedType) {
+    for (const nested of msg.nestedType) {
+      indexDescriptorTypes(fullName, nested, messageTypes, enumTypes)
+    }
+  }
+  
+  if (msg.enumType) {
+    for (const enm of msg.enumType) {
+      const enmFullName = `${fullName}.${enm.name}`
+      enumTypes.set(enmFullName, enm)
+      enumTypes.set(`.${enmFullName}`, enm)
+    }
+  }
+}
+
+// Protobuf field type numbers → default values for sample body generation
+// See: https://protobuf.dev/programming-guides/proto3/#scalar
+// Protobuf field type numbers → default values for sample body generation
+// See: https://protobuf.dev/programming-guides/proto3/#scalar
+function generateSampleBody(
+  messageTypes: Map<string, any>, 
+  enumTypes: Map<string, any>, 
+  typeName: string, 
+  visited: Set<string>
+): Record<string, any> {
+  const getMsg = (name: string) => {
+    if (!name) return null
+    return messageTypes.get(name) || messageTypes.get(`.${name}`) || (name.startsWith('.') ? messageTypes.get(name.slice(1)) : null)
+  }
+  
+  const msg = getMsg(typeName)
   if (!msg || !msg.field) return {}
 
-  // Prevent infinite recursion with self-referencing types
-  if (visited.has(typeName)) return {}
-  visited.add(typeName)
+  // Use a canonical name for visited check to avoid dot-prefix mismatches
+  const canonicalName = (typeName.startsWith('.') ? typeName : `.${typeName}`)
+  if (visited.has(canonicalName)) return {}
+  visited.add(canonicalName)
 
   const result: Record<string, any> = {}
+  const usedOneofIndices = new Set<number>()
 
   for (const field of msg.field) {
+    // oneof handling: only include the first field of each oneof group
+    if (field.oneofIndex !== undefined && field.oneofIndex !== null) {
+      // Proto3 optional fields are technically in a single-field oneof, but they should NOT be mutually exclusive with others
+      if (!field.proto3Optional) {
+        if (usedOneofIndices.has(field.oneofIndex)) continue
+        usedOneofIndices.add(field.oneofIndex)
+      }
+    }
+
     const name = field.jsonName || field.name
     let value: any
+
+    // Check if it's a map entry
+    let isMap = false
+    if (field.type === 11 && field.label === 3) { // LABEL_REPEATED && TYPE_MESSAGE
+      const fieldType = messageTypes.get(field.typeName)
+      if (fieldType && fieldType.options && (fieldType.options.mapEntry || fieldType.options.map_entry)) {
+        isMap = true
+        const keyField = fieldType.field.find((f: any) => f.number === 1)
+        const valField = fieldType.field.find((f: any) => f.number === 2)
+        
+        const sampleKey = keyField && keyField.type === 9 ? 'sample_key' : '1'
+        let sampleVal: any
+        if (valField.type === 11) {
+          sampleVal = generateSampleBody(messageTypes, enumTypes, valField.typeName, visited)
+        } else if (valField.type === 14) {
+          const enm = enumTypes.get(valField.typeName)
+          sampleVal = (enm && enm.value && enm.value.length > 0) ? enm.value[0].name : 0
+        } else {
+          // Simplified scalar sample for map value
+          sampleVal = valField.type === 9 ? 'sample_value' : (valField.type === 8 ? true : 1)
+        }
+        result[name] = { [sampleKey]: sampleVal }
+        continue
+      }
+    }
 
     // field.type is a number from FieldDescriptorProto.Type enum
     switch (field.type) {
       case 1: // TYPE_DOUBLE
       case 2: // TYPE_FLOAT
-        value = 0.0; break
+        value = 1.0; break
       case 3: // TYPE_INT64
       case 4: // TYPE_UINT64
       case 18: // TYPE_SINT64
       case 16: // TYPE_SFIXED64
       case 6: // TYPE_FIXED64
-        value = '0'; break // Strings for 64-bit in JSON
+        value = '1'; break // Strings for 64-bit in JSON
       case 5: // TYPE_INT32
       case 13: // TYPE_UINT32
       case 15: // TYPE_SFIXED32
       case 7: // TYPE_FIXED32
-      case 14: // TYPE_ENUM
       case 17: // TYPE_SINT32
-        value = 0; break
+        value = 1; break
+      case 14: // TYPE_ENUM
+        const enm = enumTypes.get(field.typeName)
+        if (enm && enm.value && enm.value.length > 0) {
+          value = enm.value[0].name
+        } else {
+          value = 0
+        }
+        break
       case 8: // TYPE_BOOL
-        value = false; break
+        value = true; break
       case 9: // TYPE_STRING
-        value = ''; break
+        value = `${field.name}_sample`; break
       case 12: // TYPE_BYTES
-        value = ''; break
+        value = 'YmFzZTY0'; break // "base64" in base64
       case 11: // TYPE_MESSAGE
-        value = generateSampleBody(messageTypes, field.typeName, new Set(visited)); break
+        value = generateSampleBody(messageTypes, enumTypes, field.typeName, visited); break
       default:
         value = null
     }
@@ -263,7 +343,7 @@ function generateSampleBody(messageTypes: Map<string, any>, typeName: string, vi
     }
   }
 
-  visited.delete(typeName)
+  visited.delete(canonicalName)
   return result
 }
 
@@ -899,22 +979,48 @@ export function registerGrpcHandlers() {
             if (!type || visited.has(type.fullName)) return {}
             visited.add(type.fullName)
             const result: Record<string, any> = {}
+            const usedOneofNames = new Set<string>()
+
             for (const field of type.fieldsArray) {
+              // oneof handling: only include the first field of each oneof group
+              if (field.oneof) {
+                if (usedOneofNames.has(field.oneof)) continue
+                usedOneofNames.add(field.oneof)
+              }
+
+              // Map support for protobufjs (MapField)
+              if (field.map) {
+                const sampleKey = field.keyType === 'string' ? 'sample_key' : '1'
+                let sampleValue: any
+                if (field.resolvedType) {
+                  if (field.resolvedType.constructor.name === 'Enum') {
+                    sampleValue = Object.keys(field.resolvedType.values)[0] || 0
+                  } else {
+                    sampleValue = generateProtoSample(field.resolvedType, visited)
+                  }
+                } else {
+                  sampleValue = field.type === 'string' ? 'sample_value' : (field.type === 'bool' ? true : 1)
+                }
+                result[field.name] = { [sampleKey]: sampleValue }
+                continue
+              }
+
               let value: any
               if (field.resolvedType) {
                  if (field.resolvedType.constructor.name === 'Enum') {
+                   // Use the first available enum constant name
                    value = Object.keys(field.resolvedType.values)[0] || 0
                  } else {
-                   value = generateProtoSample(field.resolvedType, new Set(visited))
+                   value = generateProtoSample(field.resolvedType, visited)
                  }
               } else {
                 switch (field.type) {
-                  case 'double': case 'float': value = 0.0; break;
-                  case 'int32': case 'uint32': case 'sint32': case 'fixed32': case 'sfixed32': value = 0; break;
-                  case 'int64': case 'uint64': case 'sint64': case 'fixed64': case 'sfixed64': value = '0'; break;
-                  case 'bool': value = false; break;
-                  case 'string': value = ''; break;
-                  case 'bytes': value = ''; break;
+                  case 'double': case 'float': value = 1.0; break;
+                  case 'int32': case 'uint32': case 'sint32': case 'fixed32': case 'sfixed32': value = 1; break;
+                  case 'int64': case 'uint64': case 'sint64': case 'fixed64': case 'sfixed64': value = '1'; break;
+                  case 'bool': value = true; break;
+                  case 'string': value = `${field.name}_sample`; break;
+                  case 'bytes': value = 'YmFzZTY0'; break;
                   default: value = null;
                 }
               }
@@ -997,19 +1103,34 @@ export function registerGrpcHandlers() {
 
             // Collect all message types for sample body generation
             const messageTypes = new Map<string, any>()
+            const enumTypes = new Map<string, any>()
 
+            // Pass 1: Index all types from all buffers
             for (const buf of descriptorBuffers) {
               const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
               const pkg = decoded.package || ''
 
-              // Index all message types
-              if (decoded.messageType) {
-                for (const msg of decoded.messageType) {
-                  const fullName = pkg ? `${pkg}.${msg.name}` : msg.name
-                  messageTypes.set(fullName, msg)
-                  messageTypes.set(`.${fullName}`, msg)
+              // Index all top-level enums
+              if (decoded.enumType) {
+                for (const enm of decoded.enumType) {
+                  const fullName = pkg ? `${pkg}.${enm.name}` : enm.name
+                  enumTypes.set(fullName, enm)
+                  enumTypes.set(`.${fullName}`, enm)
                 }
               }
+
+              // Index all message types (and their nested messages/enums)
+              if (decoded.messageType) {
+                for (const msg of decoded.messageType) {
+                  indexDescriptorTypes(pkg, msg, messageTypes, enumTypes)
+                }
+              }
+            }
+
+            // Pass 2: Process services and generate methods
+            for (const buf of descriptorBuffers) {
+              const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
+              const pkg = decoded.package || ''
 
               if (decoded.service) {
                 for (const svc of decoded.service) {
@@ -1020,8 +1141,8 @@ export function registerGrpcHandlers() {
                         const cleanType = (t: string) => t?.startsWith('.') ? t.slice(1) : (t || '')
                         const inputType = cleanType(m.inputType)
 
-                        // Generate sample body from message fields
-                        const sampleBody = generateSampleBody(messageTypes, m.inputType, new Set())
+                        // Generate sample body from message fields using the global index
+                        const sampleBody = generateSampleBody(messageTypes, enumTypes, m.inputType, new Set())
 
                         methods.push({
                           name: m.name,

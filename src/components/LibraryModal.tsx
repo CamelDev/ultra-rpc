@@ -437,7 +437,7 @@ const LibraryModal: React.FC<LibraryModalProps> = ({
             onPointerDown={(e) => dragControls.start(e)}
             style={{ cursor: 'move' }}
           >
-            <h3>Code Library</h3>
+            <h3>Code Library{selectedLib ? ` [${selectedLib.name}]` : ''}</h3>
             <button className="btn-ghost btn-close-header" onClick={handleClose}>
               <X size={18} />
             </button>

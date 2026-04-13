@@ -30,8 +30,8 @@ export const getSettingsPath = () => {
   return p
 }
 
-const getFlowReferencesPath = () => {
-  const p = path.join(app.getPath('userData'), 'flow_references.json')
+const getFlowsPath = () => {
+  const p = path.join(app.getPath('userData'), 'flows.json')
   return p
 }
 
@@ -1173,43 +1173,41 @@ export function registerStorageHandlers() {
         }
       }
 
-      // 2. Scan standalone registry
-      const refPath = getFlowReferencesPath()
-      if (fs.existsSync(refPath)) {
-        const refs: string[] = JSON.parse(fs.readFileSync(refPath, 'utf-8'))
-        for (const fPath of refs) {
-          // Avoid duplicates if already scanned in collections
-          if (workflows.some(w => w.path === fPath)) continue
-          if (fs.existsSync(fPath)) {
-            try {
-              const flow = JSON.parse(fs.readFileSync(fPath, 'utf-8'))
+      // 2. Scan standalone registry from flows.json
+      const flowsPath = getFlowsPath()
+      let flowRefs: string[] = []
+      if (fs.existsSync(flowsPath)) {
+        try { flowRefs = JSON.parse(fs.readFileSync(flowsPath, 'utf-8')); } catch { /* */ }
+      }
+
+      for (const fPath of flowRefs) {
+        // Avoid duplicates if already scanned in collections
+        if (workflows.some(w => w.path === fPath)) continue
+        if (fs.existsSync(fPath)) {
+          try {
+            const flowContent = JSON.parse(fs.readFileSync(fPath, 'utf-8'))
+            if (flowContent.steps && flowContent.settings) {
+              const flow = flowContent
               flow.name = flowNameFromFilename(path.basename(fPath))
               workflows.push({ flow, path: fPath })
-            } catch { /* skip */ }
-          }
+            }
+          } catch { /* skip corrupt */ }
         }
       }
 
-      // 3. Apply custom sort order from settings.json
-      const settingsPath = getSettingsPath()
-      if (fs.existsSync(settingsPath)) {
-        try {
-          const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
-          const order = settings.flowOrder as string[]
-          if (Array.isArray(order)) {
-            workflows.sort((a, b) => {
-              const aPath = a.path || ''
-              const bPath = b.path || ''
-              const aIdx = order.indexOf(aPath)
-              const bIdx = order.indexOf(bPath)
-              
-              if (aIdx === -1 && bIdx === -1) return 0
-              if (aIdx === -1) return 1
-              if (bIdx === -1) return -1
-              return aIdx - bIdx
-            })
-          }
-        } catch { /* skip sorting */ }
+      // 3. Apply custom sort order from flows.json
+      if (flowRefs.length > 0) {
+        workflows.sort((a, b) => {
+          const aPath = a.path || ''
+          const bPath = b.path || ''
+          const aIdx = flowRefs.indexOf(aPath)
+          const bIdx = flowRefs.indexOf(bPath)
+          
+          if (aIdx === -1 && bIdx === -1) return 0
+          if (aIdx === -1) return 1
+          if (bIdx === -1) return -1
+          return aIdx - bIdx
+        })
       }
 
       return { success: true, flows: workflows }
@@ -1221,13 +1219,8 @@ export function registerStorageHandlers() {
   // Save the display order for flows
   ipcMain.handle('storage:saveFlowOrder', async (_event, args: { order: string[] }) => {
     try {
-      const settingsPath = getSettingsPath()
-      let settings: any = {}
-      if (fs.existsSync(settingsPath)) {
-        try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) } catch { /* */ }
-      }
-      settings.flowOrder = args.order
-      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+      const flowsPath = getFlowsPath()
+      fs.writeFileSync(flowsPath, JSON.stringify(args.order, null, 2))
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.message }
@@ -1236,28 +1229,28 @@ export function registerStorageHandlers() {
 
   // Helper to register flow path
   const registerFlowPath = (filePath: string) => {
-    const refPath = getFlowReferencesPath()
+    const flowsPath = getFlowsPath()
     let refs: string[] = []
-    if (fs.existsSync(refPath)) {
-      try { refs = JSON.parse(fs.readFileSync(refPath, 'utf-8')) } catch { /* */ }
+    if (fs.existsSync(flowsPath)) {
+      try { refs = JSON.parse(fs.readFileSync(flowsPath, 'utf-8')) } catch { /* */ }
     }
     const resolvedPath = path.resolve(filePath)
     if (!refs.some(p => path.resolve(p) === resolvedPath)) {
       refs.push(filePath)
-      fs.writeFileSync(refPath, JSON.stringify(refs, null, 2))
+      fs.writeFileSync(flowsPath, JSON.stringify(refs, null, 2))
     }
   }
 
   // Helper to remove flow path from registry
   const unregisterFlowPath = (filePath: string) => {
-    const refPath = getFlowReferencesPath()
-    if (!fs.existsSync(refPath)) return
+    const flowsPath = getFlowsPath()
+    if (!fs.existsSync(flowsPath)) return
     try {
-      let refs: string[] = JSON.parse(fs.readFileSync(refPath, 'utf-8'))
+      let refs: string[] = JSON.parse(fs.readFileSync(flowsPath, 'utf-8'))
       const resolvedPath = path.resolve(filePath)
       const filtered = refs.filter(p => path.resolve(p) !== resolvedPath)
       if (filtered.length !== refs.length) {
-        fs.writeFileSync(refPath, JSON.stringify(filtered, null, 2))
+        fs.writeFileSync(flowsPath, JSON.stringify(filtered, null, 2))
       }
     } catch { /* */ }
   }
@@ -2332,6 +2325,12 @@ export function registerStorageHandlers() {
       }
       // Merge new settings with existing ones
       Object.assign(settings, newSettings)
+      
+      // Ensure flowOrder is never kept in settings.json legacy-style
+      if (settings.flowOrder) {
+        delete settings.flowOrder
+      }
+      
       fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
 
       // Handle MCP Server lifecycle

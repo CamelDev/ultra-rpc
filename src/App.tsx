@@ -2996,6 +2996,7 @@ const App: React.FC = () => {
                                   grpcMethod: method,
                                   grpcPayload: sampleBody || '{}',
                                   bodyType: 'json',
+                                  ...(activeRequest.grpcReflection !== false ? { protoPath: '' } : {})
                                 })
                                 setActiveConfigTab('body')
                                 setShowGrpcDiscovery(false)
