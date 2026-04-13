@@ -146,6 +146,7 @@ interface Props {
   language?: 'json' | 'javascript' | 'plain'
   placeholder?: string
   readOnly?: boolean
+  autoHeight?: boolean
   singleLine?: boolean
   wrapLines?: boolean
   className?: string
@@ -171,6 +172,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   language = 'plain',
   placeholder = '',
   readOnly = false,
+  autoHeight = false,
   singleLine = false,
   wrapLines = true,
   className = '',
@@ -330,8 +332,8 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       tooltips({ parent: document.body }),
       (wrapLines && !singleLine) ? EditorView.lineWrapping : [],
       EditorView.theme({
-        '&': { height: '100%', backgroundColor: 'transparent' },
-        '.cm-scroller': { overflow: 'auto' },
+        '&': { height: autoHeight ? 'auto' : '100%', backgroundColor: 'transparent' },
+        '.cm-scroller': { overflow: autoHeight ? 'visible' : 'auto' },
         ...(language !== 'plain' ? (theme === 'dark' ? {
           '.cm-string': { color: '#85e89d !important' },          // string values → green
           '.cm-string.cm-property': { color: '#79b8ff !important' }, // property keys → blue
@@ -472,7 +474,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition, onSelectPath, onBlur])
+  }, [language, placeholder, readOnly, autoHeight, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition, onSelectPath, onBlur])
 
   // Initialize view once on mount
   const initialValue = useRef(value)

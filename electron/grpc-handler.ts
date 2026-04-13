@@ -6,6 +6,11 @@ import * as os from 'os'
 import * as fs from 'fs'
 
 const logPath = path.join(os.tmpdir(), 'ultrarpc-grpc-backend.log')
+const depLogPath = path.join(os.tmpdir(), 'ultrarpc-deps.log')
+
+function logDep(message: string) {
+  fs.appendFileSync(depLogPath, `[${new Date().toISOString()}] ${message}\n`)
+}
 
 // protobufjs is kept external to avoid bundling issues in ESM.
 // We use a lazy initializer to ensure globalThis.require is available (initialized in main.ts).
@@ -258,18 +263,8 @@ function generateSampleBody(
   visited.add(canonicalName)
 
   const result: Record<string, any> = {}
-  const usedOneofIndices = new Set<number>()
 
   for (const field of msg.field) {
-    // oneof handling: only include the first field of each oneof group
-    if (field.oneofIndex !== undefined && field.oneofIndex !== null) {
-      // Proto3 optional fields are technically in a single-field oneof, but they should NOT be mutually exclusive with others
-      if (!field.proto3Optional) {
-        if (usedOneofIndices.has(field.oneofIndex)) continue
-        usedOneofIndices.add(field.oneofIndex)
-      }
-    }
-
     const name = field.jsonName || field.name
     let value: any
 
@@ -880,6 +875,131 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
   }
 }
 
+// ─── Reflection helper: one request → one Promise<Buffer[]> ──────────────────────────
+// Sends a single ServerReflection request and returns all FileDescriptorProto buffers
+// the server includes in the response. Errors resolve to empty array (logged).
+function reflectionSingleRequest(
+  client: any,
+  metadata: grpc.Metadata,
+  request: Record<string, any>,
+  timeoutMs: number
+): Promise<Buffer[]> {
+  return new Promise<Buffer[]>((resolve) => {
+    const buffers: Buffer[] = []
+    let settled = false
+    const settle = (bufs: Buffer[]) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      logDep(`[ReflReq] settle → ${bufs.length} buffers | req=${JSON.stringify(request)}`)
+      resolve(bufs)
+    }
+
+    const timer = setTimeout(() => {
+      logDep(`[ReflReq] TIMEOUT ${timeoutMs}ms | req=${JSON.stringify(request)}`)
+      settle(buffers)
+    }, timeoutMs)
+    const call = client.ServerReflectionInfo(metadata)
+
+    call.on('data', (response: any) => {
+      if (response.file_descriptor_response) {
+        const fds = response.file_descriptor_response.file_descriptor_proto
+        logDep(`[ReflReq] data → ${fds.length} fd_proto(s) | req=${JSON.stringify(request)}`)
+        for (const fd of fds) {
+          buffers.push(Buffer.isBuffer(fd) ? fd : Buffer.from(fd))
+        }
+      }
+      if (response.error_response) {
+        logDep(`[ReflReq] error_response: ${response.error_response.error_message} | req=${JSON.stringify(request)}`)
+        settle(buffers)
+      }
+    })
+    call.on('error', (e: any) => {
+      logDep(`[ReflReq] stream error: ${e?.message} | req=${JSON.stringify(request)}`)
+      settle(buffers)
+    })
+    call.on('end', () => settle(buffers))
+
+    call.write(request)
+    call.end()
+  })
+}
+
+// Fetch all transitive file descriptor dependencies for a reflection client.
+// Starting from buffers returned for one symbol, walks the dependency graph
+// and fetches any files not already present, up to maxFiles to guard against runaway loops.
+async function resolveTransitiveDeps(
+  client: any,
+  metadata: grpc.Metadata,
+  initialBuffers: Buffer[],
+  maxFiles = 60
+): Promise<Buffer[]> {
+  const protobuf = getProtobuf()
+  const fetchedNames = new Set<string>()
+  const allBuffers: Buffer[] = []
+  const queue: string[] = []
+
+  logDep(`[TransitiveDeps] START — ${initialBuffers.length} initial buffer(s)`)
+
+  // Index initial batch and collect dependency filenames
+  for (const buf of initialBuffers) {
+    try {
+      const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
+      logDep(`[TransitiveDeps] initial file: ${decoded.name} | pkg=${decoded.package||'-'} | msgs=[${(decoded.messageType||[]).map((m:any)=>m.name).join(',')}] | deps=[${(decoded.dependency||[]).join(', ')}]`)
+      if (!fetchedNames.has(decoded.name)) {
+        fetchedNames.add(decoded.name)
+        allBuffers.push(buf)
+        for (const dep of decoded.dependency || []) {
+          if (!fetchedNames.has(dep)) queue.push(dep)
+        }
+      }
+    } catch (e: any) {
+      logDep(`[TransitiveDeps] decode error on initial: ${e?.message}`)
+    }
+  }
+
+  logDep(`[TransitiveDeps] dep queue after initial: [${queue.join(', ')}]`)
+
+  // BFS: fetch each missing dependency file
+  while (queue.length > 0 && allBuffers.length < maxFiles) {
+    const filename = queue.shift()!
+    if (fetchedNames.has(filename)) { logDep(`[TransitiveDeps] SKIP (already seen): ${filename}`); continue }
+    fetchedNames.add(filename) // mark early to avoid duplicates in queue
+
+    if (filename.startsWith('google/')) {
+      logDep(`[TransitiveDeps] SKIP (google/*): ${filename}`)
+      continue
+    }
+
+    logDep(`[TransitiveDeps] fetching dep: ${filename}`)
+    const depBufs = await reflectionSingleRequest(
+      client, metadata, { file_by_filename: filename }, 3000
+    )
+    logDep(`[TransitiveDeps] dep ${filename} → ${depBufs.length} buffer(s)`)
+
+    for (const buf of depBufs) {
+      try {
+        const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
+        logDep(`[TransitiveDeps] dep file: ${decoded.name} | pkg=${decoded.package||'-'} | msgs=[${(decoded.messageType||[]).map((m:any)=>m.name).join(',')}] | deps=[${(decoded.dependency||[]).join(', ')}]`)
+        if (!fetchedNames.has(decoded.name)) {
+          fetchedNames.add(decoded.name)
+          allBuffers.push(buf)
+          for (const dep of decoded.dependency || []) {
+            if (!fetchedNames.has(dep) && !dep.startsWith('google/')) queue.push(dep)
+          }
+        } else {
+          allBuffers.push(buf) // already known but keep for indexing completeness
+        }
+      } catch (e: any) {
+        logDep(`[TransitiveDeps] decode error on dep ${filename}: ${e?.message}`)
+      }
+    }
+  }
+
+  logDep(`[TransitiveDeps] DONE — ${allBuffers.length} total files loaded`)
+  return allBuffers
+}
+
 export function registerGrpcHandlers() {
   // ===== List services via reflection =====
   ipcMain.handle('grpc:reflect', async (_event, args: { host: string; insecure: boolean; headers: Record<string, string>; protoPath?: string }) => {
@@ -979,15 +1099,8 @@ export function registerGrpcHandlers() {
             if (!type || visited.has(type.fullName)) return {}
             visited.add(type.fullName)
             const result: Record<string, any> = {}
-            const usedOneofNames = new Set<string>()
 
             for (const field of type.fieldsArray) {
-              // oneof handling: only include the first field of each oneof group
-              if (field.oneof) {
-                if (usedOneofNames.has(field.oneof)) continue
-                usedOneofNames.add(field.oneof)
-              }
-
               // Map support for protobufjs (MapField)
               if (field.map) {
                 const sampleKey = field.keyType === 'string' ? 'sample_key' : '1'
@@ -1040,7 +1153,9 @@ export function registerGrpcHandlers() {
               const m = service.methods[mName]
               m.resolve()
               const inputType = root.lookupType(m.requestType)
+              const outputType = root.lookupType(m.responseType)
               const sampleBody = generateProtoSample(inputType, new Set())
+              const responseSampleBody = generateProtoSample(outputType, new Set())
               
               methods.push({
                 name: mName,
@@ -1050,6 +1165,7 @@ export function registerGrpcHandlers() {
                 clientStreaming: m.requestStream || false,
                 serverStreaming: m.responseStream || false,
                 sampleBody: JSON.stringify(sampleBody, null, 2),
+                responseSampleBody: JSON.stringify(responseSampleBody, null, 2),
               })
             }
           }
@@ -1059,6 +1175,7 @@ export function registerGrpcHandlers() {
         }
       }
 
+      // ── Reflection path for grpc:methods ─────────────────────────────────────
       const metadata = new grpc.Metadata()
       for (const [key, value] of Object.entries(args.headers || {})) {
         if (key && value) metadata.add(key, value)
@@ -1066,110 +1183,92 @@ export function registerGrpcHandlers() {
 
       const client = createReflectionClient(args.host, args.insecure)
 
-      return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          client.close()
-          resolve({ success: false, error: 'Method discovery timeout (5s)' })
-        }, 5000)
+      // Step 1: Get initial file descriptors for the service symbol
+      const initialBufs = await reflectionSingleRequest(
+        client, metadata, { file_containing_symbol: args.serviceName }, 5000
+      )
 
-        const call = client.ServerReflectionInfo(metadata)
-        const descriptorBuffers: Buffer[] = []
+      if (initialBufs.length === 0) {
+        client.close()
+        return { success: false, error: 'No file descriptors returned by reflection — server may not support it.' }
+      }
 
-        call.on('data', (response: any) => {
-          if (response.file_descriptor_response) {
-            for (const fd of response.file_descriptor_response.file_descriptor_proto) {
-              descriptorBuffers.push(Buffer.isBuffer(fd) ? fd : Buffer.from(fd))
-            }
-          }
-          if (response.error_response) {
-            clearTimeout(timeout)
-            resolve({ success: false, error: response.error_response.error_message })
-          }
-        })
+      // Step 2: Resolve all transitive dependency files so nested message types are available
+      const descriptorBuffers = await resolveTransitiveDeps(client, metadata, initialBufs)
+      client.close()
 
-          call.on('error', (err: GrpcError) => {
-          clearTimeout(timeout)
-          resolve({ success: false, error: err.message || 'Describe failed' })
-        })
+      try {
+        const protobuf = getProtobuf()
+        const methods: { name: string; fullName: string; requestType: string; responseType: string; clientStreaming: boolean; serverStreaming: boolean; sampleBody: string; responseSampleBody: string }[] = []
+        const targetShortName = args.serviceName.split('.').pop()
 
-        call.on('end', () => {
-          clearTimeout(timeout)
+        // Pass 1: Index all types from all buffers (including deps)
+        const messageTypes = new Map<string, any>()
+        const enumTypes = new Map<string, any>()
+
+        for (const buf of descriptorBuffers) {
           try {
-            // Parse file descriptors using protobufjs
-            const protobuf = getProtobuf()
-            const methods: { name: string; fullName: string; requestType: string; responseType: string; clientStreaming: boolean; serverStreaming: boolean; sampleBody: string }[] = []
+            const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
+            const pkg = decoded.package || ''
 
-            const targetShortName = args.serviceName.split('.').pop()
-
-            // Collect all message types for sample body generation
-            const messageTypes = new Map<string, any>()
-            const enumTypes = new Map<string, any>()
-
-            // Pass 1: Index all types from all buffers
-            for (const buf of descriptorBuffers) {
-              const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
-              const pkg = decoded.package || ''
-
-              // Index all top-level enums
-              if (decoded.enumType) {
-                for (const enm of decoded.enumType) {
-                  const fullName = pkg ? `${pkg}.${enm.name}` : enm.name
-                  enumTypes.set(fullName, enm)
-                  enumTypes.set(`.${fullName}`, enm)
-                }
-              }
-
-              // Index all message types (and their nested messages/enums)
-              if (decoded.messageType) {
-                for (const msg of decoded.messageType) {
-                  indexDescriptorTypes(pkg, msg, messageTypes, enumTypes)
-                }
+            if (decoded.enumType) {
+              for (const enm of decoded.enumType) {
+                const fullName = pkg ? `${pkg}.${enm.name}` : enm.name
+                enumTypes.set(fullName, enm)
+                enumTypes.set(`.${fullName}`, enm)
               }
             }
+            if (decoded.messageType) {
+              for (const msg of decoded.messageType) {
+                indexDescriptorTypes(pkg, msg, messageTypes, enumTypes)
+              }
+            }
+          } catch { /* skip malformed */ }
+        }
 
-            // Pass 2: Process services and generate methods
-            for (const buf of descriptorBuffers) {
-              const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
-              const pkg = decoded.package || ''
+        // Pass 2: Find the service and generate methods
+        for (const buf of descriptorBuffers) {
+          try {
+            const decoded = protobuf.descriptor.FileDescriptorProto.decode(buf)
+            const pkg = decoded.package || ''
 
-              if (decoded.service) {
-                for (const svc of decoded.service) {
-                  const svcFullName = pkg ? `${pkg}.${svc.name}` : svc.name
-                  if (svcFullName === args.serviceName || svc.name === targetShortName) {
-                    if (svc.method) {
-                      for (const m of svc.method) {
-                        const cleanType = (t: string) => t?.startsWith('.') ? t.slice(1) : (t || '')
-                        const inputType = cleanType(m.inputType)
+            if (decoded.service) {
+              for (const svc of decoded.service) {
+                const svcFullName = pkg ? `${pkg}.${svc.name}` : svc.name
+                if (svcFullName === args.serviceName || svc.name === targetShortName) {
+                  if (svc.method) {
+                    for (const m of svc.method) {
+                      const cleanType = (t: string) => t?.startsWith('.') ? t.slice(1) : (t || '')
+                      const inputType = cleanType(m.inputType)
 
-                        // Generate sample body from message fields using the global index
-                        const sampleBody = generateSampleBody(messageTypes, enumTypes, m.inputType, new Set())
-
-                        methods.push({
-                          name: m.name,
-                          fullName: `${svcFullName}/${m.name}`,
-                          requestType: inputType,
-                          responseType: cleanType(m.outputType),
-                          clientStreaming: m.clientStreaming || false,
-                          serverStreaming: m.serverStreaming || false,
-                          sampleBody: JSON.stringify(sampleBody, null, 2),
-                        })
-                      }
+                      methods.push({
+                        name: m.name,
+                        fullName: `${svcFullName}/${m.name}`,
+                        requestType: inputType,
+                        responseType: cleanType(m.outputType),
+                        clientStreaming: m.clientStreaming || false,
+                        serverStreaming: m.serverStreaming || false,
+                        sampleBody: JSON.stringify(
+                          generateSampleBody(messageTypes, enumTypes, m.inputType, new Set()),
+                          null, 2
+                        ),
+                        responseSampleBody: JSON.stringify(
+                          generateSampleBody(messageTypes, enumTypes, m.outputType, new Set()),
+                          null, 2
+                        ),
+                      })
                     }
                   }
                 }
               }
             }
+          } catch { /* skip malformed */ }
+        }
 
-            resolve({ success: true, methods })
-          } catch (parseErr: any) {
-            resolve({ success: false, error: `Failed to parse descriptors: ${parseErr.message}` })
-          }
-        })
-
-        // Request file descriptor for the service symbol
-        call.write({ file_containing_symbol: args.serviceName })
-        call.end()
-      })
+        return { success: true, methods }
+      } catch (parseErr: any) {
+        return { success: false, error: `Failed to parse descriptors: ${parseErr.message}` }
+      }
     } catch (err: any) {
       return { success: false, error: err.message || 'Unknown error' }
     }

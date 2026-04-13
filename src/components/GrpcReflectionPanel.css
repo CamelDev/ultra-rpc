@@ -391,7 +391,9 @@
 /* Actions Section */
 .reflect-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   padding: 12px 14px;
   background: rgba(0, 0, 0, 0.1);
   border-top: 1px solid var(--border-subtle);
@@ -404,4 +406,22 @@
   font-size: 13px !important;
   font-weight: 600 !important;
   border-radius: 6px !important;
+}
+
+.reflect-browse-btn {
+  height: 32px;
+  padding: 0 13px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  color: var(--text-secondary) !important;
+  background: var(--bg-tertiary) !important;
+  border: 1px solid var(--border) !important;
+  gap: 6px !important;
+}
+
+.reflect-browse-btn:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-focus) !important;
 }

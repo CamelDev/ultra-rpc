@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import { Search, Loader2, ChevronRight, Server, Zap, AlertCircle, RefreshCw, ArrowRight, FileType, FolderOpen } from 'lucide-react'
+import { Search, Loader2, ChevronRight, Server, Zap, AlertCircle, RefreshCw, ArrowRight, FileType, FolderOpen, BookOpen } from 'lucide-react'
 import InterpolatedInput from './InterpolatedInput'
+import ProtoDefinitionModal from './ProtoDefinitionModal'
 import './GrpcReflectionPanel.css'
 
 interface MethodInfo {
@@ -57,6 +58,7 @@ const GrpcReflectionPanel: React.FC<Props> = ({
   const [methodsMap, setMethodsMap] = useState<Record<string, MethodInfo[]>>({})
   const [methodsLoading, setMethodsLoading] = useState<string | null>(null)
   const [methodsError, setMethodsError] = useState<Record<string, string>>({})
+  const [showDefinitionBrowser, setShowDefinitionBrowser] = useState(false)
 
   const discoverServices = async () => {
     if (grpcReflection && !host.trim()) {
@@ -233,8 +235,17 @@ const GrpcReflectionPanel: React.FC<Props> = ({
         </div>
       )}
 
-      {/* 4. Action Button BELOW inputs */}
+      {/* 4. Action Buttons BELOW inputs */}
       <div className="reflect-actions">
+        {discovered && (
+          <button
+            className="btn-ghost reflect-browse-btn"
+            onClick={() => setShowDefinitionBrowser(true)}
+            title="Browse the full schema definition"
+          >
+            <BookOpen size={13} /> Browse Definition
+          </button>
+        )}
         <button
           className="btn-primary reflect-discover-btn"
           onClick={discoverServices}
@@ -354,6 +365,24 @@ const GrpcReflectionPanel: React.FC<Props> = ({
             </div>
           ))}
         </div>
+      )}
+
+      {showDefinitionBrowser && (
+        <ProtoDefinitionModal
+          services={services}
+          methodsMap={methodsMap}
+          host={host}
+          insecure={insecure}
+          headers={headers}
+          protoPath={protoPath}
+          grpcReflection={grpcReflection}
+          interpolate={interpolate}
+          onClose={() => setShowDefinitionBrowser(false)}
+          onSelectMethod={(service, method, sampleBody) => {
+            onSelectMethod(service, method, sampleBody)
+            setShowDefinitionBrowser(false)
+          }}
+        />
       )}
     </div>
   )
