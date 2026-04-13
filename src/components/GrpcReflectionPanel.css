@@ -10,10 +10,9 @@
 .reflect-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .reflect-header-info {
@@ -333,12 +332,25 @@
 }
 
 /* Proto Input Section */
+/* Input Sections */
+.reflect-host-input,
 .reflect-proto-input {
   display: flex;
+  align-items: center;
   padding: 14px;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.reflect-host-input label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-width: 40px;
+}
+
+.reflect-proto-input {
   gap: 8px;
-  background: rgba(0, 0, 0, 0.05);
-  border-bottom: 1px solid var(--border-subtle);
 }
 
 .reflect-proto-input input {
@@ -374,4 +386,22 @@
   background: var(--bg-secondary);
   color: var(--text-primary);
   border-color: var(--border);
+}
+
+/* Actions Section */
+.reflect-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.reflect-discover-btn {
+  height: 32px;
+  padding: 0 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
 }

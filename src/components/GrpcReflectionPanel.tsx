@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Search, Loader2, ChevronRight, Server, Zap, AlertCircle, RefreshCw, ArrowRight, FileType, FolderOpen } from 'lucide-react'
+import InterpolatedInput from './InterpolatedInput'
 import './GrpcReflectionPanel.css'
 
 interface MethodInfo {
@@ -20,8 +21,15 @@ interface Props {
   grpcReflection?: boolean
   onSelectService: (service: string) => void
   onSelectMethod: (service: string, method: string, sampleBody?: string) => void
+  onHostChange: (host: string) => void
   onProtoPathChange: (path: string) => void
   onGrpcReflectionChange: (useReflection: boolean) => void
+  interpolate: (text: string) => string
+  // Interpolation context
+  activeEnv?: any
+  contextVariables?: Record<string, string>
+  vaultEntries?: any[]
+  theme?: string
 }
 
 const GrpcReflectionPanel: React.FC<Props> = ({ 
@@ -32,8 +40,14 @@ const GrpcReflectionPanel: React.FC<Props> = ({
   grpcReflection = true,
   onSelectService, 
   onSelectMethod,
+  onHostChange,
   onProtoPathChange,
-  onGrpcReflectionChange
+  onGrpcReflectionChange,
+  interpolate,
+  activeEnv,
+  contextVariables,
+  vaultEntries,
+  theme
 }) => {
   const [services, setServices] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -68,10 +82,10 @@ const GrpcReflectionPanel: React.FC<Props> = ({
 
     try {
       const result = await window.ultraRpc.grpcReflect({
-        host: host.trim() || 'localhost', // backend expects string
+        host: interpolate(host).trim() || 'localhost', // backend expects string
         insecure,
         headers,
-        protoPath: !grpcReflection ? protoPath : undefined
+        protoPath: !grpcReflection ? interpolate(protoPath) : undefined
       })
 
       if (result.success && result.services) {
@@ -103,11 +117,11 @@ const GrpcReflectionPanel: React.FC<Props> = ({
 
     try {
       const result = await window.ultraRpc.grpcMethods({
-        host: host.trim() || 'localhost',
+        host: interpolate(host).trim() || 'localhost',
         insecure,
         headers,
         serviceName,
-        protoPath: !grpcReflection ? protoPath : undefined
+        protoPath: !grpcReflection ? interpolate(protoPath) : undefined
       })
 
       if (result.success && result.methods) {
@@ -149,26 +163,7 @@ const GrpcReflectionPanel: React.FC<Props> = ({
 
   return (
     <div className="reflect-panel">
-      <div className="reflect-header">
-        <div className="reflect-header-info">
-          <Search size={14} />
-          <span className="reflect-title">Service Discovery</span>
-        </div>
-        <button
-          className="btn-primary reflect-discover-btn"
-          onClick={discoverServices}
-          disabled={loading || (grpcReflection ? !host.trim() : !protoPath.trim())}
-        >
-          {loading ? (
-            <><Loader2 size={13} className="spin" /> Discovering...</>
-          ) : discovered ? (
-            <><RefreshCw size={13} /> Refresh</>
-          ) : (
-            <><Zap size={13} /> Discover Services</>
-          )}
-        </button>
-      </div>
-
+      {/* 1. Mode Toggle on TOP */}
       <div className="reflect-mode-toggle">
         <button 
           type="button"
@@ -185,6 +180,30 @@ const GrpcReflectionPanel: React.FC<Props> = ({
           <FileType size={13} /> Proto File
         </button>
       </div>
+
+      <div className="reflect-header">
+        <div className="reflect-header-info">
+          <Search size={14} />
+          <span className="reflect-title">Service Discovery</span>
+        </div>
+      </div>
+
+      {grpcReflection && (
+        <div className="reflect-host-input">
+          <label>Host</label>
+          <InterpolatedInput
+            className="address-input"
+            style={{ flex: 1 }}
+            value={host}
+            onChange={onHostChange}
+            placeholder="host:port (e.g. api.example.com:443)"
+            activeEnv={activeEnv}
+            contextVariables={contextVariables}
+            vaultEntries={vaultEntries}
+            theme={theme}
+          />
+        </div>
+      )}
 
       {!grpcReflection && (
         <div className="reflect-proto-input">
@@ -213,6 +232,23 @@ const GrpcReflectionPanel: React.FC<Props> = ({
           </button>
         </div>
       )}
+
+      {/* 4. Action Button BELOW inputs */}
+      <div className="reflect-actions">
+        <button
+          className="btn-primary reflect-discover-btn"
+          onClick={discoverServices}
+          disabled={loading || (grpcReflection ? !host.trim() : !protoPath.trim())}
+        >
+          {loading ? (
+            <><Loader2 size={13} className="spin" /> Discovering...</>
+          ) : discovered ? (
+            <><RefreshCw size={13} /> Refresh</>
+          ) : (
+            <><Zap size={13} /> Discover Services</>
+          )}
+        </button>
+      </div>
 
       {!discovered && !error && !loading && (
         <div className="reflect-hint">

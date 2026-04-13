@@ -2949,31 +2949,18 @@ const App: React.FC = () => {
                     {activeRequest.type === 'GRPC' && showGrpcDiscovery && (
                       <div className="modal-overlay" onClick={() => setShowGrpcDiscovery(false)}>
                         <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '800px', height: '85vh', display: 'flex', flexDirection: 'column' }}>
-                          <div className="modal-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
+                          <div className="modal-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                             <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
                               <h3>gRPC Service Discovery</h3>
                               <button className="btn-ghost" onClick={() => setShowGrpcDiscovery(false)} style={{ padding: '4px' }}>
                                 <X size={20} />
                               </button>
                             </div>
-                            <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <label style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Host</label>
-                              <InterpolatedInput
-                                className="address-input"
-                                style={{ flex: 1 }}
-                                value={grpcDiscoveryUrl}
-                                onChange={(val) => setGrpcDiscoveryUrl(val)}
-                                placeholder="host:port (e.g. api.example.com:443)"
-                                activeEnv={activeEnv}
-                                contextVariables={activeRequestCollection?.variables}
-                                vaultEntries={activeVaultEntries}
-                                theme={resolvedTheme}
-                              />
-                            </div>
                           </div>
                           <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
                             <GrpcReflectionPanel
-                              host={interpolate(grpcDiscoveryUrl)}
+                              host={grpcDiscoveryUrl}
+                              onHostChange={(val) => setGrpcDiscoveryUrl(val)}
                               insecure={(() => {
                                 const effectiveEnvId = activeTab?.envId || activeEnvId
                                 const currentEnv = environments.find(e => e.id === effectiveEnvId)
@@ -2986,8 +2973,13 @@ const App: React.FC = () => {
                                 })
                                 return h
                               })()}
-                              protoPath={interpolate(activeRequest.protoPath || '')}
+                              protoPath={activeRequest.protoPath || ''}
                               grpcReflection={activeRequest.grpcReflection !== false}
+                              interpolate={interpolate}
+                              activeEnv={activeEnv}
+                              contextVariables={activeRequestCollection?.variables}
+                              vaultEntries={activeVaultEntries}
+                              theme={resolvedTheme}
                               onSelectService={(svc) => updateActiveRequest({ grpcService: svc })}
                               onSelectMethod={(svc, method, sampleBody) => {
                                 updateActiveRequest({
