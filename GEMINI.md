@@ -11,6 +11,9 @@ The application is built using **Electron**, **React**, and **TypeScript**, pack
 - **Local File-Based Storage**: No cloud accounts required; data is stored as local files that can be committed to version control.
 - **Scripting & Automation**: Supports pre-request and post-response scripts using a custom `ultra` JavaScript API.
 - **Environments & Vault**: Supports environment variables and an encrypted secrets vault for sensitive keys.
+- **gRPC Specialized UI**: Includes **Enum Tooltips**, **Inline Type Hints** in the editor, and smart **OneOf** payload generation.
+- **Tab Grouping**: Advanced tab organization with a dedicated **Tab Management Modal** for visibility toggling and color customization.
+- **Code Library**: Reusable JS scripts with **"Go to Definition"** (Cmd/Ctrl+Click) support in the editor.
 
 ## Architecture & Technologies
 - **Frontend (Renderer Process)**: React 19, TypeScript, Vite. Located in the `src/` directory. Uses libraries like `framer-motion` for animations and `@codemirror` for syntax-highlighted text editors.
@@ -40,4 +43,4 @@ The project uses `bun` as the primary package manager. Ensure you have Node.js v
 - **Package Manager**: Strictly use `bun` for managing dependencies and running scripts.
 - **IPC Architecture**: UI features requiring system resources (network requests, file system, secure storage) should be implemented as IPC handlers in the `electron/` folder and exposed to the frontend via `electron/preload.ts`.
 - **Native Node Modules**: Packages like `@grpc/grpc-js` and `protobufjs` are kept external in the Vite build configuration (`vite.config.ts`) so they can be loaded natively via Node.js CJS `require()`.
-- **Testing**: All critical user flows should be tested using Playwright. E2E tests target the built application.
+- **Testing**: Comprehensive E2E coverage powered by Playwright. All critical user flows (REST, gRPC, Collections, Environments, Flows, Tab Groups) are verified by a suite of **76+ tests**. E2E tests target the built application.

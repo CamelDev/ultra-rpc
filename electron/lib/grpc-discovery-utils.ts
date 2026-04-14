@@ -220,7 +220,9 @@ export function flattenFieldTypeAnnotations(
             let valShortName = valField.typeName || ''
             valShortName = valShortName.split('.').pop() || valShortName
             const valLabel = PROTO_TYPE_LABELS[valField.type ?? 0] ?? 'unknown'
-            annotations[name] = { type: `map<string, ${valShortName || valLabel}>`, optional: isOptional }
+            const annotation: any = { type: `map<string, ${valShortName || valLabel}>` };
+            if (isOptional) annotation.optional = true;
+            annotations[name] = annotation;
             
             if (valField.type === 11 && valField.typeName) {
                flattenFieldTypeAnnotations(valField.typeName, messageTypes, enumTypes, visited, annotations)
@@ -238,12 +240,18 @@ export function flattenFieldTypeAnnotations(
         }
       }
 
-      annotations[name] = { type: shortName, enumValues, optional: isOptional }
+      const annotation: any = { type: shortName };
+      if (enumValues) annotation.enumValues = enumValues;
+      if (isOptional) annotation.optional = true;
+      annotations[name] = annotation;
+
       if (typeNum === 11 && field.typeName) {
         flattenFieldTypeAnnotations(field.typeName, messageTypes, enumTypes, visited, annotations)
       }
     } else {
-      annotations[name] = { type: typeLabel, optional: isOptional }
+      const annotation: any = { type: typeLabel };
+      if (isOptional) annotation.optional = true;
+      annotations[name] = annotation;
     }
   }
 

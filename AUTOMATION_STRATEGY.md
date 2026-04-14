@@ -17,6 +17,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 
 #### Workspace & UI State
 - [x] Browser-style tab grouping, custom colors, renaming, and expand/collapse (`tab-groups.spec.ts`)
+- [x] Tab group management modal (visibility toggling, renaming, deletion, color picking) (`tab-groups.spec.ts`)
 - [x] Tab persistence across application restarts (`workspace-ui.spec.ts`)
 - [x] Active tab restoration (`workspace-ui.spec.ts`)
 - [x] Unsaved changes (dirty state) tracking and prompt (`workspace-ui.spec.ts`)
@@ -39,6 +40,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] Server Streaming response accumulation and display (`mock-grpc.spec.ts`)
 - [x] Rich error decoding (`mock-grpc.spec.ts`)
 - [x] One-click request payload generation (`mock-grpc.spec.ts`)
+- [x] `oneof` field handling in request payload generation (picks first field by default) (`grpc-discovery-oneof.spec.ts`)
 - [x] Local `.proto` file discovery and field syncing (`grpc-proto-discovery.spec.ts`)
 
 #### Collection Management
@@ -131,6 +133,7 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Payload Generation**: Verified that selecting a method automatically populates the JSON editor with a sample request body.
     - **Server Streaming**: Verified that multiple response items from a server stream are correctly accumulated and displayed in the UI as a JSON array.
     - **Rich Error Decoding**: Verified that decoded `google.rpc.Status` messages and `ErrorInfo` details from the `grpc-status-details-bin` trailer are correctly displayed.
+- **OneOf Handling**: Verified that gRPC reflection and proto discovery both correctly handle `oneof` fields by picking the first field in the set during sample body generation. (`grpc-discovery-oneof.spec.ts`)
 
 #### 2. REST Method Switching
 - **Location**: [`tests/e2e/mock-rest.spec.ts`](/tests/e2e/mock-rest.spec.ts)
@@ -163,6 +166,8 @@ We intend to use Vitest for fast, isolated testing of individual React component
     - **Smart Formatting**: Verified that the JSON "Format" button handles unquoted template variables `{{like_this}}` correctly, preserving the template syntax while beautifying the surrounding JSON.
     - **Dirty State**: Verified that modifying a request marks the tab as dirty (`*`) and triggers a confirmation dialog when attempting to close without saving.
     - **Theme & Layout**: Verified that light/dark theme and two/three-column layout settings are persisted across restarts.
+- **Tab Grouping Sophistication**: Verified full lifecycle of tab groups including right-click creation, inline renaming (auto-focus and double-click), dragging tabs into groups, collapsing/expanding groups, and persistence across restarts.
+- **Tab Management Modal**: Verified that the new "Tab Groups" modal allows for global visibility toggling (hide/show), mass deletion (ungrouping), and color customization. (`tab-groups.spec.ts`)
 
 #### 6. Search & Discovery
 - **Location**: [`tests/e2e/collection-search.spec.ts`](/tests/e2e/collection-search.spec.ts), [`tests/e2e/grpc-proto-discovery.spec.ts`](/tests/e2e/grpc-proto-discovery.spec.ts)
@@ -228,5 +233,5 @@ While we have achieved high coverage, the following areas are prioritized for fu
 The automated suite results in a stable and passing verification for all core and advanced features:
 
 ```text
-  53 tests in 30 files passed (approx. 3.2m)
+  76 tests in 37 files passed (approx. 3.4m)
 ```

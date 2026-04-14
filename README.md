@@ -102,7 +102,9 @@ New to UltraRPC? Here is how to get up and running in 60 seconds.
 - **Rich Error Unpacking** — decodes `google.rpc.Status` trailers to show human-readable field validation errors
 - **Variable Interpolation** — use `{{variable}}` syntax in gRPC headers, URL, and **Request Payloads**
 - **Deadlines / Timeouts** — configure native gRPC deadlines in the "Options" tab
-- **Auto-generated sample request bodies** — generated from protobuf descriptors via reflection
+- **Auto-generated sample request bodies** — generated from protobuf descriptors via reflection with support for **OneOf** fields (picks first field by default)
+- **Inline Type hints** — real-time visualization of property types directly within the JSON editor
+- **Enum Tooltips** — hover over enum types in the editor or discovery browser to see all available vertical list of options
 - **Native gRPC metadata** — support for custom key-value pairs in gRPC calls
 
 ### 🔄 Flow Runner (Orchestration)
@@ -186,7 +188,7 @@ Manage reusable JavaScript scripts that can be shared across all your API reques
 - **File-Based**: Scripts reside as independent `.js` files on your disk. You can create new ones or link existing logic from your local file system.
 - **Renaming Scripts**: You can rename scripts directly in the UI. **Note**: Renames must follow standard OS-level filename rules (no forbidden characters like `/`, `\`, `:`, etc.) as they physically move the file on your disk.
 - **Selective Loading**: Use the checkboxes in the library to enable or disable specific scripts as needed.
-- **Go to Definition**: Navigate directly to a method's source by holding **Cmd** (Mac) or **Ctrl** (Windows/Linux) and clicking on any `ultra.lib.*` method call in your scripts.
+- **Go to Definition**: Navigate directly to a method's source by holding **Cmd** (Mac) or **Ctrl** (Windows/Linux) and clicking on any `ultra.lib.*` method call in your scripts. The editor will automatically highlight the library function.
 - **Real-Time Execution**: Every time you send a request, your enabled library scripts are executed before your main script, populating the `ultra.lib` object.
 - **Example**:
   ```javascript
@@ -202,6 +204,7 @@ Manage reusable JavaScript scripts that can be shared across all your API reques
 
 ### 🎨 Premium UI
 - **Browser-Style Tab Groups** — visually organize related requests with custom colors, inline renaming, and Chrome-like expand/collapse functionality. Manage groups easily via drag-and-drop.
+- **Tab Management Modal** — a dedicated dashboard to view all groups, toggle visibility (hide/show), rename, or delete groups. Includes a quick color-picker for visual distinction.
 - **Resizable Split Layout**: Independent scrolling for request config and response viewer
 - **Three-Column View**: Toggle a side-by-side layout (Request vs Response) in Settings for better visibility on wide monitors.
 - **Unsaved Changes Tracking**: Visual indicators for modified tabs and native "Abandon changes?" prompts
@@ -496,9 +499,6 @@ AI agents can perform the following actions through the UltraRPC MCP server:
 - [ ] **Auth Helpers** (Dedicated UI for Basic/Bearer auth)
 - [ ] **Cookies support** (Cookie manager and persistence)
 - [ ] **WebSocket & GraphQL support**
-
-### ⚡ gRPC Client
-- [ ] **Metadata (Headers) Helpers** (Dedicated UI for common gRPC metadata)
 
 
 ### 🤖 Scripting & Variables
