@@ -119,10 +119,17 @@
 }
 
 /* search */
+.proto-search-section {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid var(--border);
+}
+
 .proto-search-wrap {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .proto-search-icon {
@@ -136,14 +143,15 @@
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 6px 32px 6px 32px;
-  font-size: 13px;
+  padding: 7px 32px;
+  font-size: 12.5px;
   color: var(--text-primary);
-  width: 280px;
+  width: 100%;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .proto-search-input:focus {
+  background: var(--bg-secondary);
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-muted);
 }
@@ -451,47 +459,54 @@
 }
 
 .proto-detail-methods-grid {
-  margin-top: 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .proto-detail-method-card {
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
-  text-align: left;
+  border-radius: 10px;
+  padding: 14px 18px;
+  text-align: left !important;
   cursor: pointer;
-  transition: border-color 0.18s, background 0.18s, transform 0.14s;
+  transition: all 0.2s ease;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 10px;
+  width: 100%;
 }
 
 .proto-detail-method-card:hover {
   border-color: var(--accent);
-  background: rgba(59, 130, 246, 0.06);
-  transform: translateY(-1px);
+  background: rgba(59, 130, 246, 0.08);
+  transform: translateX(4px);
 }
 
 .proto-detail-method-card-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 12px;
 }
 
 .proto-detail-method-card-name {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text-primary);
 }
 
 .proto-detail-method-card-types {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
+  padding-left: 2px;
 }
 
 .proto-flow-label {

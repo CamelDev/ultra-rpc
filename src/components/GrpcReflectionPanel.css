@@ -1,9 +1,7 @@
 .reflect-panel {
   display: flex;
   flex-direction: column;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
+  background: transparent;
   overflow: hidden;
 }
 
@@ -414,14 +412,17 @@
   font-size: 12px !important;
   font-weight: 600 !important;
   border-radius: 6px !important;
-  color: var(--text-secondary) !important;
-  background: var(--bg-tertiary) !important;
-  border: 1px solid var(--border) !important;
+  color: white !important;
+  background: var(--purple) !important;
+  border: 1px solid var(--purple) !important;
   gap: 6px !important;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+  transition: all 0.2s ease !important;
 }
 
 .reflect-browse-btn:hover {
-  color: var(--text-primary) !important;
-  background: var(--bg-secondary) !important;
-  border-color: var(--border-focus) !important;
+  background: #7c3aed !important;
+  border-color: #7c3aed !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.35);
 }

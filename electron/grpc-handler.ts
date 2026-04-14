@@ -9,7 +9,8 @@ import {
   generateSampleBody, 
   parseMapsToArrays, 
   processDescriptorBuffers,
-  MethodInfo
+  MethodInfo,
+  SampleVariant
 } from './lib/grpc-discovery-utils'
 
 const logPath = path.join(os.tmpdir(), 'ultrarpc-grpc-backend.log')
@@ -878,7 +879,7 @@ export function registerGrpcHandlers() {
           root.loadSync(args.protoPath, { keepCase: true })
           root.resolveAll()
 
-          const methods: { name: string; fullName: string; requestType: string; responseType: string; clientStreaming: boolean; serverStreaming: boolean; sampleBody: string }[] = []
+          const methods: MethodInfo[] = []
           const targetShortName = args.serviceName.split('.').pop()
           
           const generateProtoSample = (type: any, visited: Set<string>, options: { oneofSelection?: Record<string, string> } = {}): Record<string, any> => {
@@ -962,7 +963,7 @@ export function registerGrpcHandlers() {
                   const outputType = root.lookupType(m.responseType)
 
                   const getVariants = (type: any) => {
-                    const variants: { name: string; body: string }[] = []
+                    const variants: SampleVariant[] = []
                     
                     // Detect top-level oneofs that have more than 1 field (actual choices)
                     if (type.oneofsArray && type.oneofsArray.length > 0) {

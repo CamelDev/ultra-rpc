@@ -2948,16 +2948,15 @@ const App: React.FC = () => {
                     {/* gRPC discovery in a modal */}
                     {activeRequest.type === 'GRPC' && showGrpcDiscovery && (
                       <div className="modal-overlay" onClick={() => setShowGrpcDiscovery(false)}>
-                        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '800px', height: '85vh', display: 'flex', flexDirection: 'column' }}>
-                          <div className="modal-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <h3>gRPC Service Discovery</h3>
-                              <button className="btn-ghost" onClick={() => setShowGrpcDiscovery(false)} style={{ padding: '4px' }}>
-                                <X size={20} />
-                              </button>
-                            </div>
+                        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '850px', height: '85vh' }}>
+                          <div className="modal-header">
+                            <h3>gRPC Service Discovery</h3>
+                            <button className="modal-close-btn" onClick={() => setShowGrpcDiscovery(false)}>
+                              <X size={20} />
+                            </button>
                           </div>
-                          <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                          
+                          <div className="modal-body">
                             <GrpcReflectionPanel
                               host={grpcDiscoveryUrl}
                               onHostChange={(val) => setGrpcDiscoveryUrl(val)}
@@ -2996,6 +2995,12 @@ const App: React.FC = () => {
                               onProtoPathChange={(path) => updateActiveRequest({ protoPath: path })}
                               onGrpcReflectionChange={(useReflection) => updateActiveRequest({ grpcReflection: useReflection })}
                             />
+                          </div>
+
+                          <div className="modal-footer">
+                            <button className="btn-ghost" onClick={() => setShowGrpcDiscovery(false)} style={{ padding: '8px 20px' }}>
+                              Close
+                            </button>
                           </div>
                         </div>
                       </div>

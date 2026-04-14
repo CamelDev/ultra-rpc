@@ -490,22 +490,6 @@ const ProtoDefinitionModal: React.FC<Props> = ({
             </div>
           </div>
           <div className="proto-modal-header-right">
-            <div className="proto-search-wrap">
-              <Search size={13} className="proto-search-icon" />
-              <input
-                ref={searchRef}
-                className="proto-search-input"
-                type="text"
-                placeholder="Search services, methods, types…"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-              />
-              {query && (
-                <button className="proto-search-clear" onClick={() => setQuery('')}>
-                  <X size={12} />
-                </button>
-              )}
-            </div>
             <button className="proto-modal-close" onClick={onClose} title="Close (Esc)">
               <X size={16} />
             </button>
@@ -516,6 +500,24 @@ const ProtoDefinitionModal: React.FC<Props> = ({
         <div className="proto-modal-body">
           {/* ── LEFT TREE ── */}
           <div className="proto-tree">
+            <div className="proto-search-section">
+              <div className="proto-search-wrap">
+                <Search size={13} className="proto-search-icon" />
+                <input
+                  ref={searchRef}
+                  className="proto-search-input"
+                  type="text"
+                  placeholder="Search…"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                />
+                {query && (
+                  <button className="proto-search-clear" onClick={() => setQuery('')}>
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="proto-tree-inner">
               {filteredServices.length === 0 && (
                 <div className="proto-tree-empty">
