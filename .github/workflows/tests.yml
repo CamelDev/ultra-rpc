@@ -45,8 +45,7 @@ jobs:
       run: bun install
     - name: Lint
       run: bun run lint
-    - name: Install Playwright Browsers
-      run: bunx playwright install --with-deps
+
     - name: Build App
       run: bun run build
     - name: Run Playwright tests
@@ -62,6 +61,5 @@ jobs:
       with:
         name: playwright-report-${{ matrix.os }}
         path: |
-          playwright-report/
-          test-results/
+          test-output/
         retention-days: 30
