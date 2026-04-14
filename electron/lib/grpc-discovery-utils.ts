@@ -100,29 +100,40 @@ export function generateSampleBody(
   if (visited.has(canonicalName)) return {};
   visited.add(canonicalName);
 
-  const result: Record<string, any> = {};
-
-  const fieldsToInclude = new Set<string>();
+  const result: Record<string, any> = {};  const fieldsToInclude = new Set<number>();
   const processedOneofs = new Set<number>();
+  const sortedFields = [...(msg.field || [])].sort((a, b) => {
+    const aNum = a.number !== undefined ? a.number : 0;
+    const bNum = b.number !== undefined ? b.number : 0;
+    return aNum - bNum;
+  });
 
-  for (const field of msg.field) {
-    if (field.oneofIndex !== undefined && field.oneofIndex !== null && !field.proto3Optional) {
-      if (processedOneofs.has(field.oneofIndex)) continue;
+  for (const field of sortedFields) {
+    const oIndex = (field.oneofIndex !== undefined && field.oneofIndex !== null) ? field.oneofIndex : field.oneof_index;
+    const hasOneofIndex = Object.prototype.hasOwnProperty.call(field, 'oneofIndex') || Object.prototype.hasOwnProperty.call(field, 'oneof_index');
+    const isOptional = field.proto3Optional || field.proto3_optional;
+    const num = field.number || 0;
+    
+    if (hasOneofIndex && oIndex !== undefined && oIndex !== null && !isOptional) {
+      if (processedOneofs.has(oIndex)) continue;
 
-      const selectedFieldName = options.oneofSelection?.[field.oneofIndex];
-      if (selectedFieldName) {
-        fieldsToInclude.add(selectedFieldName);
+      const selection = options.oneofSelection?.[oIndex];
+      if (selection) {
+        if (field.name === selection) {
+          fieldsToInclude.add(num);
+          processedOneofs.add(oIndex);
+        }
       } else {
-        fieldsToInclude.add(field.name);
+        fieldsToInclude.add(num);
+        processedOneofs.add(oIndex);
       }
-      processedOneofs.add(field.oneofIndex);
     } else {
-      fieldsToInclude.add(field.name);
+      fieldsToInclude.add(num);
     }
   }
 
-  for (const field of msg.field) {
-    if (!fieldsToInclude.has(field.name)) continue;
+  for (const field of sortedFields) {
+    if (!fieldsToInclude.has(field.number || 0)) continue;
 
     const name = field.jsonName || field.name;
     let value: any;
@@ -353,8 +364,12 @@ export function processDescriptorBuffers(
                       const oneofName = msg.oneofDecl[i]?.name || `index_${i}`;
                       if (oneofName.startsWith('_')) continue;
 
-                      const oneofFields = (msg.field || []).filter((f: any) => f.oneofIndex === i && !f.proto3Optional);
-                      
+                      const oneofFields = (msg.field || []).filter((f: any) => {
+                        const hasOneofIndex = Object.prototype.hasOwnProperty.call(f, 'oneofIndex') || Object.prototype.hasOwnProperty.call(f, 'oneof_index');
+                        const fi = (f.oneofIndex !== undefined) ? f.oneofIndex : f.oneof_index;
+                        return hasOneofIndex && fi === i && !f.proto3Optional && !f.proto3_optional;
+                      });
+
                       if (oneofFields.length > 1) {
                         for (const f of oneofFields) {
                           const body = JSON.stringify(generateSampleBody(messageTypes, enumTypes, typeName, new Set(), {

@@ -101,7 +101,7 @@ test('Should discover services via reflection and generate payload', async () =>
   console.log('Verifying generated payload...');
   await window.click('button.config-tab:has-text("Body")');
   const bodyEditor = window.locator('.body-textarea .cm-content');
-  await expect(bodyEditor).toContainText('"name": ""');
+  await expect(bodyEditor).toContainText('"name": "name_sample"');
 
   console.log('Taking success screenshot...');
   await window.screenshot({ path: join(__dirname, '../../test-output/screenshots/ultrarpc-grpc-reflection-success.png') });

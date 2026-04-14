@@ -502,9 +502,9 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
           }
 
           // Build a Root for message types using FileDescriptorSet
-          const decodedDescriptors = descriptorBuffers.map(buf =>
-            protobuf.descriptor.FileDescriptorProto.decode(buf)
-          )
+          const decodedDescriptors = descriptorBuffers.map(buf => {
+            return (protobuf as any).descriptor.FileDescriptorProto.decode(buf);
+          })
           const descriptorSet = protobuf.descriptor.FileDescriptorSet.create({
             file: decodedDescriptors,
           })
@@ -892,15 +892,15 @@ export function registerGrpcHandlers() {
             const processedOneofs = new Set<string>()
 
             for (const field of type.fieldsArray) {
-              if (field.oneof) {
-                if (processedOneofs.has(field.oneof.name)) continue
-                const selectedFieldName = options.oneofSelection?.[field.oneof.name]
+              if (field.partOf) {
+                if (processedOneofs.has(field.partOf.name)) continue
+                const selectedFieldName = options.oneofSelection?.[field.partOf.name]
                 if (selectedFieldName) {
                   fieldsToInclude.add(selectedFieldName)
                 } else {
                   fieldsToInclude.add(field.name) // Default: first field
                 }
-                processedOneofs.add(field.oneof.name)
+                processedOneofs.add(field.partOf.name)
               } else {
                 fieldsToInclude.add(field.name)
               }
