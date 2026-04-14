@@ -2,7 +2,17 @@ import React, { useState } from 'react'
 import { Search, Loader2, ChevronRight, Server, Zap, AlertCircle, RefreshCw, ArrowRight, FileType, FolderOpen, BookOpen } from 'lucide-react'
 import InterpolatedInput from './InterpolatedInput'
 import ProtoDefinitionModal from './ProtoDefinitionModal'
+import { splitTypeName } from '../lib/proto-helpers'
 import './GrpcReflectionPanel.css'
+
+function TypeChip({ typeName }: { typeName: string }) {
+  const { short } = splitTypeName(typeName)
+  return (
+    <span className="proto-type-chip" title={typeName}>
+      {short}
+    </span>
+  )
+}
 
 interface MethodInfo {
   name: string
@@ -356,9 +366,11 @@ const GrpcReflectionPanel: React.FC<Props> = ({
                       <ArrowRight size={12} className="reflect-method-icon" />
                       <span className="reflect-method-name">{method.name}</span>
                       <span className="reflect-method-type">{streamingLabel(method)}</span>
-                      <span className="reflect-method-sig">
-                        {method.requestType} → {method.responseType}
-                      </span>
+                      <div className="reflect-method-sig">
+                        <TypeChip typeName={method.requestType} />
+                        <span className="reflect-method-sig-arrow">→</span>
+                        <TypeChip typeName={method.responseType} />
+                      </div>
                       <span className="reflect-use-btn">Use →</span>
                     </button>
                   ))}

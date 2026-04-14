@@ -5,7 +5,8 @@ import {
   setProtobuf, 
   generateSampleBody, 
   indexDescriptorTypes,
-  processDescriptorBuffers
+  processDescriptorBuffers,
+  flattenFieldTypeAnnotations
 } from "../../electron/lib/grpc-discovery-utils";
 
 // Initialize the utility with live protobufjs instance for tests
@@ -82,9 +83,9 @@ describe("gRPC Discovery Utils", () => {
       const msg = {
         name: "Simple",
         field: [
-          { name: "name", type: 9, jsonName: "name" }, // TYPE_STRING
-          { name: "age", type: 5, jsonName: "age" },   // TYPE_INT32
-          { name: "active", type: 8, jsonName: "active" } // TYPE_BOOL
+          { name: "name", type: 9, jsonName: "name", number: 1 }, // TYPE_STRING
+          { name: "age", type: 5, jsonName: "age", number: 2 },   // TYPE_INT32
+          { name: "active", type: 8, jsonName: "active", number: 3 } // TYPE_BOOL
         ]
       };
       const msgs = new Map([["test.Simple", msg]]);
@@ -101,7 +102,7 @@ describe("gRPC Discovery Utils", () => {
       const msg = {
         name: "WithRepeated",
         field: [
-          { name: "tags", type: 9, label: 3, jsonName: "tags" } // LABEL_REPEATED, TYPE_STRING
+          { name: "tags", type: 9, label: 3, jsonName: "tags", number: 1 } // LABEL_REPEATED, TYPE_STRING
         ]
       };
       const msgs = new Map([["test.WithRepeated", msg]]);
@@ -133,8 +134,8 @@ describe("gRPC Discovery Utils", () => {
       const msg = {
         name: "OneofMsg",
         field: [
-          { name: "f1", type: 9, oneofIndex: 0, jsonName: "f1" },
-          { name: "f2", type: 5, oneofIndex: 0, jsonName: "f2" }
+          { name: "f1", type: 9, oneofIndex: 0, jsonName: "f1", number: 1 },
+          { name: "f2", type: 5, oneofIndex: 0, jsonName: "f2", number: 2 }
         ]
       };
       const msgs = new Map([["test.OneofMsg", msg]]);
@@ -148,8 +149,8 @@ describe("gRPC Discovery Utils", () => {
       const msg = {
         name: "OneofMsg",
         field: [
-          { name: "f1", type: 9, oneofIndex: 0, jsonName: "f1" },
-          { name: "f2", type: 5, oneofIndex: 0, jsonName: "f2" }
+          { name: "f1", type: 9, oneofIndex: 0, jsonName: "f1", number: 1 },
+          { name: "f2", type: 5, oneofIndex: 0, jsonName: "f2", number: 2 }
         ]
       };
       const msgs = new Map([["test.OneofMsg", msg]]);
@@ -203,6 +204,66 @@ describe("gRPC Discovery Utils", () => {
       
       expect(messageTypes.has("test.Parent")).toBeTrue();
       expect(messageTypes.has("test.Parent.Child")).toBeTrue();
+    });
+  });
+
+  describe("flattenFieldTypeAnnotations", () => {
+    it("returns structured annotations for simple messages", () => {
+      const msg = {
+        name: "Simple",
+        field: [
+          { name: "name", type: 9, jsonName: "name", number: 1 },
+          { name: "age", type: 5, jsonName: "age", number: 2 }
+        ]
+      };
+      const msgs = new Map([["test.Simple", msg]]);
+      const results = flattenFieldTypeAnnotations("test.Simple", msgs, new Map());
+      
+      expect(results).toEqual({
+        name: { type: "string" },
+        age: { type: "int32" }
+      });
+    });
+
+    it("includes enum values in annotations", () => {
+      const enm = {
+        name: "Status",
+        value: [
+          { name: "UNKNOWN", number: 0 },
+          { name: "ACTIVE", number: 1 }
+        ]
+      };
+      const msg = {
+        name: "WithEnum",
+        field: [{ name: "status", type: 14, typeName: "test.Status", jsonName: "status" }]
+      };
+      const msgs = new Map([["test.WithEnum", msg]]);
+      const enums = new Map([["test.Status", enm]]);
+      const results = flattenFieldTypeAnnotations("test.WithEnum", msgs, enums);
+      
+      expect(results.status).toEqual({
+        type: "Status",
+        enumValues: ["UNKNOWN", "ACTIVE"]
+      });
+    });
+
+    it("handles nested messages by flattening into a single map", () => {
+      const inner = {
+        name: "Inner",
+        field: [{ name: "val", type: 5, jsonName: "val" }]
+      };
+      const outer = {
+        name: "Outer",
+        field: [{ name: "nested", type: 11, typeName: "test.Inner", jsonName: "nested" }]
+      };
+      const msgs = new Map([
+        ["test.Inner", inner],
+        ["test.Outer", outer]
+      ]);
+      const results = flattenFieldTypeAnnotations("test.Outer", msgs, new Map());
+      
+      expect(results.nested).toEqual({ type: "Inner" });
+      expect(results.val).toEqual({ type: "int32" });
     });
   });
 });

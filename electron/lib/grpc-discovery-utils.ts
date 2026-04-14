@@ -30,6 +30,20 @@ export interface SampleVariant {
   oneofName?: string;
 }
 
+/** Metadata for a single proto message field, used for type tag display in the UI */
+export interface FieldInfo {
+  name: string;
+  /** Human-readable scalar type label, e.g. "string", "int32", "bool", "message", "enum", "bytes" */
+  typeLabel: string;
+  /** Full proto type name for message/enum fields, e.g. "google.protobuf.Timestamp" */
+  typeName?: string;
+  /** Enum value names for tooltip display */
+  enumValues?: string[];
+  repeated: boolean;
+  optional: boolean;
+  oneofName?: string;
+}
+
 export interface MethodInfo {
   name: string;
   fullName: string;
@@ -41,6 +55,13 @@ export interface MethodInfo {
   responseSampleBody?: string;
   requestVariants?: SampleVariant[];
   responseVariants?: SampleVariant[];
+  /** Field-level metadata for the request message type */
+  requestFields?: FieldInfo[];
+  /** Field-level metadata for the response message type */
+  responseFields?: FieldInfo[];
+  /** Flattened map of json path / field name -> structured type info for CodeMirror hints */
+  requestTypeAnnotations?: Record<string, { type: string; enumValues?: string[]; optional?: boolean }>;
+  responseTypeAnnotations?: Record<string, { type: string; enumValues?: string[]; optional?: boolean }>;
 }
 
 /**
@@ -73,6 +94,164 @@ export function indexDescriptorTypes(
   }
 }
 
+/** Map proto field type number to a human-readable label */
+const PROTO_TYPE_LABELS: Record<number, string> = {
+  1: 'double',
+  2: 'float',
+  3: 'int64',
+  4: 'uint64',
+  5: 'int32',
+  6: 'fixed64',
+  7: 'fixed32',
+  8: 'bool',
+  9: 'string',
+  10: 'group',
+  11: 'message',
+  12: 'bytes',
+  13: 'uint32',
+  14: 'enum',
+  15: 'sfixed32',
+  16: 'sfixed64',
+  17: 'sint32',
+  18: 'sint64',
+}
+
+/**
+ * Extract FieldInfo metadata from a proto message descriptor.
+ * Returns top-level fields only (not nested), making the data suitable for
+ * the discovery UI's field type tag display.
+ */
+export function extractFields(
+  typeName: string,
+  messageTypes: Map<string, any>,
+  enumTypes: Map<string, any>
+): FieldInfo[] {
+  const getMsg = (name: string) =>
+    messageTypes.get(name) || messageTypes.get(`.${name}`) ||
+    (name.startsWith('.') ? messageTypes.get(name.slice(1)) : null)
+
+  const msg = getMsg(typeName)
+  if (!msg || !msg.field) return []
+
+  // Build oneof index → name map
+  const oneofNames: Record<number, string> = {}
+  if (msg.oneofDecl) {
+    msg.oneofDecl.forEach((o: any, i: number) => {
+      oneofNames[i] = o?.name || `oneof_${i}`
+    })
+  }
+
+  const fields: FieldInfo[] = []
+
+  for (const field of (msg.field || [])) {
+    const typeNum: number = field.type ?? 0
+    const typeLabel = PROTO_TYPE_LABELS[typeNum] ?? 'unknown'
+    const repeated = field.label === 3 // LABEL_REPEATED
+    const isOptional = !!(field.proto3Optional || field.proto3_optional)
+
+    // Resolve oneof membership (skip synthetic proto3 optional oneofs)
+    const oIdx = field.oneofIndex !== undefined ? field.oneofIndex : field.oneof_index
+    const hasOneof = (Object.prototype.hasOwnProperty.call(field, 'oneofIndex') ||
+                      Object.prototype.hasOwnProperty.call(field, 'oneof_index')) &&
+                     oIdx !== undefined && oIdx !== null && !isOptional
+    const oneofName = hasOneof ? oneofNames[oIdx] : undefined
+
+    const fi: FieldInfo = {
+      name: field.jsonName || field.name,
+      typeLabel,
+      repeated,
+      optional: isOptional,
+      oneofName,
+    }
+
+    // For message/enum fields, include the type name too
+    if (typeNum === 11 || typeNum === 14) {
+      const rawName: string = field.typeName || ''
+      fi.typeName = rawName.startsWith('.') ? rawName.slice(1) : rawName
+    }
+
+    // For enum fields, fetch value names for the tooltip
+    if (typeNum === 14 && field.typeName) {
+      const enm = enumTypes.get(field.typeName) || enumTypes.get(field.typeName.replace(/^\./, ''))
+      if (enm?.value) {
+        fi.enumValues = (enm.value as any[]).map((v: any) => v.name as string)
+      }
+    }
+
+    fields.push(fi)
+  }
+
+  return fields
+}
+
+/**
+ * Builds a flat map of propertyName -> typeLabel to be used as inline CodeMirror hints
+ */
+export function flattenFieldTypeAnnotations(
+  typeName: string,
+  messageTypes: Map<string, any>,
+  enumTypes: Map<string, any>,
+  visited = new Set<string>(),
+  annotations: Record<string, { type: string; enumValues?: string[]; optional?: boolean }> = {}
+): Record<string, { type: string; enumValues?: string[]; optional?: boolean }> {
+  const getMsg = (name: string) =>
+    messageTypes.get(name) || messageTypes.get(`.${name}`) ||
+    (name.startsWith('.') ? messageTypes.get(name.slice(1)) : null)
+  
+  const msg = getMsg(typeName)
+  if (!msg || !msg.field || visited.has(typeName)) return annotations
+  visited.add(typeName)
+
+  for (const field of (msg.field || [])) {
+    const typeNum: number = field.type ?? 0
+    const typeLabel = PROTO_TYPE_LABELS[typeNum] ?? 'unknown'
+    const name = field.jsonName || field.name
+    const isOptional = !!(field.proto3Optional || field.proto3_optional)
+
+    if (typeNum === 11 || typeNum === 14) {
+      let shortName = field.typeName || ''
+      shortName = shortName.split('.').pop() || shortName
+      // Check if map entry (we want to show the type of the value)
+      if (typeNum === 11) {
+        const nestedMsg = getMsg(field.typeName)
+        if (nestedMsg?.options?.mapEntry || nestedMsg?.options?.map_entry) {
+          const valField = nestedMsg.field?.find((f: any) => f.number === 2)
+          if (valField) {
+            let valShortName = valField.typeName || ''
+            valShortName = valShortName.split('.').pop() || valShortName
+            const valLabel = PROTO_TYPE_LABELS[valField.type ?? 0] ?? 'unknown'
+            annotations[name] = { type: `map<string, ${valShortName || valLabel}>`, optional: isOptional }
+            
+            if (valField.type === 11 && valField.typeName) {
+               flattenFieldTypeAnnotations(valField.typeName, messageTypes, enumTypes, visited, annotations)
+            }
+            continue
+          }
+        }
+      }
+
+      let enumValues: string[] | undefined
+      if (typeNum === 14 && field.typeName) {
+        const enm = enumTypes.get(field.typeName) || enumTypes.get(field.typeName.replace(/^\./, ''))
+        if (enm?.value) {
+          enumValues = (enm.value as any[]).map((v: any) => v.name as string)
+        }
+      }
+
+      annotations[name] = { type: shortName, enumValues, optional: isOptional }
+      if (typeNum === 11 && field.typeName) {
+        flattenFieldTypeAnnotations(field.typeName, messageTypes, enumTypes, visited, annotations)
+      }
+    } else {
+      annotations[name] = { type: typeLabel, optional: isOptional }
+    }
+  }
+
+  // Remove visited so it can be traversed again from a different path if there's no cycle
+  visited.delete(typeName)
+  return annotations
+}
+
 /**
  * Protobuf field type numbers → default values for sample body generation
  * See: https://protobuf.dev/programming-guides/proto3/#scalar
@@ -100,7 +279,8 @@ export function generateSampleBody(
   if (visited.has(canonicalName)) return {};
   visited.add(canonicalName);
 
-  const result: Record<string, any> = {};  const fieldsToInclude = new Set<number>();
+  const result: Record<string, any> = {};
+  const fieldsToInclude = new Set<any>();
   const processedOneofs = new Set<number>();
   const sortedFields = [...(msg.field || [])].sort((a, b) => {
     const aNum = a.number !== undefined ? a.number : 0;
@@ -112,7 +292,6 @@ export function generateSampleBody(
     const oIndex = (field.oneofIndex !== undefined && field.oneofIndex !== null) ? field.oneofIndex : field.oneof_index;
     const hasOneofIndex = Object.prototype.hasOwnProperty.call(field, 'oneofIndex') || Object.prototype.hasOwnProperty.call(field, 'oneof_index');
     const isOptional = field.proto3Optional || field.proto3_optional;
-    const num = field.number || 0;
     
     if (hasOneofIndex && oIndex !== undefined && oIndex !== null && !isOptional) {
       if (processedOneofs.has(oIndex)) continue;
@@ -120,20 +299,20 @@ export function generateSampleBody(
       const selection = options.oneofSelection?.[oIndex];
       if (selection) {
         if (field.name === selection) {
-          fieldsToInclude.add(num);
+          fieldsToInclude.add(field);
           processedOneofs.add(oIndex);
         }
       } else {
-        fieldsToInclude.add(num);
+        fieldsToInclude.add(field);
         processedOneofs.add(oIndex);
       }
     } else {
-      fieldsToInclude.add(num);
+      fieldsToInclude.add(field);
     }
   }
 
   for (const field of sortedFields) {
-    if (!fieldsToInclude.has(field.number || 0)) continue;
+    if (!fieldsToInclude.has(field)) continue;
 
     const name = field.jsonName || field.name;
     let value: any;
@@ -393,17 +572,24 @@ export function processDescriptorBuffers(
                 const requestVariants = getVariants(m.inputType);
                 const responseVariants = getVariants(m.outputType);
 
+                const reqTypeName = cleanType(m.inputType);
+                const resTypeName = cleanType(m.outputType);
+
                 methods.push({
                   name: m.name,
                   fullName: `${svcFullName}/${m.name}`,
-                  requestType: cleanType(m.inputType),
-                  responseType: cleanType(m.outputType),
+                  requestType: reqTypeName,
+                  responseType: resTypeName,
                   clientStreaming: m.clientStreaming || false,
                   serverStreaming: m.serverStreaming || false,
                   sampleBody: requestVariants[0]?.body || '{}',
                   responseSampleBody: responseVariants[0]?.body || '{}',
                   requestVariants,
                   responseVariants,
+                  requestFields: extractFields(reqTypeName, messageTypes, enumTypes),
+                  responseFields: extractFields(resTypeName, messageTypes, enumTypes),
+                  requestTypeAnnotations: flattenFieldTypeAnnotations(reqTypeName, messageTypes, enumTypes),
+                  responseTypeAnnotations: flattenFieldTypeAnnotations(resTypeName, messageTypes, enumTypes),
                 });
               }
             }

@@ -77,6 +77,35 @@
   filter: brightness(1.2);
 }
 
+/* Inline Type Hints */
+.cm-type-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  margin-left: 8px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  pointer-events: auto;
+  cursor: default;
+  user-select: none;
+  vertical-align: middle;
+}
+
+.cm-type-hint-enum {
+  border-bottom: 1px dotted var(--text-secondary);
+  cursor: help;
+  opacity: 0.9 !important;
+}
+
+.cm-type-hint-opt {
+  color: var(--warning);
+  margin-left: 2px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
 /* Scrollbar styling for CodeMirror */
 .cm-scroller::-webkit-scrollbar {
   width: 10px;
@@ -186,7 +215,10 @@
   font-size: 11px;
   font-family: var(--font-mono);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  white-space: nowrap;
+  white-space: pre-wrap;
+  min-width: 120px;
+  max-width: 300px;
+  line-height: 1.4;
   pointer-events: none;
 }
 

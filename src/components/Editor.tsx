@@ -11,7 +11,8 @@ import {
   ViewPlugin, 
   ViewUpdate, 
   Decoration,
-  tooltips
+  tooltips,
+  WidgetType
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search'
@@ -140,6 +141,113 @@ const libraryLinkPlugin = ViewPlugin.fromClass(class {
   decorations: v => v.decorations
 })
 
+class TypeHintWidget extends WidgetType {
+  text: string
+  enumValues?: string[]
+  isOptional?: boolean
+  onHover?: (e: MouseEvent, text: string) => void
+  onLeave?: () => void
+
+  constructor(
+    text: string, 
+    enumValues?: string[], 
+    isOptional?: boolean,
+    onHover?: (e: MouseEvent, text: string) => void, 
+    onLeave?: () => void
+  ) { 
+    super() 
+    this.text = text
+    this.enumValues = enumValues
+    this.isOptional = isOptional
+    this.onHover = onHover
+    this.onLeave = onLeave
+  }
+
+  toDOM() {
+    const span = document.createElement("span")
+    span.className = "cm-type-hint"
+    
+    if (this.enumValues && this.enumValues.length > 0) {
+      span.classList.add("cm-type-hint-enum")
+    }
+
+    const typeSpan = document.createElement("span")
+    typeSpan.textContent = this.text
+    span.appendChild(typeSpan)
+
+    if (this.isOptional) {
+      const optSpan = document.createElement("span")
+      optSpan.className = "cm-type-hint-opt"
+      optSpan.textContent = "?"
+      optSpan.title = "Optional field"
+      span.appendChild(optSpan)
+    }
+    
+    if (this.onHover && this.enumValues && this.enumValues.length > 0) {
+      span.onmouseenter = (e) => {
+        const items = this.enumValues!.map(v => `• ${v}`).join('\n')
+        const tooltipText = `Enum: ${this.text}\n${items}`
+        this.onHover!(e, tooltipText)
+      }
+      span.onmouseleave = () => {
+        this.onLeave?.()
+      }
+    }
+    
+    return span
+  }
+}
+
+function getTypeHintDecos(
+  view: EditorView, 
+  annotations: Record<string, string | { type: string; enumValues?: string[]; optional?: boolean }>,
+  onHover?: (e: MouseEvent, text: string) => void,
+  onLeave?: () => void
+) {
+  const builder = new RangeSetBuilder<Decoration>()
+  if (!annotations || Object.keys(annotations).length === 0) return builder.finish()
+  
+  const text = view.state.doc.toString()
+  const regex = /"((?:[^"\\]|\\.)*)"\s*:/g
+  let match
+  
+  while ((match = regex.exec(text)) !== null) {
+    const key = match[1]
+    const annotation = annotations[key]
+    if (annotation) {
+      const hintText = typeof annotation === 'string' ? annotation : annotation.type
+      const enumValues = typeof annotation === 'string' ? undefined : annotation.enumValues
+      const isOptional = typeof annotation === 'string' ? false : !!annotation.optional
+
+      builder.add(match.index + match[0].length, match.index + match[0].length, Decoration.widget({
+        widget: new TypeHintWidget(hintText, enumValues, isOptional, onHover, onLeave),
+        side: 1
+      }))
+    }
+  }
+  return builder.finish()
+}
+
+function createTypeHintPlugin(
+  annotations: Record<string, string | { type: string; enumValues?: string[]; optional?: boolean }>,
+  onHover?: (e: MouseEvent, text: string) => void,
+  onLeave?: () => void
+) {
+  return ViewPlugin.fromClass(class {
+    decorations: DecorationSet
+    constructor(view: EditorView) {
+      this.decorations = getTypeHintDecos(view, annotations, onHover, onLeave)
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = getTypeHintDecos(update.view, annotations, onHover, onLeave)
+      }
+    }
+  }, {
+    decorations: v => v.decorations
+  })
+}
+
 interface Props {
   value: string
   onChange?: (value: string) => void
@@ -159,6 +267,7 @@ interface Props {
   theme?: 'dark' | 'light'
   enableSearch?: boolean
   onSelectPath?: (path: string) => void
+  typeAnnotations?: Record<string, string | { type: string; enumValues?: string[]; optional?: boolean }>
 }
 
 export interface EditorHandle {
@@ -185,6 +294,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   theme = 'dark',
   enableSearch = false,
   onSelectPath,
+  typeAnnotations,
 }, ref) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -444,6 +554,9 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (language === 'json') {
       extensions.push(json())
       extensions.push(jsonPlugin)
+      if (typeAnnotations) {
+        extensions.push(createTypeHintPlugin(typeAnnotations, handleMouseEnterVar as any, handleMouseLeaveVar))
+      }
       if (!singleLine) {
         extensions.push(codeFolding())
         extensions.push(foldGutter())
@@ -474,7 +587,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, autoHeight, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition, onSelectPath, onBlur])
+  }, [language, placeholder, readOnly, autoHeight, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition, onSelectPath, onBlur, typeAnnotations])
 
   // Initialize view once on mount
   const initialValue = useRef(value)

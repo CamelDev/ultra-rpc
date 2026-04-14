@@ -40,6 +40,8 @@ interface MethodInfo {
   responseSampleBody?: string
   requestVariants?: SampleVariant[]
   responseVariants?: SampleVariant[]
+  requestTypeAnnotations?: Record<string, { type: string; enumValues?: string[]; optional?: boolean }>
+  responseTypeAnnotations?: Record<string, { type: string; enumValues?: string[]; optional?: boolean }>
 }
 
 interface Props {
@@ -75,7 +77,7 @@ function TypeChip({ typeName }: { typeName: string }) {
 
 // ─── sample body renderer ───────────────────────────────────────────────────
 
-function SampleBodyViewer({ json, label, theme }: { json: string; label: string; theme?: string }) {
+function SampleBodyViewer({ json, label, theme, typeAnnotations }: { json: string; label: string; theme?: string, typeAnnotations?: Record<string, { type: string; enumValues?: string[]; optional?: boolean }> }) {
   return (
     <div className="proto-sample-wrap">
       <div className="proto-sample-header">
@@ -91,6 +93,7 @@ function SampleBodyViewer({ json, label, theme }: { json: string; label: string;
           wrapLines={false}
           theme={(theme === 'light' ? 'light' : 'dark') as 'light' | 'dark'}
           className="proto-sample-cm"
+          typeAnnotations={typeAnnotations}
         />
       </div>
     </div>
@@ -437,6 +440,7 @@ const ProtoDefinitionModal: React.FC<Props> = ({
           key={`${schemaTab}-${activeVariantName}`}
           json={activeBody}
           label={isResponse ? 'Response Structure' : 'Request Structure'}
+          typeAnnotations={isResponse ? m.responseTypeAnnotations : m.requestTypeAnnotations}
         />
 
         {/* Use button (only for request) */}
