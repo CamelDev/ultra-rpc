@@ -134,9 +134,9 @@ export interface UltraRpcApi {
     cancelStep: (flowId: string) => Promise<{ success: boolean; error?: string }>
     executeStep: (flow: import('./flow').FlowDefinition, stepId: string, activeEnvId?: string | null, environments?: import('./index').Environment[], collections?: import('./index').Collection[], libraries?: import('./index').Library[]) => Promise<{ success: boolean; error?: string; variables?: Record<string, any>; stepStatuses?: Record<string, import('./flow').StepStatus> }>
     onStepStatus: (callback: (stepId: string, status: any) => void) => () => void
-    onLog: (callback: (data: { timestamp: number, level: string, message: string }) => void) => () => void
-    onClearLogs: (callback: () => void) => () => void
-    onVariableUpdate: (callback: (data: { type: 'set' | 'delete' | 'clear', key?: string, value?: any }) => void) => () => void
+    onLog: (callback: (data: { flowId: string, timestamp: number, level: string, message: string }) => void) => () => void
+    onClearLogs: (callback: (data: { flowId: string }) => void) => () => void
+    onVariableUpdate: (callback: (data: { flowId: string, type: 'set' | 'delete' | 'clear', key?: string, value?: any }) => void) => () => void
     showInFolder: (args: { collectionId: string; flowId: string }) => Promise<{ success: boolean; error?: string }>
     export: (args: { collectionId: string; flowId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   }

@@ -113,6 +113,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
   useEffect(() => {
     const removeStatusListener = window.ultraRpc.flow.onStepStatus((stepId, data) => {
+      if (data.flowId && data.flowId !== flow.id) return;
       if (data.status === 'running') {
         setRunningStepId(stepId);
       } else if (data.status !== 'running') {
@@ -123,15 +124,18 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     });
 
     const removeLogListener = window.ultraRpc.flow.onLog((logData) => {
+      if (logData.flowId && logData.flowId !== flow.id) return;
       setLogs(prev => [...prev, logData]);
       setIsLogsExpanded(true);
     });
 
-    const removeClearLogsListener = window.ultraRpc.flow.onClearLogs(() => {
+    const removeClearLogsListener = window.ultraRpc.flow.onClearLogs((data) => {
+      if (data && data.flowId && data.flowId !== flow.id) return;
       setLogs([]);
     });
 
     const removeVarListener = window.ultraRpc.flow.onVariableUpdate((data) => {
+      if (data.flowId && data.flowId !== flow.id) return;
       if (data.type === 'set' && data.key) {
         const nextVars = { 
           ...variablesRef.current, 

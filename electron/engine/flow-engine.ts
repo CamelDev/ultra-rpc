@@ -235,6 +235,7 @@ export class FlowEngine {
     const prev = this.stepStatuses[stepId] || {};
     const nextStatus = { 
       ...prev, 
+      flowId: this.definition.id,
       stepId, 
       status, 
       error, 
@@ -263,7 +264,7 @@ export class FlowEngine {
   }
 
   private async handleRestartStep(_step: FlowStep): Promise<number | undefined> {
-    this.webContents.send('flow:clear-logs')
+    this.webContents.send('flow:clear-logs', { flowId: this.definition.id })
     this.emitLog('info', 'Restarting flow: Resetting variables and step statuses...');
     
     // Reset all step statuses to idle and clear results
@@ -677,6 +678,7 @@ export class FlowEngine {
 
   private emitLog(level: 'info' | 'error' | 'warn', message: string) {
     this.webContents.send('flow:log', {
+      flowId: this.definition.id,
       timestamp: Date.now(),
       level,
       message

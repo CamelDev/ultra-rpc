@@ -131,8 +131,8 @@ contextBridge.exposeInMainWorld('ultraRpc', {
         ipcRenderer.removeListener('flow:log', listener)
       }
     },
-    onClearLogs: (callback: () => void) => {
-      const listener = () => callback()
+    onClearLogs: (callback: (data: { flowId: string }) => void) => {
+      const listener = (_: any, data: any) => callback(data)
       ipcRenderer.on('flow:clear-logs', listener)
       return () => {
         ipcRenderer.removeListener('flow:clear-logs', listener)
