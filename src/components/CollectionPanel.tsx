@@ -443,7 +443,8 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
       return finalId
     }
 
-    const transformItem = (item: any, collId: string): TreeDataItem => {
+    const transformItem = (item: any, collId: string): TreeDataItem | null => {
+      if (item.type === 'flow') return null;
       const realId = item.id;
       return {
         id: ensureUnique(realId),
@@ -453,20 +454,22 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
         type: item.type,
         request: item.request,
         flow: item.flow,
-        children: item.children ? item.children.map((c: any) => transformItem(c, collId)) : [],
+        children: item.children ? item.children.map((c: any) => transformItem(c, collId)).filter(Boolean) : [],
       };
     };
 
-    return collections.map(coll => ({
+    const transformedCollections = collections.map(coll => ({
       id: ensureUnique(coll.id),
       realId: coll.id,
       collectionId: coll.id,
       name: coll.name,
       type: 'collection' as const,
-      children: coll.children ? coll.children.map(c => transformItem(c, coll.id)) : [],
+      children: coll.children ? coll.children.map(c => transformItem(c, coll.id)).filter(Boolean) as TreeDataItem[] : [],
       variables: coll.variables,
       path: coll.path,
-    }))
+    }));
+
+    return transformedCollections.filter(c => c.name.toLowerCase() !== 'flows');
   }, [collections])
 
   const getCollectionIdOfNode = useCallback((node: NodeApi<TreeDataItem> | TreeDataItem | string | null): string | null => {
