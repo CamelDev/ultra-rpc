@@ -1,46 +1,31 @@
-# UltraRPC - Project Context
+# UltraRPC - Gemini Context
+
+This file provides project context for the Gemini assistant.
 
 ## Project Overview
 UltraRPC is a cross-platform, lightweight desktop API client designed for testing and debugging both REST and gRPC services. It acts as a local-first alternative to cloud-based API clients, storing all collections and requests locally in human-readable `.json` files.
 
-The application is built using **Electron**, **React**, and **TypeScript**, packaged with **Vite**.
+## Technical Context
+> [!IMPORTANT]
+> For detailed technical architecture, IPC API references, directory structure, and development conventions, refer to **[AGENTS.md](file:///Users/kamildabrowski/projects/ultra-rpc/AGENTS.md)**.
 
-### Key Features
-- **Unified Interface**: Supports both REST and gRPC in a single tool.
-- **gRPC Server Reflection**: Automatically discovers services and methods without needing to manage `.proto` files manually.
-- **Local File-Based Storage**: No cloud accounts required; data is stored as local files that can be committed to version control.
-- **Scripting & Automation**: Supports pre-request and post-response scripts using a custom `ultra` JavaScript API.
-- **Environments & Vault**: Supports environment variables and an encrypted secrets vault for sensitive keys.
-- **gRPC Specialized UI**: Includes **Enum Tooltips**, **Inline Type Hints** in the editor, and smart **OneOf** payload generation.
-- **Tab Grouping**: Advanced tab organization with a dedicated **Tab Management Modal** for visibility toggling and color customization.
-- **Code Library**: Reusable JS scripts with **"Go to Definition"** (Cmd/Ctrl+Click) support in the editor.
+## Commands
 
-## Architecture & Technologies
-- **Frontend (Renderer Process)**: React 19, TypeScript, Vite. Located in the `src/` directory. Uses libraries like `framer-motion` for animations and `@codemirror` for syntax-highlighted text editors.
-- **Backend (Main Process)**: Electron (Node.js), TypeScript. Located in the `electron/` directory. Handles OS-level operations, secure storage, file system access, and native gRPC calls via `@grpc/grpc-js` and `protobufjs`.
-- **Communication**: Uses Electron's IPC (Inter-Process Communication) to bridge the React frontend with Node.js backend handlers (`rest-handler.ts`, `grpc-handler.ts`, `storage-handler.ts`, `vault-handler.ts`).
-- **Testing**: End-to-End (E2E) testing powered by Playwright (`tests/e2e/`).
-
-## Building and Running
-
-The project uses `bun` as the primary package manager. Ensure you have Node.js v18+ and Bun v1.x+ installed.
-
-### Commands
+### Development
 - **Install dependencies**: `bun install`
-- **Start Development Server (HMR enabled)**: `bun run dev`
-- **Type Checking (No emit)**: `npx tsc --noEmit`
+- **Start Development Server**: `bun run dev`
+- **Type Checking**: `npx tsc --noEmit`
 - **Linting**: `bun run lint`
 - **Build**: `bun run build`
-- **Run E2E Tests (Headless)**: `bun run test:e2e` (Note: Requires a build first)
-- **Run E2E Tests (UI Mode)**: `npx playwright test --ui`
+
+### Testing
+- **E2E Tests**: `bun run test:e2e` (Requires build)
+- **Unit Tests**: `bun test`
 
 ### Packaging
 - **macOS**: `bun run package:mac`
 - **Windows**: `bun run package:win`
 - **Linux**: `bun run package:linux`
 
-## Development Conventions
-- **Package Manager**: Strictly use `bun` for managing dependencies and running scripts.
-- **IPC Architecture**: UI features requiring system resources (network requests, file system, secure storage) should be implemented as IPC handlers in the `electron/` folder and exposed to the frontend via `electron/preload.ts`.
-- **Native Node Modules**: Packages like `@grpc/grpc-js` and `protobufjs` are kept external in the Vite build configuration (`vite.config.ts`) so they can be loaded natively via Node.js CJS `require()`.
-- **Testing**: Comprehensive E2E coverage powered by Playwright. All critical user flows (REST, gRPC, Collections, Environments, Flows, Tab Groups) are verified by a suite of **76+ tests**. E2E tests target the built application.
+## Documentation
+See [README.md](file:///Users/kamildabrowski/projects/ultra-rpc/README.md) for user-facing features and screenshots.

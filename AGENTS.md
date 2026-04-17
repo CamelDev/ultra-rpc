@@ -10,6 +10,7 @@
 - **Type**: Desktop application (Electron)
 - **Purpose**: Lightweight API client for REST and gRPC testing — like Postman with native gRPC reflection support and file-based collections
 - **License**: MIT
+- **Documentation**: See [README.md](file:///Users/kamildabrowski/projects/ultra-rpc/README.md) for user-facing features and screenshots.
 
 ---
 
@@ -65,9 +66,15 @@ UltraRPC uses the standard Electron two-process architecture:
 electron/                  # Main process code (Node.js runtime)
   main.ts                  # Entry: creates BrowserWindow, registers IPC handlers
   preload.ts               # Context bridge: exposes window.ultraRpc to renderer
-  rest-handler.ts           # IPC handler for REST HTTP/HTTPS requests
-  grpc-handler.ts           # IPC: gRPC reflection, method discovery, unary/server-stream calls
+  rest-handler.ts           # IPC handler for REST HTTP/HTTPS requests (Native Node http/https)
+  grpc-handler.ts           # IPC: gRPC reflection, method discovery, unary/server-stream calls, rich error decoding
   storage-handler.ts        # IPC: collections, history, environments, settings (filesystem)
+  flow-handler.ts           # IPC handler for Flow execution lifecycle
+  engine/flow-engine.ts     # Multi-step Flow execution engine (variable passing, sequence)
+  vault-handler.ts          # Encrypted secrets vault (Native OS keychain via safeStorage)
+  mcp-server.ts             # Model Context Protocol (MCP) server for AI integration
+  bruno-importer.ts         # Handles importing Bruno API collections
+  format-handler.ts         # Code formatting via Prettier (IPC: `code:format`)
 
 src/                       # Renderer process code (React/Chromium)
   main.tsx                 # React DOM mount point
@@ -83,21 +90,54 @@ src/                       # Renderer process code (React/Chromium)
     HistoryPanel.tsx        # Sidebar: request history timeline (persists 100 entries)
     KeyValueEditor.tsx      # Reusable: key-value pair editor
     InterpolatedInput.tsx   # Specialized input with variable interpolation & autocomplete
-    Editor.tsx              # CodeMirror wrapper for JSON/Code editing
+    Editor.tsx              # CodeMirror wrapper for JSON/Code editing with gRPC schema tooltips
     LibraryModal.tsx        # Code Library: manage reusable JS script snippets
     ResponseViewer.tsx      # Response display: formatted JSON, trailers, metrics
     Toaster.tsx             # Notification system (toasts)
   
   hooks/
     useTreeOpenState.ts     # Persists collection tree expansion state to settings
+    useScriptValidation.ts  # Validates pre/post scripts before saving
 
   types/
     index.ts               # Domain types: RequestConfig, ResponseData, Collection, etc.
+    flow.ts                # Flow and FlowStep types
     electron.d.ts           # TypeScript declarations for the window.ultraRpc API
   
   lib/
     helpers.ts              # Utilities: empty object generators, uid generators
+    json-utils.ts           # JSON formatting utilities
+    proto-helpers.ts        # Protobuf field helpers for gRPC schema tooltips
 ```
+
+### Component Reference
+
+| Component | Purpose |
+|-----------|---------|
+| `AboutModal` | Application info and versioning |
+| `AiInfoModal` | MCP server status and configuration UI |
+| `CollectionPanel` | Sidebar: collections, folders, drag-and-drop reordering |
+| `Editor` | CodeMirror 6 wrapper for JSON/code editing with gRPC schema tooltips |
+| `EnvironmentPanel` | Sidebar: environments, variables, SSL toggle, vault access |
+| `FlowCanvas` | Visual canvas for building and editing multi-step request flows |
+| `FlowLogViewer` | Displays real-time execution logs during flow runs |
+| `FlowPanel` | Sidebar: flow list management |
+| `FlowSettingsDrawer` | Per-flow settings (timeout, variables, etc.) |
+| `GrpcReflectionPanel` | gRPC service/method discovery via reflection or proto file |
+| `HistoryPanel` | Sidebar: request history timeline (persists 100 entries) |
+| `InterpolatedInput` | Input with `{{variable}}` autocomplete and interpolation |
+| `IntroPage` | Welcome screen shown when no tabs are open |
+| `JsonResponsePickerModal` | Pick a JSON path from a response to use as a flow variable |
+| `KeyValueEditor` | Reusable key-value pair editor (headers, params, etc.) |
+| `LibraryModal` | Code Library: manage reusable JS script snippets |
+| `ProtoDefinitionModal` | Proto Definition Browser: browse and search gRPC schema types |
+| `RequestSelectorModal` | Modal to pick an existing request to add to a flow |
+| `ResponseViewer` | Response display: formatted JSON, trailers, metrics |
+| `StepCard` | Individual flow step card on the FlowCanvas |
+| `TabGroupsModal` | Tab group management: create, rename, assign tabs to groups |
+| `Toaster` | Toast notification system |
+| `Tooltip` | Reusable tooltip wrapper |
+| `ValidationBanner` | Inline warning banner for script validation errors |
 
 ---
 
@@ -131,6 +171,31 @@ UltraRPC maintains a **strict one-to-one mapping** between the UI sidebar and th
 - **Renaming**: Renaming in the UI physically renames the file/folder on disk.
 - **Deletion**: Deleting in the UI physically removes the file/folder (with backups for internal collections).
 - **Sanitization**: Names are sanitized using `text.replace(/[<>:"/\\|?*]/g, '_').trim()`. This is enforced in `electron/storage-handler.ts`.
+
+### Scripting & Variables
+- **Variable Resolution Order**: `Vault` → `Collection` → `Environment`.
+- **Script Engine**: Pre-request and post-response scripts run via `new Function()`.
+- **API Object**: Scripts receive an `ultra` object with `env`, `context`, `globals`, and `network` APIs.
+- **Async Requests**: `ultra.sendRequest` allows chaining multiple APIs.
+
+### Automation: Flows
+- **Visual Orchestration**: Users build multi-step flows on a `FlowCanvas`.
+- **Data Passing**: Output of one step is passed to another via JSONPath extraction.
+- **Execution Engine**: `flow-engine.ts` runs flows sequentially in the main process for stability.
+
+### Security: Vault
+- **Encrypted Storage**: Uses Electron `safeStorage` (OS keychain) for sensitive keys.
+- **Reference Syntax**: Vault entries are accessed via `{{secret:key}}`.
+
+### AI Integration: MCP
+- **MCP Server**: Built-in HTTP server (Express + SSE) exposing collections as tools to AI agents.
+- **Default Port**: Port 3000 (configurable, persisted in settings).
+- **Tooling**: Supports `list_collections`, `add_rest_request`, `add_flow`, etc.
+
+### Development Conventions
+- **Package Manager**: Strictly use `bun` for managing dependencies and running scripts.
+- **IPC Architecture**: UI features requiring system resources (network, filesystem) must be IPC handlers in `electron/` and exposed via `preload.ts`.
+- **Native Node Modules**: `@grpc/grpc-js` and `protobufjs` are kept external in the Vite build (`vite.config.ts`) to allow native Node.js loading.
 
 ---
 
@@ -220,4 +285,7 @@ bun run preview      # Preview production build
 - **Proto file path** is supported in the call handler but there is no UI for selecting/uploading proto files yet (uses Reflection by default).
 - **The reflection proto** is written to `os.tmpdir()` on each call — this is intentional to avoid shipping a proto file.
 - **Module format**: ESM (`"type": "module"`), but `grpc-js` and `protobufjs` interop is handled via `createRequire`.
-- **No tests**: The project currently lacks automated unit or integration tests.
+- **Testing**:
+    - **E2E**: 37 Playwright specs in `tests/e2e/`. Use mock servers in `tests/mocks/`. Requires `bun run build` before running.
+    - **Unit**: Managed in `tests/unit/`, run via `bun test`.
+- **`window.ultraRpc`**: The IPC bridge name (not `window.electronAPI`).
