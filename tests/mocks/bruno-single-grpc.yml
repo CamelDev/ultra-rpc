@@ -1,0 +1,9 @@
+info:
+  name: SingleBrunoGrpc
+  type: grpc
+  seq: 1
+
+grpc:
+  url: localhost:50051
+  method: /pkg.Service/Method
+  message: '{"test":true}'

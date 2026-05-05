@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { getVaultPath, getDecryptedVaultEntries } from './vault-handler'
 import { VaultEntry } from '../src/types'
-import { parseBrunoCollection } from './bruno-importer'
+import { parseBrunoCollection, parseBrunoRequest } from './bruno-importer'
 import { startMcpServer, stopMcpServer } from './mcp-server'
 
 // Default storage root: user's home/.ultrarpc
@@ -1991,9 +1991,27 @@ export function registerStorageHandlers() {
       }
 
       const content = fs.readFileSync(result.filePaths[0], 'utf-8')
+      const trimmed = content.trimStart()
+
+      // ── Detect Bruno individual request or folder metadata (YAML) ──────────
+      // Bruno request files start with "info:\n  name:" and contain "type: http/grpc/etc."
+      // Bruno folder metadata files start with "type: folder"
+      // Neither of these is a collection export — give the user a clear message.
+      if (
+        trimmed.startsWith('info:') ||
+        trimmed.startsWith('type: folder') ||
+        trimmed.startsWith('type: "folder"')
+      ) {
+        const isFolder = trimmed.startsWith('type: folder') || trimmed.startsWith('type: "folder"')
+        const fileKind = isFolder ? 'folder metadata file' : 'individual request file'
+        return {
+          success: false,
+          error: `This looks like a Bruno ${fileKind}, not a supported collection format.\n\nUltraRPC can import Postman collections (.json) or Bruno exported collections (.yml starting with opencollection:). Individual Bruno request files cannot be imported directly.`
+        }
+      }
 
       // ── Bruno opencollection format (YAML) ──────────────────────────────────
-      if (content.trimStart().startsWith('opencollection:')) {
+      if (trimmed.startsWith('opencollection:')) {
         const parsed = parseBrunoCollection(content)
 
         if (parsed.children.length === 0) {
@@ -2122,6 +2140,127 @@ export function registerStorageHandlers() {
       return { success: true, id: finalId, name: collectionName, requestCount: children.length }
     } catch (err: any) {
       console.error('Import Error:', err)
+      return { success: false, error: err.message }
+    }
+  })
+
+  // Import a single request (Bruno .yml or Postman item .json) into a collection/folder
+  ipcMain.handle('storage:importRequest', async (_event, args: { collectionId: string; parentId?: string }) => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Import Request',
+        filters: [
+          { name: 'Request Files', extensions: ['yml', 'yaml', 'json'] },
+          { name: 'Bruno Request', extensions: ['yml', 'yaml'] },
+          { name: 'JSON', extensions: ['json'] },
+        ],
+        properties: ['openFile'],
+      })
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Cancelled' }
+      }
+
+      const filePath = result.filePaths[0]
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const trimmed = content.trimStart()
+      const fileName = path.basename(filePath, path.extname(filePath))
+
+      let request: any = null
+
+      // ── Bruno individual request (YAML starting with "info:") ─────────────────
+      if (trimmed.startsWith('info:')) {
+        const parsed = parseBrunoRequest(content)
+        if (!parsed) {
+          return {
+            success: false,
+            error: 'Could not parse this Bruno file. Only HTTP and gRPC request types are supported.'
+          }
+        }
+        // Use the file name as the request name if info.name is missing
+        if (!parsed.name || parsed.name === 'Request' || parsed.name === 'gRPC Request') {
+          parsed.name = fileName
+        }
+        request = parsed
+      }
+
+      // ── Postman single request item (JSON with a "request" object) ────────────
+      else if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        let data: any
+        try { data = JSON.parse(content) } catch {
+          return { success: false, error: 'File is not valid JSON.' }
+        }
+
+        // Postman item: { name, request: { method, url, header, body } }
+        const item = Array.isArray(data) ? data[0] : data
+        if (item?.request?.method && item?.request?.url !== undefined) {
+          const req = item.request
+          const uid = () => Math.random().toString(36).substring(2, 11)
+          const reqId = uid()
+          request = {
+            id: reqId,
+            name: item.name || fileName,
+            type: 'REST',
+            method: (typeof req.method === 'string' ? req.method : 'GET') as any,
+            url: typeof req.url === 'string' ? req.url : (req.url?.raw || ''),
+            params: [],
+            headers: (req.header || []).map((h: any, hi: number) => ({
+              id: `${reqId}_h_${hi}`,
+              key: h.key || '',
+              value: h.value || '',
+              enabled: !h.disabled,
+            })),
+            body: req.body?.raw || '',
+            bodyType: req.body?.raw ? 'json' : (req.body?.mode === 'raw' ? 'json' : 'none'),
+          }
+          // Convert Postman pre/post scripts if present
+          if (item.event) {
+            for (const event of item.event) {
+              const script = (event.script?.exec || []).join('\n')
+              if (!script) continue
+              const converted = script
+                .replace(/pm\.environment\.set\(/g, 'ultra.env.set(')
+                .replace(/pm\.environment\.get\(/g, 'ultra.env.get(')
+                .replace(/pm\.collectionVariables\.set\(/g, 'ultra.context.set(')
+                .replace(/pm\.collectionVariables\.get\(/g, 'ultra.context.get(')
+                .replace(/pm\.response\.json\(\)/g, 'ultra.response.body')
+              if (event.listen === 'prerequest') request.preRequestScript = converted
+              else if (event.listen === 'test') request.postResponseScript = converted
+            }
+          }
+        } else {
+          return {
+            success: false,
+            error: 'File is not a recognised request format.\n\nExpected a Bruno request (.yml) or a Postman request item (.json with a "request" object).'
+          }
+        }
+      } else {
+        return {
+          success: false,
+          error: 'File is not a recognised request format.\n\nExpected a Bruno request (.yml) or a Postman request item (.json).'
+        }
+      }
+
+      // ── Determine target directory ────────────────────────────────────────────
+      const collDir = getCollectionDir(args.collectionId)
+      if (!collDir) return { success: false, error: 'Collection not found' }
+
+      let targetDir = collDir
+      if (args.parentId && args.parentId !== args.collectionId) {
+        const found = findFolderByIdRecursively(collDir, args.parentId)
+        if (found) targetDir = found
+      }
+
+      // ── Save the request ──────────────────────────────────────────────────────
+      const extension = '.json'
+      const newFilename = getUniqueFilename(targetDir, request.name || fileName, extension)
+      const savePath = path.join(targetDir, newFilename)
+      fs.writeFileSync(savePath, JSON.stringify(request, null, 2))
+      updateIdMap(targetDir, request.id, newFilename)
+
+      return { success: true, requestId: request.id, name: request.name }
+    } catch (err: any) {
+      console.error('[storage] importRequest Error:', err)
       return { success: false, error: err.message }
     }
   })

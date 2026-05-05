@@ -131,7 +131,7 @@ UltraRPC uses a **strict one-to-one mapping** between the UI and your local file
 - **Hierarchical Resolution** — Variables are resolved with priority: `Vault > Collection > Environment`.
 - **Per-Tab Environments** — Associate specific environments with individual request tabs. Tab 1 can be "Production" while Tab 2 is "Staging".
 - **Selective Variable Enabling** — Checkboxes in the Environment Panel allow you to selectively disable variables during interpolation.
-- **Postman & Bruno Import** — Seamlessly import Postman v2.1 and Bruno collections, preserving folders and converting scripts.
+- **Postman & Bruno Import** — Seamlessly import entire Postman v2.1 and Bruno collections, or **individual request files** (.json or .yml) directly into existing folders, preserving headers, bodies, and scripts.
 - **Secrets Vault (Encrypted)**: Store sensitive keys (e.g., `STRIPE_KEY`) in a per-environment vault encrypted with native OS security (`safeStorage`).
 - **External Linking** — Open any local folder as a collection. UltraRPC will watch the directory and reflect changes.
 

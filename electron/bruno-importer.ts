@@ -20,7 +20,7 @@ function convertBrunoScript(code: string): string {
     .replace(/\breq\.setHeader\s*\(([^,]+),\s*([^)]+)\)/g, 'ultra.request.headers[$1] = $2')
 }
 
-function convertHttpRequest(item: any): RequestConfig {
+export function convertHttpRequest(item: any): RequestConfig {
   const http = item.http || {}
   const settings = item.settings || {}
   const scripts = (item.runtime?.scripts || []) as any[]
@@ -55,6 +55,10 @@ function convertHttpRequest(item: any): RequestConfig {
     } else if (bt === 'text') {
       bodyType = 'text'
       body = typeof http.body.data === 'string' ? http.body.data : String(http.body.data ?? '')
+    } else if (http.body.data) {
+      // Unknown type but has content — default to json
+      bodyType = 'json'
+      body = typeof http.body.data === 'string' ? http.body.data : JSON.stringify(http.body.data ?? '', null, 2)
     }
   }
 
@@ -85,7 +89,7 @@ function convertHttpRequest(item: any): RequestConfig {
   }
 }
 
-function convertGrpcRequest(item: any): RequestConfig {
+export function convertGrpcRequest(item: any): RequestConfig {
   const grpc = item.grpc || {}
   const scripts = (item.runtime?.scripts || []) as any[]
 
@@ -109,6 +113,8 @@ function convertGrpcRequest(item: any): RequestConfig {
     if (s.type === 'after-response' && s.code) postResponseScript = convertBrunoScript(s.code)
   }
 
+  const grpcPayload = typeof grpc.message === 'string' ? grpc.message : JSON.stringify(grpc.message ?? '', null, 2)
+
   return {
     id: uid(),
     name: item.info?.name || 'gRPC Request',
@@ -118,10 +124,10 @@ function convertGrpcRequest(item: any): RequestConfig {
     headers,
     params: [],
     body: '',
-    bodyType: 'none',
+    bodyType: grpcPayload.trim() ? 'json' : 'none',
     grpcService,
     grpcMethod,
-    grpcPayload: typeof grpc.message === 'string' ? grpc.message : JSON.stringify(grpc.message ?? '', null, 2),
+    grpcPayload,
     grpcReflection: true,
     ...(preRequestScript !== undefined && { preRequestScript }),
     ...(postResponseScript !== undefined && { postResponseScript }),
@@ -198,4 +204,17 @@ export function parseBrunoCollection(yamlText: string): BrunoImportResult {
   const { environments, vaultEntries } = extractBrunoEnvironments(doc.config)
 
   return { name, children, variables, environments, vaultEntries }
+}
+
+/**
+ * Parse a single Bruno request file (YAML starting with "info:").
+ * Returns the converted RequestConfig, or null if the file is not a recognised Bruno request.
+ */
+export function parseBrunoRequest(yamlText: string): RequestConfig | null {
+  const doc = parseYaml(yamlText) as any
+  if (!doc || !doc.info) return null
+  const type = doc.info.type
+  if (type === 'http') return convertHttpRequest(doc)
+  if (type === 'grpc') return convertGrpcRequest(doc)
+  return null
 }

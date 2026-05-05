@@ -55,6 +55,7 @@ Playwright is our primary tool for testing the Electron application, verifying U
 - [x] Additional Formats Import (`import-formats.spec.ts`)
 - [x] Collection tree search and filtering (`collection-search.spec.ts`)
 - [x] Request renaming during save flow (`save-modal-name.spec.ts`)
+- [x] **Single Request Import** (Bruno `.yml` or Postman item `.json`) (`import-request.spec.ts`)
 
 #### Environment & Variable Resolution
 - [x] Global active environment switching (`environment-workspace.spec.ts`)
@@ -192,6 +193,14 @@ We intend to use Vitest for fast, isolated testing of individual React component
 - **Scenarios**:
     - **Custom Naming**: Verified that users can rename a request directly within the "Save to Collection" modal before confirming.
 
+#### 10. Single Request Import
+- **Location**: [`tests/e2e/import-request.spec.ts`](/tests/e2e/import-request.spec.ts)
+- **Scenarios**:
+    - **Bruno Import**: Verified that individual Bruno request files (`.yml` starting with `info:`) can be imported into any collection or folder.
+    - **Postman Import**: Verified that individual Postman request items (`.json` with a `"request"` object) are correctly detected and imported.
+    - **Smart Body Detection**: Verified that imported gRPC and HTTP requests automatically default to `JSON` body type if a payload is present, ensuring the editor is visible.
+    - **Protocol Conversion**: Confirmed that Postman scripts and Bruno metadata are correctly mapped to the UltraRPC internal format during single-file import.
+
 ---
 
 ## 4. Flow Runner Use Cases
@@ -233,5 +242,5 @@ While we have achieved high coverage, the following areas are prioritized for fu
 The automated suite results in a stable and passing verification for all core and advanced features:
 
 ```text
-  76 tests in 37 files passed (approx. 3.4m)
+  79 tests in 38 files passed (approx. 3.6m)
 ```

@@ -1,0 +1,11 @@
+info:
+  name: SingleBrunoRequest
+  type: http
+  seq: 1
+
+http:
+  url: http://localhost:3000/test
+  method: post
+  body:
+    type: json
+    data: '{"hello":"world"}'

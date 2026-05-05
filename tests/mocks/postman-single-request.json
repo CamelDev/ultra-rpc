@@ -1,0 +1,11 @@
+{
+  "name": "SinglePostmanRequest",
+  "request": {
+    "method": "POST",
+    "url": "http://localhost:3000/postman",
+    "body": {
+      "mode": "raw",
+      "raw": "{\"postman\":\"works\"}"
+    }
+  }
+}

@@ -20,6 +20,7 @@ import {
   Share,
   Link,
   Search,
+  FileInput,
 } from 'lucide-react'
 import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
 import { useTreeOpenState } from '../hooks/useTreeOpenState'
@@ -288,7 +289,7 @@ interface CollContextMenuProps {
   menu: ContextMenuState
   onClose: () => void
   onRename: (id: string, currentName: string) => void
-  onNewFolder: (parentId: string) => void // Added onNewFolder
+  onNewFolder: (parentId: string) => void
   onEditVariables: (node: TreeDataItem) => void
   onExport: (id: string) => void
   onCopyPath: (node: TreeDataItem) => void
@@ -296,12 +297,13 @@ interface CollContextMenuProps {
   onMove: (id: string, path?: string) => void
   onClone: (id: string) => void
   onDelete: (id: string, name: string) => void
+  onImportRequest: (collectionId: string, parentId?: string) => void
 }
 
 const CollContextMenu: React.FC<CollContextMenuProps> = ({
   menu, onClose,
   onRename, onNewFolder, onEditVariables, onExport, 
-  onCopyPath, onShowInFolder, onMove, onClone, onDelete,
+  onCopyPath, onShowInFolder, onMove, onClone, onDelete, onImportRequest,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -339,6 +341,14 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
           <>
             <button onClick={() => { onNewFolder(menu.node.realId); onClose() }}>
               <FolderPlus size={12} /> New Folder
+            </button>
+            <button onClick={() => {
+              const collId = menu.node.type === 'collection' ? menu.node.realId : menu.node.collectionId
+              const parentId = menu.node.type === 'folder' ? menu.node.realId : undefined
+              if (collId) onImportRequest(collId, parentId)
+              onClose()
+            }}>
+              <FileInput size={12} /> Import Request
             </button>
           </>
         )}
@@ -655,7 +665,19 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
         if (result.environments?.length && onImportEnvironments) {
           onImportEnvironments(result.environments, result.vaultEntries)
         }
+      } else if (result.error && result.error !== 'Cancelled') {
+        alert(result.error)
       }
+    }
+  }
+
+  const handleImportRequest = async (collectionId: string, parentId?: string) => {
+    if (!window.ultraRpc) return
+    const result = await window.ultraRpc.importRequest({ collectionId, parentId })
+    if (result.success) {
+      onRefresh()
+    } else if (result.error && result.error !== 'Cancelled') {
+      alert(result.error)
     }
   }
 
@@ -936,6 +958,7 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
           onShowInFolder={handleMenuShowInFolder}
           onMove={onMoveCollection}
           onClone={onCloneCollection}
+          onImportRequest={handleImportRequest}
           onDelete={(_, name) => {
             if (contextMenu.node.type === 'folder') {
               const collId = getCollectionIdOfNode(contextMenu.node)

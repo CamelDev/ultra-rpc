@@ -67,6 +67,7 @@ export interface UltraRpcApi {
     vaultEntries?: Record<string, any[]>; 
     error?: string 
   }>
+  importRequest: (args: { collectionId: string; parentId?: string }) => Promise<{ success: boolean; requestId?: string; name?: string; error?: string }>
   getCollectionPath: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   showCollectionInFolder: (args: { collectionId: string }) => Promise<{ success: boolean; error?: string }>
   moveCollection: (args: { collectionId: string; currentPath?: string }) => Promise<{ success: boolean; newPath?: string; error?: string }>
