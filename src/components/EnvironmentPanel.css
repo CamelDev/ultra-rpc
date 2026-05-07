@@ -94,8 +94,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
-  cursor: pointer;
+  padding: 0 14px;
   transition: background 0.15s ease;
 }
 
@@ -144,6 +143,48 @@
 
 .env-item-header:hover .env-item-actions {
   opacity: 1;
+}
+ 
+.env-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  cursor: grab;
+  padding: 4px 2px;
+  margin-left: -6px;
+  touch-action: none;
+}
+ 
+.env-drag-handle:active {
+  cursor: grabbing;
+}
+ 
+.env-item-header:hover .env-drag-handle {
+  opacity: 0.5;
+}
+ 
+.env-drag-handle:hover {
+  opacity: 1 !important;
+  color: var(--text-primary);
+}
+ 
+.env-items-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+ 
+.env-item-header-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  cursor: pointer;
+  min-width: 0;
 }
 
 .env-action {
