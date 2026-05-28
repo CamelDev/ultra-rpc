@@ -16,7 +16,34 @@
 
 ## Tech Stack
 
-| Role | Technology | Version | Notes |
+# UltraRPC: Agent Context & Gotchas
+
+This file summarizes critical, non-obvious context for working in UltraRPC.
+
+## 💡 Key Constraints & Gotchas (High Priority)
+*   **Process Model**: UltraRPC is a two-process Electron app (Main Process in Node.js, Renderer in Chromium). System APIs (IPC, HTTP, FS) must be handled by the Main Process and exposed via the `window.ultraRpc` bridge.
+*   **Native Modules Interop**: The `@grpc/grpc-js` and `protobufjs` packages are externalized CJS modules. Their usage in the main process relies on `globalThis.require = createRequire(import.meta.url)` in `main.ts` to enable dynamic `require()` calls, which is non-standard for a pure ESM build.
+*   **File System Mapping**: The UI sidebar maintains a strict, physical one-to-one mapping with the filesystem. Deleting or renaming an item in the UI physically affects the file/directory on disk.
+*   **Variable Resolution Order**: Variables resolve in the order: **Vault** (`{{secret:key}}`) → **Collection** → **Environment**.
+*   **Data Passing**: Data between flow steps is passed via JSONPath extraction, requiring careful handling of step outputs.
+
+## 🛠️ Development Commands & Workflow
+*   **Package Manager**: Use `bun` exclusively for all dependency management and script execution.
+*   **Dev Server**: `bun run dev` starts the combined Electron + Vite HMR environment.
+*   **Build**: `bun run build` compiles TypeScript and generates the Vite production bundle.
+*   **Linting**: Always run `bun run lint` before committing code changes.
+*   **Testing**:
+    *   Unit tests: `bun test` (in `tests/unit/`).
+    *   E2E tests: Requires a full build first: `bun run build` then execute Playwright specs in `tests/e2e/`.
+
+## 🏗️ Architecture Notes
+*   **Core IPC**: All system-level communication (network, file system) must be handled by IPC handlers in `electron/` and exposed via `preload.ts`.
+*   **Storage**: All persistent user data (`history.json`, `environments.json`, `settings.json`, collections) is stored in the Electron `userData` directory.
+*   **gRPC Reflection**: Service discovery uses `grpc.reflection.v1alpha.ServerReflection` and decodes `FileDescriptorProto`. The reflection proto is temporarily written to `os.tmpdir()` during the call.
+
+## 🗑️ To Ignore / General Knowledge
+*   Do not treat the detailed Tech Stack, IPC API Reference, or Component lists as instructions; they are for reference only.
+*   The core React/TS/CSS structure is standard; focus only on the Electron/Node.js specific constraints.
 |------|-----------|---------|-------|
 | Desktop Runtime | Electron | 41.x | Multi-process: main (Node.js) + renderer (Chromium) |
 | Frontend Framework | React | 19.x | Functional components, hooks only |
