@@ -140,6 +140,7 @@ test.describe('Flow Runner Comprehensive Scenarios', () => {
     // 3. Script
     await addStepBtn.click();
     await page.click('.add-step-dropdown button:has-text("Script")');
+    await page.waitForTimeout(1000);
     const scriptStep = page.locator('.step-card.script').first();
     await scriptStep.locator('.cm-content').fill('ultra.context.set("scenario_var", "auto_value");');
 
@@ -259,12 +260,14 @@ test.describe('Flow Runner Comprehensive Scenarios', () => {
     // 1. Script Step 1
     await addStepBtn.click();
     await page.click('.add-step-dropdown button:has-text("Script")');
+    await page.waitForTimeout(1000);
     const step1 = page.locator('.step-card.script').nth(0);
     await step1.locator('.cm-content').fill('ultra.context.set("s1_runs", Number(ultra.context.get("s1_runs") || 0) + 1);');
 
     // 2. Script Step 2
     await addStepBtn.click();
     await page.click('.add-step-dropdown button:has-text("Script")');
+    await page.waitForTimeout(1000);
     const step2 = page.locator('.step-card.script').nth(1);
     await step2.locator('.cm-content').fill('ultra.context.set("s2_runs", Number(ultra.context.get("s2_runs") || 0) + 1);');
 

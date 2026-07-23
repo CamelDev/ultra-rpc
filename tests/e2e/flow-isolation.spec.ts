@@ -54,6 +54,13 @@ test.describe('Flow Execution Isolation', () => {
     await page.fill('.modal-body input', 'Test Collection');
     await page.click('button:has-text("Create Collection")');
 
+    // Wait for the modal overlay to detach (closed)
+    await page.waitForSelector('.modal-overlay', { state: 'detached', timeout: 10000 });
+
+    // Also wait for the collection node to be visible in the tree
+    const collNode = page.locator('.tree-node').filter({ has: page.locator('.tree-node-name', { hasText: /^Test Collection$/ }) }).first();
+    await expect(collNode).toBeVisible({ timeout: 20000 });
+
     // Open Flow Panel
     console.log('Opening Flow Runner panel...');
     const flowRunnerBtn = page.locator('button[data-tooltip="Flow Runner"]');
@@ -76,6 +83,10 @@ test.describe('Flow Execution Isolation', () => {
     // Add Delay Step to Flow 1
     await addStepBtn.click();
     await page.click('.add-step-dropdown button:has-text("Delay")');
+    
+    // Wait for step-adding and expansion animation to finish
+    await page.waitForTimeout(1000);
+    
     const delayStep1 = page.locator('.step-card.delay').first();
     await delayStep1.locator('input[type="number"]').fill('5000'); // 5 seconds delay so it runs for a bit
 
@@ -90,6 +101,10 @@ test.describe('Flow Execution Isolation', () => {
     await expect(page.locator('.flow-name-input')).toHaveValue('Flow 2');
     await addStepBtn.click();
     await page.click('.add-step-dropdown button:has-text("Script")');
+    
+    // Wait for step-adding and expansion animation to finish
+    await page.waitForTimeout(1000);
+    
     const scriptStep2 = page.locator('.step-card.script').first();
     await scriptStep2.locator('.cm-content').fill('ultra.context.set("flow2", "running");');
 
