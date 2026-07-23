@@ -39,6 +39,53 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-electron-cache-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-cache-
+
+      - name: Pre-download Electron binary
+        shell: bash
+        run: |
+          ELECTRON_VERSION=$(node -p "require('./package.json').devDependencies.electron || require('./package.json').dependencies.electron" | tr -d '^~')
+          if [ -z "$ELECTRON_VERSION" ] || [ "$ELECTRON_VERSION" == "undefined" ]; then
+            ELECTRON_VERSION="41.0.3"
+          fi
+          echo "Resolved Electron version: $ELECTRON_VERSION"
+          
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            CACHE_DIR=$(node -p "process.env.LOCALAPPDATA.replace(/\\\\/g, '/') + '/electron/Cache'")
+            PLATFORM="win32"
+            ARCH="x64"
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            CACHE_DIR="$HOME/Library/Caches/electron"
+            PLATFORM="darwin"
+            ARCH=$(node -p "process.arch")
+          else
+            CACHE_DIR="$HOME/.cache/electron"
+            PLATFORM="linux"
+            ARCH="x64"
+          fi
+          
+          ZIP_FILE="electron-v${ELECTRON_VERSION}-${PLATFORM}-${ARCH}.zip"
+          mkdir -p "$CACHE_DIR"
+          
+          if [ ! -f "$CACHE_DIR/$ZIP_FILE" ]; then
+            echo "Downloading $ZIP_FILE to $CACHE_DIR using curl..."
+            curl -L -o "$CACHE_DIR/$ZIP_FILE" --retry 5 --retry-connrefused --retry-delay 5 "https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/${ZIP_FILE}"
+          else
+            echo "Electron binary $ZIP_FILE already cached at $CACHE_DIR"
+          fi
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
