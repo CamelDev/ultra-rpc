@@ -95,6 +95,26 @@
   z-index: 10;
 }
 
+/* Prevent double borders, layout shift, and clipped focus highlight in the active value editor */
+.kv-value-container .interpolated-input-container.kv-input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  overflow: visible;
+}
+
+.kv-value-container .interpolated-input-container.kv-input .editor-container {
+  border-radius: 6px;
+  height: 32px;
+  min-height: 32px;
+}
+
+.kv-value-container .interpolated-input-container.kv-input .editor-container.singleline .cm-content {
+  line-height: 30px !important;
+  min-height: 30px !important;
+}
+
+
 .kv-value-container input[readonly] {
   cursor: text;
 }

@@ -412,7 +412,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       setTooltip({
         visible: true,
         x: e.clientX,
-        y: e.clientY - 45,
+        y: e.clientY - 10,
         text
       })
     }, 200)
@@ -673,7 +673,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
             left: `${tooltip.x}px`,
             top: `${tooltip.y}px`,
             zIndex: 9999,
-            transform: 'translateX(-50%)',
+            transform: 'translate(-50%, -100%)',
             pointerEvents: 'none'
           }}
         >

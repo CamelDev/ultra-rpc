@@ -728,6 +728,7 @@ input:focus, select:focus, textarea:focus {
 
 .address-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   font-size: 14px;
