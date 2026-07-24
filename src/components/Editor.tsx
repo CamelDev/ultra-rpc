@@ -19,7 +19,7 @@ import { search, searchKeymap, openSearchPanel } from '@codemirror/search'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { syntaxHighlighting, HighlightStyle, codeFolding, foldGutter, foldKeymap, bracketMatching } from '@codemirror/language'
+import { syntaxHighlighting, HighlightStyle, codeFolding, foldGutter, foldKeymap, bracketMatching, ensureSyntaxTree } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
 import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { createPortal } from 'react-dom'
@@ -273,6 +273,19 @@ interface Props {
 export interface EditorHandle {
   openSearch: () => void
   format: () => Promise<void>
+}
+
+const forceParseSyntaxTree = (view: EditorView) => {
+  try {
+    const docLength = view.state.doc.length
+    // Only force parse if document is reasonably sized (e.g. < 5MB) to avoid long UI freezes
+    if (docLength < 5000000) {
+      ensureSyntaxTree(view.state, docLength, 150)
+      view.dispatch({})
+    }
+  } catch (e) {
+    console.warn('Failed to force parse syntax tree:', e)
+  }
 }
 
 const Editor = forwardRef<EditorHandle, Props>(function Editor({
@@ -626,6 +639,10 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       (editorRef.current as any).cmView = { view }
     }
 
+    if (initialValue.current) {
+      forceParseSyntaxTree(view)
+    }
+
     return () => {
       view.destroy()
     }
@@ -638,8 +655,11 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
         changes: { from: 0, to: viewRef.current.state.doc.length, insert: value || '' },
         effects: propSyncEffect.of(true)
       })
+      if (language === 'json' || language === 'javascript') {
+        forceParseSyntaxTree(viewRef.current)
+      }
     }
-  }, [value])
+  }, [value, language])
 
   // Update extensions when they change
   useEffect(() => {
@@ -647,8 +667,11 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       viewRef.current.dispatch({
         effects: StateEffect.reconfigure.of(getExtensions())
       })
+      if (language === 'json' || language === 'javascript') {
+        forceParseSyntaxTree(viewRef.current)
+      }
     }
-  }, [getExtensions])
+  }, [getExtensions, language])
 
   // Track modifier key for library links
   useEffect(() => {
