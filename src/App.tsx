@@ -773,7 +773,7 @@ const App: React.FC = () => {
   const activeRequestTab = activeTab?.type === 'request' ? activeTab : null
   const activeRequestCollection = activeRequestTab ? findCollectionByRequestId(activeRequestTab.request.id) : null
 
-  const activeConfigTab = activeRequest?.activeConfigTab || 'params'
+  const activeConfigTab = activeRequest?.activeConfigTab || 'body'
   const setActiveConfigTab = (tab: RequestTab) => {
     setTabs(prev =>
       prev.map(t =>
@@ -2158,9 +2158,9 @@ const App: React.FC = () => {
   }
 
   const configTabs = ([
+    { key: 'body', label: 'Body' },
     { key: 'params', label: 'Params' },
     { key: 'headers', label: 'Headers' },
-    { key: 'body', label: 'Body' },
     { key: 'auth', label: activeRequest?.type === 'GRPC' ? 'Options & Timeout' : 'Options' },
     { key: 'pre-request', label: 'Pre-request' },
     { key: 'post-response', label: 'Post-response' },
@@ -2172,7 +2172,7 @@ const App: React.FC = () => {
   // Auto-switch away from Params if it becomes hidden
   useEffect(() => {
     if (activeRequest?.type === 'GRPC' && activeConfigTab === 'params') {
-      setActiveConfigTab('headers')
+      setActiveConfigTab('body')
     }
   }, [activeRequest?.type, activeConfigTab])
 
