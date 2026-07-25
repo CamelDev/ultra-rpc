@@ -60,16 +60,16 @@ All major and minor version upgrades have been applied. The following were upgra
 
 ---
 
-## 🔲 Task 3: Replace `npx` with `bunx` in `clean` script
+## ✅ Task 3: Replace `npx` with `bunx` in `clean` script
 
 - **File**: `package.json` → `"clean"` script
-- **Current**: `"clean": "npx -y rimraf dist dist-electron release"`
-- **Proposed**: `"clean": "bunx rimraf dist dist-electron release"`
+- **Previous**: `"clean": "npx -y rimraf dist dist-electron release"`
+- **Current**: `"clean": "bunx rimraf dist dist-electron release"`
 - **Reason**: The project uses `bun` exclusively as the package manager. Using `npx` downloads a separate copy of the package via npm. `bunx` is faster and aligns with the project's tooling.
 - **Risk**: None — `bunx` is a drop-in replacement for `npx`.
 - **Steps**:
-  1. Update the `clean` script in `package.json`
-  2. Verify `bun run build` (which calls `clean`) still passes
+  1. ✅ Updated the `clean` script in `package.json`
+  2. ✅ Verified `bun run build` (which calls `clean`) still passes
 
 ---
 
@@ -132,7 +132,7 @@ All major and minor version upgrades have been applied. The following were upgra
 |---|------|----------|------|---------|
 | 1 | Remove `core-js` | High | None | No | ✅ Done |
 | 2 | Migrate `bun-types` → `@types/bun` | Medium | Low | No | ✅ Done |
-| 3 | Replace `npx` with `bunx` | Low | None | No |
+| 3 | Replace `npx` with `bunx` | Low | None | No | ✅ Done |
 | 4 | Add Vite `codeSplitting` | Medium | Low | No |
 | 5 | Upgrade TypeScript to 7.0 | Low | Medium | Yes (typescript-eslint) |
 | 6 | Monitor `@dnd-kit` v7 | Low | — | No |
