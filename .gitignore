@@ -38,5 +38,8 @@ test-user-data*/
 trigger.txt
 trigger-browser.txt
 
-
+# dev tools
 .claude/
+.gemini/
+.vs/
+

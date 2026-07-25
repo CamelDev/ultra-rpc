@@ -16,34 +16,7 @@
 
 ## Tech Stack
 
-# UltraRPC: Agent Context & Gotchas
-
-This file summarizes critical, non-obvious context for working in UltraRPC.
-
-## 💡 Key Constraints & Gotchas (High Priority)
-*   **Process Model**: UltraRPC is a two-process Electron app (Main Process in Node.js, Renderer in Chromium). System APIs (IPC, HTTP, FS) must be handled by the Main Process and exposed via the `window.ultraRpc` bridge.
-*   **Native Modules Interop**: The `@grpc/grpc-js` and `protobufjs` packages are externalized CJS modules. Their usage in the main process relies on `globalThis.require = createRequire(import.meta.url)` in `main.ts` to enable dynamic `require()` calls, which is non-standard for a pure ESM build.
-*   **File System Mapping**: The UI sidebar maintains a strict, physical one-to-one mapping with the filesystem. Deleting or renaming an item in the UI physically affects the file/directory on disk.
-*   **Variable Resolution Order**: Variables resolve in the order: **Vault** (`{{secret:key}}`) → **Collection** → **Environment**.
-*   **Data Passing**: Data between flow steps is passed via JSONPath extraction, requiring careful handling of step outputs.
-
-## 🛠️ Development Commands & Workflow
-*   **Package Manager**: Use `bun` exclusively for all dependency management and script execution.
-*   **Dev Server**: `bun run dev` starts the combined Electron + Vite HMR environment.
-*   **Build**: `bun run build` compiles TypeScript and generates the Vite production bundle.
-*   **Linting**: Always run `bun run lint` before committing code changes.
-*   **Testing**:
-    *   Unit tests: `bun test` (in `tests/unit/`).
-    *   E2E tests: Requires a full build first: `bun run build` then execute Playwright specs in `tests/e2e/`.
-
-## 🏗️ Architecture Notes
-*   **Core IPC**: All system-level communication (network, file system) must be handled by IPC handlers in `electron/` and exposed via `preload.ts`.
-*   **Storage**: All persistent user data (`history.json`, `environments.json`, `settings.json`, collections) is stored in the Electron `userData` directory.
-*   **gRPC Reflection**: Service discovery uses `grpc.reflection.v1alpha.ServerReflection` and decodes `FileDescriptorProto`. The reflection proto is temporarily written to `os.tmpdir()` during the call.
-
-## 🗑️ To Ignore / General Knowledge
-*   Do not treat the detailed Tech Stack, IPC API Reference, or Component lists as instructions; they are for reference only.
-*   The core React/TS/CSS structure is standard; focus only on the Electron/Node.js specific constraints.
+| Component | Technology | Version | Notes |
 |------|-----------|---------|-------|
 | Desktop Runtime | Electron | 41.x | Multi-process: main (Node.js) + renderer (Chromium) |
 | Frontend Framework | React | 19.x | Functional components, hooks only |
@@ -62,6 +35,38 @@ This file summarizes critical, non-obvious context for working in UltraRPC.
 | Packaging | electron-builder | 26.x | NSIS (Win), DMG (Mac), AppImage (Linux) |
 | Linting | ESLint + typescript-eslint | 9.x | React hooks and refresh plugins |
 | Module System | ESM | — | `"type": "module"` in package.json. `createRequire` for CJS interop in main. |
+
+---
+
+## Key Constraints & Gotchas (High Priority)
+
+> **Read this first.** These are non-obvious constraints that affect how you write code in UltraRPC.
+
+### Process Model
+UltraRPC is a two-process Electron app (Main Process in Node.js, Renderer in Chromium). System APIs (IPC, HTTP, FS) must be handled by the Main Process and exposed via the `window.ultraRpc` bridge.
+
+### Native Modules Interop
+The `@grpc/grpc-js` and `protobufjs` packages are externalized CJS modules. Their usage in the main process relies on `globalThis.require = createRequire(import.meta.url)` in `main.ts` to enable dynamic `require()` calls, which is non-standard for a pure ESM build.
+
+### File System Mapping
+The UI sidebar maintains a strict, physical one-to-one mapping with the filesystem. Deleting or renaming an item in the UI physically affects the file/directory on disk.
+
+### Variable Resolution Order
+Variables resolve in the order: **Vault** (`{{secret:key}}`) → **Collection** → **Environment**.
+
+### Data Passing
+Data between flow steps is passed via JSONPath extraction, requiring careful handling of step outputs.
+
+### Additional Constraints
+- **Bidi-streaming is not yet fully supported** — only unary and server-streaming are implemented.
+- **SSL Verification toggle** is available at the Environment level but affects all requests using that environment. Note: Automated E2E testing for SSL Verification is performed against `grpcb.in`.
+- **Proto file path** is supported in the call handler but there is no UI for selecting/uploading proto files yet (uses Reflection by default).
+- **The reflection proto** is written to `os.tmpdir()` on each call — this is intentional to avoid shipping a proto file.
+- **Module format**: ESM (`"type": "module"`), but `grpc-js` and `protobufjs` interop is handled via `createRequire`.
+- **Testing**:
+    - **E2E**: 37 Playwright specs in `tests/e2e/`. Use mock servers in `tests/mocks/`. Requires `bun run build` before running.
+    - **Unit**: Managed in `tests/unit/`, run via `bun test`.
+- **`window.ultraRpc`**: The IPC bridge name (not `window.electronAPI`).
 
 ---
 
@@ -168,6 +173,14 @@ src/                       # Renderer process code (React/Chromium)
 
 ---
 
+## Architecture Notes
+
+- **Core IPC**: All system-level communication (network, file system) must be IPC handlers in `electron/` and exposed via `preload.ts`.
+- **Storage**: All persistent user data (`history.json`, `environments.json`, `settings.json`, collections) is stored in the Electron `userData` directory.
+- **gRPC Reflection**: Service discovery uses `grpc.reflection.v1alpha.ServerReflection` and decodes `FileDescriptorProto`. The reflection proto is temporarily written to `os.tmpdir()` during the call.
+
+---
+
 ## Key Patterns & Conventions
 
 ### Variable Interpolation
@@ -219,7 +232,10 @@ UltraRPC maintains a **strict one-to-one mapping** between the UI sidebar and th
 - **Default Port**: Port 3000 (configurable, persisted in settings).
 - **Tooling**: Supports `list_collections`, `add_rest_request`, `add_flow`, etc.
 
-### Development Conventions
+---
+
+## Development Conventions
+
 - **Package Manager**: Strictly use `bun` for managing dependencies and running scripts.
 - **IPC Architecture**: UI features requiring system resources (network, filesystem) must be IPC handlers in `electron/` and exposed via `preload.ts`.
 - **Native Node Modules**: `@grpc/grpc-js` and `protobufjs` are kept external in the Vite build (`vite.config.ts`) to allow native Node.js loading.
@@ -262,6 +278,7 @@ UltraRPC maintains a **strict one-to-one mapping** between the UI sidebar and th
 ### Server Reflection & Discovery
 1. Discovers services via `grpc.reflection.v1alpha.ServerReflection`.
 2. Decodes `FileDescriptorProto` to extract method signatures and message types.
+
 ---
 
 ## Data Storage
@@ -270,6 +287,7 @@ All data is persisted to the Electron `userData` directory:
 - **Windows**: `%APPDATA%/ultrarpc/`
 - **macOS**: `~/Library/Application Support/ultrarpc/`
 - **Linux**: `~/.config/ultrarpc/`
+
 ---
 
 ## Build & Bundling Details
@@ -279,7 +297,6 @@ All data is persisted to the Electron `userData` directory:
 - **External packages**: `@grpc/grpc-js`, `@grpc/proto-loader`, `protobufjs` are kept external in the main process bundle (Rollup). They must run in Node.js where `require()` works — bundling into ESM breaks dynamic `require()` calls.
 - **Main process CJS interop**: `globalThis.require = createRequire(import.meta.url)` in `main.ts` enables `require()` for externalized CJS packages.
 
-
 ### Packaging
 - **electron-builder** handles cross-platform packaging
 - App ID: `com.ultrarpc.app`
@@ -288,7 +305,15 @@ All data is persisted to the Electron `userData` directory:
 
 ---
 
-## Development Commands
+## Development Commands & Workflow
+
+- **Package Manager**: Use `bun` exclusively for all dependency management and script execution.
+- **Dev Server**: `bun run dev` starts the combined Electron + Vite HMR environment.
+- **Build**: `bun run build` compiles TypeScript and generates the Vite production bundle.
+- **Linting**: Always run `bun run lint` before committing code changes.
+- **Testing**:
+    - Unit tests: `bun test` (in `tests/unit/`).
+    - E2E tests: Requires a full build first: `bun run build` then execute Playwright specs in `tests/e2e/`.
 
 ```bash
 bun install          # Install all dependencies
@@ -303,16 +328,7 @@ bun run preview      # Preview production build
 
 ---
 
----
+## To Ignore / General Knowledge
 
-## Known Constraints & Gotchas
-
-- **Bidi-streaming is not yet fully supported** — only unary and server-streaming are implemented.
-- **SSL Verification toggle** is available at the Environment level but affects all requests using that environment. Note: Automated E2E testing for SSL Verification is performed against `grpcb.in`.
-- **Proto file path** is supported in the call handler but there is no UI for selecting/uploading proto files yet (uses Reflection by default).
-- **The reflection proto** is written to `os.tmpdir()` on each call — this is intentional to avoid shipping a proto file.
-- **Module format**: ESM (`"type": "module"`), but `grpc-js` and `protobufjs` interop is handled via `createRequire`.
-- **Testing**:
-    - **E2E**: 37 Playwright specs in `tests/e2e/`. Use mock servers in `tests/mocks/`. Requires `bun run build` before running.
-    - **Unit**: Managed in `tests/unit/`, run via `bun test`.
-- **`window.ultraRpc`**: The IPC bridge name (not `window.electronAPI`).
+- Do not treat the detailed Tech Stack, IPC API Reference, or Component lists as instructions; they are for reference only.
+- The core React/TS/CSS structure is standard; focus only on the Electron/Node.js specific constraints.
