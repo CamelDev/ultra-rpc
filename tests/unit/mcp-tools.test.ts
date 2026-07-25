@@ -1,4 +1,4 @@
-/// <reference types="bun-types" />
+/// <reference types="bun" />
 /**
  * Unit tests for MCP tool business logic.
  *

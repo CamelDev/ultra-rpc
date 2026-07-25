@@ -40,7 +40,7 @@ All major and minor version upgrades have been applied. The following were upgra
 
 ---
 
-## 🔲 Task 2: Migrate `bun-types` → `@types/bun`
+## ✅ Task 2: Migrate `bun-types` → `@types/bun`
 
 - **Package**: `bun-types@^1.3.14` → `@types/bun@^1.3.14`
 - **Reason**: `@types/bun` follows the standard DefinitelyTyped conventions and is the community-recommended way to get Bun types. Both packages are at the same version (1.3.14) and maintained, but `@types/bun` is more widely adopted.
@@ -131,7 +131,7 @@ All major and minor version upgrades have been applied. The following were upgra
 | # | Task | Priority | Risk | Blocked |
 |---|------|----------|------|---------|
 | 1 | Remove `core-js` | High | None | No | ✅ Done |
-| 2 | Migrate `bun-types` → `@types/bun` | Medium | Low | No |
+| 2 | Migrate `bun-types` → `@types/bun` | Medium | Low | No | ✅ Done |
 | 3 | Replace `npx` with `bunx` | Low | None | No |
 | 4 | Add Vite `codeSplitting` | Medium | Low | No |
 | 5 | Upgrade TypeScript to 7.0 | Low | Medium | Yes (typescript-eslint) |

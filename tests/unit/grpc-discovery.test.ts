@@ -1,4 +1,4 @@
-/// <reference types="bun-types" />
+/// <reference types="bun" />
 import { describe, it, expect, beforeAll } from "bun:test";
 import protobuf from "protobufjs";
 import { 
