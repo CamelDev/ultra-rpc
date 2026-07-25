@@ -56,4 +56,50 @@ export default defineConfig({
       '@codemirror/search',
     ],
   },
+  build: {
+    // Enable code-splitting (Rolldown) to reduce the size of the main
+    // renderer bundle. Without this, Vite emits a single ~1.2 MB chunk and
+    // warns about chunks > 500 KB. `codeSplitting: true` enables Rolldown's
+    // automatic splitting for shared code, and `manualChunks` splits large
+    // vendor libraries into separate parallel-loadable assets. This doesn't
+    // change runtime behavior since the app has no dynamic import() routes.
+    rolldownOptions: {
+      output: {
+        codeSplitting: true,
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (
+              id.includes('@codemirror') ||
+              id.includes('@lezer') ||
+              id.includes('crelt')
+            ) {
+              return 'codemirror'
+            }
+            if (
+              id.includes('framer-motion') ||
+              id.includes('motion-dom') ||
+              id.includes('motion-utils')
+            ) {
+              return 'framer'
+            }
+            if (id.includes('@dnd-kit') || id.includes('dnd-core')) {
+              return 'dndkit'
+            }
+            if (id.includes('lucide-react')) {
+              return 'lucide'
+            }
+            if (
+              id.includes('react-dom') ||
+              id.includes('react/') ||
+              id.includes('/react\\') ||
+              id.includes('scheduler')
+            ) {
+              return 'react'
+            }
+            return 'vendor'
+          }
+        },
+      },
+    },
+  },
 })

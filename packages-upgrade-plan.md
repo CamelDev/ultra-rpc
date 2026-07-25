@@ -73,17 +73,30 @@ All major and minor version upgrades have been applied. The following were upgra
 
 ---
 
-## 🔲 Task 4: Add Vite `codeSplitting` to reduce bundle size
+## ✅ Task 4: Add Vite `codeSplitting` to reduce bundle size
 
 - **File**: `vite.config.ts`
-- **Reason**: The production build warns about chunks > 500 KB (currently 1,189 KB / 365 KB gzipped). Vite 8 with Rolldown supports `build.rolldownOptions.output.codeSplitting` for automatic code-splitting.
-- **Risk**: Low — may change the chunk structure but shouldn't break functionality. Needs testing of lazy-loaded routes.
+- **Reason**: The production build warned about chunks > 500 KB (previously 1,189 KB / 365 KB gzipped). Vite 8 with Rolldown supports `build.rolldownOptions.output.codeSplitting` for automatic code-splitting.
+- **Risk**: Low — changes the chunk structure but doesn't break functionality. The app has no dynamic `import()` routes, so no runtime errors from lazy loading.
+- **Result**: Build now emits 8 chunks instead of 1. The largest chunk is `codemirror` at 463 KB (157 KB gzipped), under the 500 KB warning threshold. The warning is gone.
+- **Chunk breakdown**:
+  | Chunk | Size | Gzipped |
+  |-------|------|---------|
+  | `codemirror` | 463.43 kB | 156.84 kB |
+  | `index` (app code) | 220.76 kB | 54.51 kB |
+  | `react` | 178.31 kB | 56.33 kB |
+  | `framer` | 130.20 kB | 42.71 kB |
+  | `vendor` | 100.38 kB | 26.56 kB |
+  | `dndkit` | 79.67 kB | 24.27 kB |
+  | `lucide` | 16.17 kB | 5.54 kB |
+  | `rolldown-runtime` | 0.87 kB | 0.50 kB |
 - **Steps**:
-  1. Add `build.rolldownOptions.output.codeSplitting: true` to `vite.config.ts`
-  2. Verify `bun run build` passes
-  3. Check that the output chunks are smaller
-  4. Run the app to verify no runtime errors from dynamic imports
-  5. Run unit tests to verify
+  1. ✅ Added `build.rolldownOptions.output.codeSplitting: true` and `manualChunks` to `vite.config.ts`
+  2. ✅ Verified `bun run build` passes (no chunk size warning)
+  3. ✅ Verified output chunks are smaller (largest: 463 KB, down from 1,189 KB)
+  4. ✅ Verified no runtime errors from dynamic imports (app has none)
+  5. ✅ Verified unit tests pass (44/44)
+  6. ✅ Verified `bun run lint` passes
 
 ---
 
@@ -133,7 +146,7 @@ All major and minor version upgrades have been applied. The following were upgra
 | 1 | Remove `core-js` | High | None | No | ✅ Done |
 | 2 | Migrate `bun-types` → `@types/bun` | Medium | Low | No | ✅ Done |
 | 3 | Replace `npx` with `bunx` | Low | None | No | ✅ Done |
-| 4 | Add Vite `codeSplitting` | Medium | Low | No |
+| 4 | Add Vite `codeSplitting` | Medium | Low | No | ✅ Done |
 | 5 | Upgrade TypeScript to 7.0 | Low | Medium | Yes (typescript-eslint) |
 | 6 | Monitor `@dnd-kit` v7 | Low | — | No |
 | 7 | Monitor `react-arborist` v4 | Low | — | No |
