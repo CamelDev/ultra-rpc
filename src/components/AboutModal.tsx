@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Github, Heart, Info, ExternalLink } from 'lucide-react'
+import { X, Code, Heart, Info, ExternalLink } from 'lucide-react'
 import './AboutModal.css'
 
 interface AboutModalProps {
@@ -93,7 +93,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version }) => 
                   className="about-link btn-ghost"
                   onClick={() => window.ultraRpc.openExternal('https://github.com/CamelDev/ultra-rpc')}
                 >
-                  <Github size={16} /> GitHub Repository <ExternalLink size={12} />
+                  <Code size={16} /> GitHub Repository <ExternalLink size={12} />
                 </button>
               </div>
             </div>

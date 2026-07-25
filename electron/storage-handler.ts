@@ -696,9 +696,6 @@ export function registerStorageHandlers() {
 
         // The directory name is the source of truth for the collection name.
         // The ID is the slugified directory name to ensure valid paths and consistency.
-        let name = dirName
-        let id = sanitizeFolderName(dirName)
-
         let meta: any = { variables: [] }
         if (fs.existsSync(metaPath)) {
           try {
@@ -707,8 +704,8 @@ export function registerStorageHandlers() {
         }
 
         // Ignore name in meta, always use actual folder name
-        name = dirName
-        id = meta.id || sanitizeFolderName(dirName)
+        const name = dirName
+        const id = meta.id || sanitizeFolderName(dirName)
 
         // Clean up or backfill meta
         let changed = false

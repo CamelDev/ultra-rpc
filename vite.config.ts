@@ -44,5 +44,16 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, 'src'),
     },
+    // Force Vite to use a single copy of @codemirror/state to prevent
+    // "Unrecognized extension value in extension set" errors caused by
+    // duplicate instances (e.g. nested copies in @codemirror/theme-one-dark).
+    dedupe: [
+      '@codemirror/state',
+      '@codemirror/view',
+      '@codemirror/language',
+      '@codemirror/commands',
+      '@codemirror/autocomplete',
+      '@codemirror/search',
+    ],
   },
 })

@@ -792,7 +792,7 @@ const App: React.FC = () => {
           const current = (t.request as any)[key]
           const isSkipped = skipDirtyKeys.includes(key)
 
-          let changed = false
+          let changed: boolean
           if (typeof val === 'object' && val !== null) {
             if (Array.isArray(val) && val.length === 0 && (current === undefined || current === null || current === '')) {
               changed = false

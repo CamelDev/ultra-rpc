@@ -18,22 +18,22 @@
 
 | Component | Technology | Version | Notes |
 |------|-----------|---------|-------|
-| Desktop Runtime | Electron | 41.x | Multi-process: main (Node.js) + renderer (Chromium) |
+| Desktop Runtime | Electron | 43.x | Multi-process: main (Node.js) + renderer (Chromium) |
 | Frontend Framework | React | 19.x | Functional components, hooks only |
-| Language | TypeScript | 5.9.x | Strict mode enabled, separate tsconfigs for app and node |
-| Build Tool | Bun + Vite | 7.x | Dev server with HMR for both React and Electron |
-| Electron ↔ Vite | vite-plugin-electron + vite-plugin-electron-renderer | 0.29.x / 0.14.6 | Handles main/preload compilation |
+| Language | TypeScript | 5.9.x | Strict mode enabled, separate tsconfigs for app and node. TS 7.0 not yet supported by typescript-eslint. |
+| Build Tool | Bun + Vite | 8.x | Dev server with HMR for both React and Electron |
+| Electron ↔ Vite | vite-plugin-electron + vite-plugin-electron-renderer | 1.1.0 / 1.0.0 | Handles main/preload compilation |
 | Styling | Vanilla CSS | — | No utility frameworks. Custom dark theme with glassmorphism. |
 | Animations | Framer Motion | 12.x | Micro-animations, layout transitions, reordering |
-| Icons | Lucide React | 0.577.x | Tree-shakable SVG icon library |
+| Icons | Lucide React | 1.x | Tree-shakable SVG icon library. Brand icons (e.g. Github) removed in v1. |
 | Editor | CodeMirror | 6.x | Used for request/response JSON and script editing |
 | HTTP Client | Node.js native `http`/`https` | — | Used in main process to bypass CORS and handle SSL bypass |
 | REST Client Fallback | Fetch API | — | Used in renderer when Electron IPC unavailable (dev mode in browser) |
 | gRPC | @grpc/grpc-js | 1.14.x | Pure JavaScript gRPC implementation |
 | Proto Loading | @grpc/proto-loader | 0.8.x | Loads `.proto` files to gRPC package definitions |
-| Proto Parsing | protobufjs | 7.x | Used for reflection decoding and gRPC status details parsing |
+| Proto Parsing | protobufjs | 8.x | Used for reflection decoding and gRPC status details parsing |
 | Packaging | electron-builder | 26.x | NSIS (Win), DMG (Mac), AppImage (Linux) |
-| Linting | ESLint + typescript-eslint | 9.x | React hooks and refresh plugins |
+| Linting | ESLint + typescript-eslint | 10.x / 8.x | React hooks and refresh plugins. ESLint 10 enforces `preserve-caught-error` and `no-useless-assignment` rules. |
 | Module System | ESM | — | `"type": "module"` in package.json. `createRequire` for CJS interop in main. |
 
 ---

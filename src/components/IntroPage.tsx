@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, FolderOpen, Globe, Terminal, Box, Zap, Shield, Layout, Github } from 'lucide-react';
+import { Plus, FolderOpen, Globe, Terminal, Box, Zap, Shield, Layout, Code } from 'lucide-react';
 import { motion } from 'framer-motion';
 import './IntroPage.css';
 
@@ -55,7 +55,7 @@ const IntroPage: React.FC<IntroPageProps> = ({ onNewRequest, onOpenCollection, o
             onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
             onMouseOut={(e) => e.currentTarget.style.opacity = '0.8'}
           >
-            <Github size={16} /> Read the Documentation
+            <Code size={16} /> Read the Documentation
           </motion.button>
 
           <div className="action-grid">

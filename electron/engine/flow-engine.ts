@@ -112,7 +112,7 @@ export class FlowEngine {
               // If stopped manually via Cancel/Stop, don't retry and don't continue to maxRetries
               if (error.name === 'AbortError' || this.isStopped) {
                 this.updateStepStatus(step.id, 'error', 'Cancelled by user')
-                throw new Error('Cancelled by user')
+                throw new Error('Cancelled by user', { cause: error })
               }
               const onFailure = this.definition.settings?.onFailure || 'stop'
               
@@ -475,8 +475,8 @@ export class FlowEngine {
       const left = await this.resolveOperand(assertion.left, variables)
       const right = assertion.right ? await this.resolveOperand(assertion.right, variables) : undefined
 
-      let passed = false
       const op = assertion.operator
+      let passed: boolean
       
       switch (op) {
         case '==': passed = String(left) == String(right); break
@@ -526,7 +526,7 @@ export class FlowEngine {
         // If value is an array of 1, take the first element (common for JSONPath)
         return Array.isArray(value) && value.length === 1 ? value[0] : value;
       } catch (err: any) {
-        throw new Error(`JSONPath error on step ${operand.stepId}: ${err.message}`);
+        throw new Error(`JSONPath error on step ${operand.stepId}: ${err.message}`, { cause: err });
       }
     }
     return '';
@@ -552,7 +552,7 @@ export class FlowEngine {
       const fn = new Function('ultra', 'console', code)
       fn(sandbox, mockConsole)
     } catch (err: any) {
-      throw new Error(`Script error: ${err.message}`)
+      throw new Error(`Script error: ${err.message}`, { cause: err })
     }
 
     return undefined

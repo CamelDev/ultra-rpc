@@ -483,7 +483,7 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
   }, [collections])
 
   const getCollectionIdOfNode = useCallback((node: NodeApi<TreeDataItem> | TreeDataItem | string | null): string | null => {
-    let current: TreeDataItem | null = null;
+    let current: TreeDataItem | null;
     if (typeof node === 'string') {
       current = treeRef.current?.get(node)?.data || null;
     } else if (node && 'data' in (node as any)) { // NodeApi
@@ -604,7 +604,6 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
     if ('id' in node && 'name' in node && !newValue) {
       targetNode = treeRef.current?.get(node.id);
       if (!targetNode) return;
-      freshName = node.name.trim();
       setEditingId(node.id);
       setNameInput(node.name);
       nameInputRef.current = node.name;

@@ -293,7 +293,6 @@ function createWindow() {
     if (process.env.VITE_DEV_SERVER_URL) {
       win.loadURL(process.env.VITE_DEV_SERVER_URL)
     } else {
-      console.log('>>> LOADING LOCAL FILE')
       win.loadFile(join(process.env.DIST!, 'index.html'))
     }
   } catch (err: any) {

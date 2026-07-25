@@ -346,7 +346,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
 
 
   const resolveVariable = useCallback((varName: string) => {
-    let titleText = `Variable: ${varName} (Not found)`
+    let titleText: string
 
     const inVault = vaultEntries?.find(v => v.key === varName)
     if (inVault) {
