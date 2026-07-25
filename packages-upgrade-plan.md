@@ -105,6 +105,11 @@ All major and minor version upgrades have been applied. The following were upgra
 - **Package**: `typescript@~5.9.3` → `typescript@7.0.2`
 - **Blocker**: `typescript-eslint@8.65.0` does not support TS 7.0 yet. Upgrading TS to 7.0 causes `bun run lint` to fail with: `typescript-eslint does not support TS 7.0`.
 - **Tracking issue**: https://github.com/typescript-eslint/typescript-eslint/issues/10940
+- **Last verified**: 2026-07-25 — Blocker still in effect.
+  - `typescript@7.0.2` is published on npm.
+  - `typescript-eslint` latest is still `8.65.0`; peerDependencies declare `typescript: '>=4.8.4 <6.1.0'`.
+  - Latest canary `8.65.1-alpha.7` also carries the same `typescript: '>=4.8.4 <6.1.0'` constraint — no TS 7.0 support yet.
+  - No `rc-v9` or stable v9 tag is published; `dist-tags` are `latest: 8.65.0`, `canary: 8.65.1-alpha.7`, `rc-v8: 8.0.0-alpha.62`.
 - **Action**: Wait for `typescript-eslint` v9 (or v8.x patch) that adds TS 7.0 support, then upgrade both together.
 - **When ready, steps**:
   1. `bun add -d typescript@latest`
