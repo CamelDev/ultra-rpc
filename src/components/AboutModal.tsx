@@ -1,15 +1,16 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Code, Heart, Info, ExternalLink } from 'lucide-react'
+import { X, Code, Heart, Info, ExternalLink, RefreshCw } from 'lucide-react'
 import './AboutModal.css'
 
 interface AboutModalProps {
   isOpen: boolean
   onClose: () => void
   version: string
+  onCheckForUpdates?: () => void
 }
 
-const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version }) => {
+const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version, onCheckForUpdates }) => {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -54,7 +55,15 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version }) => 
                 </div>
                 <h2 className="about-app-name">UltraRPC</h2>
                 <p className="about-version">Version {version}</p>
-                <div className="about-badge">Stable Release</div>
+
+                {onCheckForUpdates && (
+                  <button
+                    className="about-check-updates"
+                    onClick={onCheckForUpdates}
+                  >
+                    <RefreshCw size={13} /> Check for updates
+                  </button>
+                )}
               </div>
 
               <div className="about-description">

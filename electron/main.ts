@@ -9,6 +9,7 @@ import { registerStorageHandlers } from './storage-handler'
 import { registerVaultHandlers } from './vault-handler'
 import { registerFormatHandlers } from './format-handler'
 import { registerFlowHandlers } from './flow-handler'
+import { registerUpdateHandlers, scheduleUpdateChecks } from './update-handler'
 import { startMcpServer } from './mcp-server'
 import { getSettingsPath } from './storage-handler'
 
@@ -128,6 +129,7 @@ try {
     registerVaultHandlers()
     registerFormatHandlers()
     registerFlowHandlers()
+    registerUpdateHandlers(() => win)
 
     // Theme Management
     ipcMain.handle('theme:set-source', (_, source: 'light' | 'dark' | 'system') => {
@@ -191,6 +193,9 @@ try {
     app.whenReady().then(() => {
       console.log('>>> APP READY, CREATING WINDOW...')
       createWindow()
+
+      // Schedule update checks (runs only when packaged; dev/test: no ping)
+      scheduleUpdateChecks(() => win)
 
       // Start MCP server after Electron is fully ready (app.getPath works here)
       try {

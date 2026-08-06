@@ -59,6 +59,16 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   getSettings: () => ipcRenderer.invoke('storage:getSettings'),
   saveSettings: (settings: any) => ipcRenderer.invoke('storage:saveSettings', settings),
 
+  // ===== Updates =====
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  onUpdateAvailable: (callback: (info: any) => void) => {
+    const listener = (_: any, info: any) => callback(info)
+    ipcRenderer.on('update:available', listener)
+    return () => {
+      ipcRenderer.removeListener('update:available', listener)
+    }
+  },
+
 
 
   // ===== Libraries =====

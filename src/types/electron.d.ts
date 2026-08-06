@@ -96,6 +96,10 @@ export interface UltraRpcApi {
   getSettings: () => Promise<{ success: boolean; settings?: any; error?: string }>
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>
 
+  // Updates
+  checkForUpdates: () => Promise<{ success: boolean; current?: string; update?: UpdateInfo | null; error?: string }>
+  onUpdateAvailable: (callback: (info: UpdateInfo) => void) => () => void
+
 
 
   // Libraries
@@ -151,6 +155,13 @@ export interface UltraRpcApi {
   deleteFlow: (args: { collectionId: string; flowId: string; path?: string }) => Promise<{ success: boolean; error?: string }>
   renameFlow: (args: { collectionId?: string; flowId: string; newName: string; path?: string }) => Promise<{ success: boolean; newId?: string; error?: string }>
   isTest: boolean
+}
+
+export interface UpdateInfo {
+  latest: string
+  url: string
+  publishedAt: string | null
+  notes: string
 }
 
 declare global {

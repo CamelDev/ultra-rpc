@@ -20,6 +20,8 @@ import GrpcReflectionPanel from './components/GrpcReflectionPanel'
 import AboutModal from './components/AboutModal'
 import AiInfoModal from './components/AiInfoModal'
 import LibraryModal from './components/LibraryModal'
+import UpdateBanner from './components/UpdateBanner'
+import type { UpdateInfo } from './types/electron'
 import { FlowCanvas } from './components/FlowCanvas'
 import FlowPanel from './components/FlowPanel'
 import type { FlowDefinition } from './types/flow'
@@ -258,6 +260,8 @@ const App: React.FC = () => {
   })
   const [mcpEnabled, setMcpEnabled] = useState(false)
   const [mcpPort, setMcpPort] = useState(3000)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [updatesEnabled, setUpdatesEnabled] = useState(true)
   const [isResizingResponse, setIsResizingResponse] = useState(false)
   const [isResizingVertical, setIsResizingVertical] = useState(false)
   const [showGrpcDiscovery, setShowGrpcDiscovery] = useState(false)
@@ -513,6 +517,46 @@ const App: React.FC = () => {
     }
   }, [theme])
 
+  // ===== Update notifications =====
+  useEffect(() => {
+    if (!window.ultraRpc?.onUpdateAvailable) return
+    return window.ultraRpc.onUpdateAvailable((info) => setUpdateInfo(info))
+  }, [])
+
+  const handleUpdateDownload = useCallback((url: string) => {
+    if (window.ultraRpc) window.ultraRpc.openExternal(url)
+    setUpdateInfo(null)
+  }, [])
+
+  const handleUpdateSkip = useCallback(async (version: string) => {
+    if (window.ultraRpc) {
+      const res = await window.ultraRpc.getSettings()
+      const current = res.success ? (res.settings || {}) : {}
+      await window.ultraRpc.saveSettings({
+        ...current,
+        updates: { ...(current.updates || {}), skippedVersion: version },
+      })
+    }
+    setUpdateInfo(null)
+  }, [])
+
+  const handleUpdateDismiss = useCallback(() => {
+    setUpdateInfo(null)
+  }, [])
+
+  const handleManualUpdateCheck = useCallback(async () => {
+    if (!window.ultraRpc) return
+    const res = await window.ultraRpc.checkForUpdates()
+    if (res.success && res.update) {
+      // Show the banner only — no redundant toast alongside it.
+      setUpdateInfo(res.update)
+    } else if (res.success) {
+      addToast({ type: 'success', message: `You're up to date (${res.current})` })
+    } else {
+      addToast({ type: 'error', message: res.error || 'Update check failed' })
+    }
+  }, [])
+
   const loadFlows = useCallback(async () => {
     if (!window.ultraRpc) return
     const res = await window.ultraRpc.listFlows()
@@ -753,6 +797,9 @@ const App: React.FC = () => {
         }
         if (res.settings.mcpPort !== undefined) {
           setMcpPort(res.settings.mcpPort)
+        }
+        if (res.settings.updates?.enabled !== undefined) {
+          setUpdatesEnabled(res.settings.updates.enabled)
         }
       }
     })
@@ -2426,6 +2473,43 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="settings-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                <span className="settings-label">Updates</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    className="layout-toggle"
+                    onClick={() => {
+                      const newValue = !updatesEnabled
+                      setUpdatesEnabled(newValue)
+                      saveAppSetting('updates', { enabled: newValue })
+                    }}
+                    style={{
+                      width: '34px',
+                      height: '18px',
+                      borderRadius: '10px',
+                      background: updatesEnabled ? 'var(--accent)' : 'var(--bg-tertiary)',
+                      border: '1px solid var(--border)',
+                      position: 'relative',
+                      transition: 'all 0.2s ease',
+                      padding: 0
+                    }}
+                  >
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      background: 'white',
+                      position: 'absolute',
+                      top: '2px',
+                      left: updatesEnabled ? '18px' : '2px',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }} />
+                  </button>
+                  <span style={{ fontSize: '11px', color: updatesEnabled ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>
+                    {updatesEnabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+              </div>
+              <div className="settings-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
                 <span className="settings-label">Interface</span>
                 <button
                   className="btn-ghost"
@@ -3360,7 +3444,17 @@ const App: React.FC = () => {
         isOpen={showAboutModal}
         onClose={() => setShowAboutModal(false)}
         version={pkg.version}
+        onCheckForUpdates={handleManualUpdateCheck}
       />
+
+      {updateInfo && (
+        <UpdateBanner
+          info={updateInfo}
+          onDownload={handleUpdateDownload}
+          onSkip={handleUpdateSkip}
+          onDismiss={handleUpdateDismiss}
+        />
+      )}
 
       <AiInfoModal
         isOpen={showAiInfoModal}
