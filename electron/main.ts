@@ -113,12 +113,25 @@ try {
   const gotTheLock = skipLock ? true : app.requestSingleInstanceLock()
 
   if (!gotTheLock) {
+    // Another UltraRPC instance is already running — quit immediately.
+    // The running instance will receive the 'second-instance' event below
+    // and restore/focus its own window instead.
     app.quit()
   } else {
     app.on('second-instance', () => {
-      if (win) {
+      // A second instance was launched while this one is running.
+      // Restore/focus the existing window, or recreate one if it was closed
+      // (macOS keeps the app alive after the last window is closed).
+      if (win && !win.isDestroyed()) {
         if (win.isMinimized()) win.restore()
+        if (!win.isVisible()) win.show()
+        // On macOS, also bring a hidden app (Cmd+H) back to the foreground.
+        if (process.platform === 'darwin') {
+          app.focus({ steal: true })
+        }
         win.focus()
+      } else if (app.isReady()) {
+        createWindow()
       }
     })
 
