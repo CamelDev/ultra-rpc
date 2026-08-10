@@ -119,7 +119,7 @@ const migrateDirectoryToSlugs = (dir: string) => {
   let changed = false
 
   for (const entry of entries) {
-    if (entry.name === '_meta.json') continue
+    if (entry.name.startsWith('_meta')) continue
     const fullPath = path.join(dir, entry.name)
     
     if (entry.isDirectory()) {
@@ -633,7 +633,7 @@ export function registerStorageHandlers() {
         const files = fs.readdirSync(dirPath, { withFileTypes: true })
 
         for (const entry of files) {
-          if (entry.name === '_meta.json') continue
+          if (entry.name.startsWith('_meta')) continue
           const fullPath = path.join(dirPath, entry.name)
 
           if (entry.isDirectory()) {
@@ -1936,7 +1936,7 @@ export function registerStorageHandlers() {
 
       // Read all requests
       const requestFiles = fs.readdirSync(collDir)
-        .filter(f => f.endsWith('.json') && f !== '_meta.json')
+        .filter(f => f.endsWith('.json') && !f.startsWith('_meta'))
       const requests: SavedRequest[] = []
       for (const file of requestFiles) {
         try {
