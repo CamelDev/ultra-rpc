@@ -109,17 +109,139 @@ function buildUpdateRequestPayload(
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ultra-mcp-test-"));
+  const testOutDir = path.join(process.cwd(), "tests", "test-output");
+  if (!fs.existsSync(testOutDir)) fs.mkdirSync(testOutDir, { recursive: true });
+  tmpDir = fs.mkdtempSync(path.join(testOutDir, "ultra-mcp-test-"));
 });
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  if (tmpDir && fs.existsSync(tmpDir)) {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 function writeAndRead(payload: Record<string, unknown>): Record<string, unknown> {
   const filePath = path.join(tmpDir, "request.json");
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
   return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+}
+
+function normalizeHeaders(items?: Array<{ name?: string; key?: string; value: string; enabled?: boolean; id?: string }>) {
+  if (!items) return [];
+  return items.map(item => {
+    const headerKey = item.name || item.key || "";
+    return {
+      id: item.id || "test-id",
+      key: headerKey,
+      name: headerKey,
+      value: item.value || "",
+      enabled: item.enabled !== undefined ? item.enabled : true,
+    };
+  });
+}
+
+function sanitizeFolderName(text: string): string {
+  return text.replace(/[<>:"/\\|?*]/g, '_').trim() || 'Untitled';
+}
+
+function resolveOrCreateFolder(
+  collDir: string,
+  options: { folderId?: string; folderPath?: string; parentFolderId?: string; folderName?: string }
+): { folderDir: string; folderId: string } {
+  const { folderId, folderPath, parentFolderId, folderName } = options;
+
+  if (folderPath && folderPath.trim()) {
+    const rawSegments = folderPath.split(/[/\\]/).map(s => s.trim()).filter(Boolean);
+    let currDir = collDir;
+    let lastFolderId = '';
+
+    for (let i = 0; i < rawSegments.length; i++) {
+      const segment = rawSegments[i];
+      let foundDir: string | null = null;
+      try {
+        const entries = fs.readdirSync(currDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          const subDir = path.join(currDir, entry.name);
+          const metaPath = path.join(subDir, '_meta.json');
+          if (fs.existsSync(metaPath)) {
+            try {
+              const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+              if (meta.id === segment || meta.name === segment || entry.name === sanitizeFolderName(segment)) {
+                foundDir = subDir;
+                lastFolderId = meta.id || segment;
+                break;
+              }
+            } catch { /* ignore */ }
+          }
+          if (entry.name === sanitizeFolderName(segment)) {
+            foundDir = subDir;
+            lastFolderId = segment;
+            break;
+          }
+        }
+      } catch { /* ignore */ }
+
+      if (foundDir) {
+        currDir = foundDir;
+      } else {
+        const folderSlug = sanitizeFolderName(segment);
+        const newDir = path.join(currDir, folderSlug);
+        if (!fs.existsSync(newDir)) {
+          fs.mkdirSync(newDir, { recursive: true });
+        }
+        const metaPath = path.join(newDir, '_meta.json');
+        if (!fs.existsSync(metaPath)) {
+          fs.writeFileSync(metaPath, JSON.stringify({ id: segment, name: segment }, null, 2));
+        }
+        currDir = newDir;
+        lastFolderId = segment;
+      }
+    }
+    return { folderDir: currDir, folderId: lastFolderId || path.basename(currDir) };
+  }
+
+  if (parentFolderId && parentFolderId.trim()) {
+    const parentSlug = sanitizeFolderName(parentFolderId);
+    let parentDir = path.join(collDir, parentSlug);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    const metaPath = path.join(parentDir, '_meta.json');
+    if (!fs.existsSync(metaPath)) {
+      fs.writeFileSync(metaPath, JSON.stringify({ id: parentFolderId, name: parentFolderId }, null, 2));
+    }
+
+    const nameToUse = folderName || folderId || 'Untitled Folder';
+    const folderSlug = sanitizeFolderName(nameToUse);
+    const targetFolderDir = path.join(parentDir, folderSlug);
+    const targetFolderId = folderId || folderName || folderSlug;
+
+    if (!fs.existsSync(targetFolderDir)) {
+      fs.mkdirSync(targetFolderDir, { recursive: true });
+    }
+    const targetMetaPath = path.join(targetFolderDir, '_meta.json');
+    if (!fs.existsSync(targetMetaPath)) {
+      fs.writeFileSync(targetMetaPath, JSON.stringify({ id: targetFolderId, name: nameToUse }, null, 2));
+    }
+    return { folderDir: targetFolderDir, folderId: targetFolderId };
+  }
+
+  const targetIdOrName = folderId || folderName;
+  if (targetIdOrName && targetIdOrName.trim()) {
+    const folderSlug = sanitizeFolderName(targetIdOrName);
+    const newDir = path.join(collDir, folderSlug);
+    if (!fs.existsSync(newDir)) {
+      fs.mkdirSync(newDir, { recursive: true });
+    }
+    const metaPath = path.join(newDir, '_meta.json');
+    if (!fs.existsSync(metaPath)) {
+      fs.writeFileSync(metaPath, JSON.stringify({ id: targetIdOrName, name: folderName || targetIdOrName }, null, 2));
+    }
+    return { folderDir: newDir, folderId: targetIdOrName };
+  }
+
+  return { folderDir: collDir, folderId: path.basename(collDir) };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -480,3 +602,52 @@ describe("update_flow", () => {
     expect((updated.steps as any[])[0].config.requestId).toBe("new-req-1");
   });
 });
+
+describe("metadata / header array normalization", () => {
+  it("normalizes gRPC metadata items with name to key/name format", () => {
+    const metadata = [
+      { name: "x-api-key", value: "secret123" },
+      { name: "authorization", value: "Bearer token", enabled: true }
+    ];
+    const normalized = normalizeHeaders(metadata);
+    expect(normalized.length).toBe(2);
+    expect(normalized[0].key).toBe("x-api-key");
+    expect(normalized[0].name).toBe("x-api-key");
+    expect(normalized[0].value).toBe("secret123");
+    expect(normalized[0].enabled).toBe(true);
+  });
+
+  it("normalizes headers when key property is used", () => {
+    const headers = [{ key: "Content-Type", value: "application/json" }];
+    const normalized = normalizeHeaders(headers);
+    expect(normalized[0].key).toBe("Content-Type");
+    expect(normalized[0].name).toBe("Content-Type");
+  });
+});
+
+describe("resolveOrCreateFolder — folder hierarchy support", () => {
+  it("resolves nested folderPath and creates directories with _meta.json", () => {
+    const res = resolveOrCreateFolder(tmpDir, { folderPath: "VERIFICATION/BE-12071" });
+    expect(res.folderDir).toBe(path.join(tmpDir, "VERIFICATION", "BE-12071"));
+    expect(res.folderId).toBe("BE-12071");
+
+    expect(fs.existsSync(path.join(tmpDir, "VERIFICATION", "_meta.json"))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, "VERIFICATION", "BE-12071", "_meta.json"))).toBe(true);
+
+    const subMeta = JSON.parse(fs.readFileSync(path.join(tmpDir, "VERIFICATION", "BE-12071", "_meta.json"), "utf-8"));
+    expect(subMeta.id).toBe("BE-12071");
+  });
+
+  it("creates nested subfolder when parentFolderId is provided", () => {
+    const res = resolveOrCreateFolder(tmpDir, { parentFolderId: "VERIFICATION", folderName: "BE-12071" });
+    expect(res.folderDir).toBe(path.join(tmpDir, "VERIFICATION", "BE-12071"));
+    expect(res.folderId).toBe("BE-12071");
+  });
+
+  it("creates root subfolder when only folderName is provided", () => {
+    const res = resolveOrCreateFolder(tmpDir, { folderName: "MY-FOLDER" });
+    expect(res.folderDir).toBe(path.join(tmpDir, "MY-FOLDER"));
+    expect(res.folderId).toBe("MY-FOLDER");
+  });
+});
+

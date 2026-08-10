@@ -601,6 +601,7 @@ const App: React.FC = () => {
 
     const ACTION_LABELS: Record<string, string> = {
       create_collection:   '📁 Collection created',
+      create_folder:       '📁 Folder created',
       add_rest_request:    '➕ REST request added',
       update_rest_request: '✏️ REST request updated',
       add_grpc_request:    '➕ gRPC request added',

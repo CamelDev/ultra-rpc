@@ -294,7 +294,7 @@ export const findRequestByIdRecursively = (dir: string, requestId: string): stri
   return null
 }
 
-const findFolderByIdRecursively = (dir: string, folderId: string): string | null => {
+export const findFolderByIdRecursively = (dir: string, folderId: string): string | null => {
   let entries: fs.Dirent[]
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -309,8 +309,10 @@ const findFolderByIdRecursively = (dir: string, folderId: string): string | null
     if (fs.existsSync(metaPath)) {
       try {
         const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-        if (meta.id === folderId) return subDir
+        if (meta.id === folderId || meta.name === folderId || entry.name === sanitizeFolderName(folderId)) return subDir
       } catch { /* skip */ }
+    } else if (entry.name === sanitizeFolderName(folderId)) {
+      return subDir
     }
     // Recurse deeper
     const found = findFolderByIdRecursively(subDir, folderId)
@@ -319,6 +321,134 @@ const findFolderByIdRecursively = (dir: string, folderId: string): string | null
 
   return null
 }
+
+export interface ResolveFolderOptions {
+  folderId?: string
+  folderPath?: string
+  parentFolderId?: string
+  folderName?: string
+}
+
+export function resolveOrCreateFolder(
+  collDir: string,
+  options: ResolveFolderOptions
+): { folderDir: string; folderId: string } {
+  const { folderId, folderPath, parentFolderId, folderName } = options
+
+  // Scenario 1: folderPath provided (e.g. "VERIFICATION/BE-12071")
+  if (folderPath && folderPath.trim()) {
+    const rawSegments = folderPath.split(/[/\\]/).map(s => s.trim()).filter(Boolean)
+    let currDir = collDir
+    let lastFolderId = ''
+
+    for (let i = 0; i < rawSegments.length; i++) {
+      const segment = rawSegments[i]
+      let foundDir: string | null = null
+      try {
+        const entries = fs.readdirSync(currDir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue
+          const subDir = path.join(currDir, entry.name)
+          const metaPath = path.join(subDir, '_meta.json')
+          if (fs.existsSync(metaPath)) {
+            try {
+              const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+              if (meta.id === segment || meta.name === segment || entry.name === sanitizeFolderName(segment)) {
+                foundDir = subDir
+                lastFolderId = meta.id || segment
+                break
+              }
+            } catch { /* ignore */ }
+          }
+          if (entry.name === sanitizeFolderName(segment)) {
+            foundDir = subDir
+            lastFolderId = segment
+            break
+          }
+        }
+      } catch { /* ignore */ }
+
+      if (foundDir) {
+        currDir = foundDir
+      } else {
+        const folderSlug = sanitizeFolderName(segment)
+        const newDir = path.join(currDir, folderSlug)
+        if (!fs.existsSync(newDir)) {
+          fs.mkdirSync(newDir, { recursive: true })
+        }
+        const metaPath = path.join(newDir, '_meta.json')
+        if (!fs.existsSync(metaPath)) {
+          fs.writeFileSync(metaPath, JSON.stringify({ id: segment, name: segment }, null, 2))
+        }
+        currDir = newDir
+        lastFolderId = segment
+      }
+    }
+    return { folderDir: currDir, folderId: lastFolderId || path.basename(currDir) }
+  }
+
+  // Scenario 2: parentFolderId provided (with folderName or folderId)
+  if (parentFolderId && parentFolderId.trim()) {
+    let parentDir = findFolderByIdRecursively(collDir, parentFolderId)
+    if (!parentDir) {
+      const parentSlug = sanitizeFolderName(parentFolderId)
+      parentDir = path.join(collDir, parentSlug)
+      if (!fs.existsSync(parentDir)) {
+        fs.mkdirSync(parentDir, { recursive: true })
+      }
+      const metaPath = path.join(parentDir, '_meta.json')
+      if (!fs.existsSync(metaPath)) {
+        fs.writeFileSync(metaPath, JSON.stringify({ id: parentFolderId, name: parentFolderId }, null, 2))
+      }
+    }
+
+    const nameToUse = folderName || folderId || 'Untitled Folder'
+    const folderSlug = sanitizeFolderName(nameToUse)
+    const targetFolderDir = path.join(parentDir, folderSlug)
+    const targetFolderId = folderId || folderName || folderSlug
+
+    if (!fs.existsSync(targetFolderDir)) {
+      fs.mkdirSync(targetFolderDir, { recursive: true })
+    }
+    const metaPath = path.join(targetFolderDir, '_meta.json')
+    if (!fs.existsSync(metaPath)) {
+      fs.writeFileSync(metaPath, JSON.stringify({ id: targetFolderId, name: nameToUse }, null, 2))
+    }
+    return { folderDir: targetFolderDir, folderId: targetFolderId }
+  }
+
+  // Scenario 3: folderId or folderName provided
+  const targetIdOrName = folderId || folderName
+  if (targetIdOrName && targetIdOrName.trim()) {
+    let foundDir = findFolderByIdRecursively(collDir, targetIdOrName)
+    if (foundDir) {
+      let fId = targetIdOrName
+      const metaPath = path.join(foundDir, '_meta.json')
+      if (fs.existsSync(metaPath)) {
+        try {
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+          if (meta.id) fId = meta.id
+        } catch { /* ignore */ }
+      }
+      return { folderDir: foundDir, folderId: fId }
+    }
+
+    const folderSlug = sanitizeFolderName(targetIdOrName)
+    const newDir = path.join(collDir, folderSlug)
+    if (!fs.existsSync(newDir)) {
+      fs.mkdirSync(newDir, { recursive: true })
+    }
+    const metaPath = path.join(newDir, '_meta.json')
+    if (!fs.existsSync(metaPath)) {
+      fs.writeFileSync(metaPath, JSON.stringify({ id: targetIdOrName, name: folderName || targetIdOrName }, null, 2))
+    }
+    return { folderDir: newDir, folderId: targetIdOrName }
+  }
+
+  // Fallback: root collection dir
+  return { folderDir: collDir, folderId: path.basename(collDir) }
+}
+
 
 export const getRequestById = (requestId: string, collectionId?: string): SavedRequest | null => {
   let found: string | null = null

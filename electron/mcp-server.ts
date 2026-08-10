@@ -9,11 +9,14 @@ import path from "path";
 import { randomUUID } from "node:crypto";
 import { BrowserWindow } from "electron";
 import {
+import {
   getStorageRoot,
   getCollectionDir,
   getUniqueFilename,
   updateIdMap,
   findRequestByIdRecursively,
+  findFolderByIdRecursively,
+  resolveOrCreateFolder,
   sanitizeFolderName,
   getSettingsPath,
   getEnvPath
@@ -28,7 +31,7 @@ let currentPort = 0;
 // the UI can refresh the collection panel and show a toast.
 
 export interface McpActionEvent {
-  action: 'create_collection' | 'add_rest_request' | 'update_rest_request' | 'add_grpc_request' | 'update_grpc_request' | 'add_flow' | 'update_flow';
+  action: 'create_collection' | 'create_folder' | 'add_rest_request' | 'update_rest_request' | 'add_grpc_request' | 'update_grpc_request' | 'add_flow' | 'update_flow';
   name: string;
   collectionId?: string;
 }
@@ -41,6 +44,29 @@ function notifyRenderer(event: McpActionEvent) {
   } else {
     console.warn('[MCP] notifyRenderer: no BrowserWindow found, skipping UI update');
   }
+}
+
+// ─── Header / Metadata Normalization ─────────────────────────────────────────
+
+const headerItemSchema = z.object({
+  name: z.string().optional(),
+  key: z.string().optional(),
+  value: z.string(),
+  enabled: z.boolean().optional().default(true),
+});
+
+function normalizeHeaders(items?: Array<{ name?: string; key?: string; value: string; enabled?: boolean; id?: string }>) {
+  if (!items) return [];
+  return items.map(item => {
+    const headerKey = item.name || item.key || "";
+    return {
+      id: item.id || Math.random().toString(36).substring(2, 11),
+      key: headerKey,
+      name: headerKey,
+      value: item.value || "",
+      enabled: item.enabled !== undefined ? item.enabled : true,
+    };
+  });
 }
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
@@ -153,6 +179,37 @@ function createMcpServerInstance(): McpServer {
     }
   );
 
+  // ─── Tool: Create Folder ───────────────────────────────────────────────
+
+  mcp.tool(
+    "create_folder",
+    "Create a new folder or nested subfolder within an API collection.",
+    {
+      collectionId: z.string().describe("The ID of the collection (e.g., 'booking-api2-0')."),
+      folderName: z.string().describe("The name of the new folder (e.g., 'BE-12071')."),
+      parentFolderId: z.string().optional().describe("Optional: Parent folder ID if creating a nested subfolder (e.g., 'VERIFICATION')."),
+      folderPath: z.string().optional().describe("Optional: Full relative path to create (e.g., 'VERIFICATION/BE-12071')."),
+    },
+    async ({ collectionId, folderName, parentFolderId, folderPath }) => {
+      console.log(`[MCP] tool:create_folder — collectionId="${collectionId}" folderName="${folderName}" parentFolderId="${parentFolderId || ''}" folderPath="${folderPath || ''}"`);
+      try {
+        const collDir = getCollectionDir(collectionId);
+        if (!collDir) {
+          console.warn(`[MCP] create_folder — collection not found: ${collectionId}`);
+          return { content: [{ type: "text", text: `Collection not found: ${collectionId}` }], isError: true };
+        }
+
+        const resolved = resolveOrCreateFolder(collDir, { folderName, parentFolderId, folderPath });
+        notifyRenderer({ action: 'create_folder', name: folderName, collectionId });
+
+        return { content: [{ type: "text", text: JSON.stringify({ success: true, folderId: resolved.folderId }, null, 2) }] };
+      } catch (err: any) {
+        console.error("[MCP] create_folder error:", err);
+        return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
   // ─── Tool: Add REST Request ─────────────────────────────────────────────
 
   mcp.tool(
@@ -160,18 +217,20 @@ function createMcpServerInstance(): McpServer {
     "Add a new REST request to a specific collection.",
     {
       collectionId: z.string().describe("The ID of the collection to add the request to."),
+      folderId: z.string().optional().describe("Optional: Target folder ID (e.g., 'BE-12071' or 'VERIFICATION')."),
+      folderPath: z.string().optional().describe("Optional: Relative folder path within the collection (e.g., 'VERIFICATION/BE-12071')."),
       name: z.string().describe("A human-readable name for the request."),
       method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]).describe("The HTTP method."),
       url: z.string().describe("The endpoint URL."),
-      headers: z.array(z.object({ name: z.string(), value: z.string(), enabled: z.boolean().default(true) })).optional(),
-      params: z.array(z.object({ name: z.string(), value: z.string(), enabled: z.boolean().default(true) })).optional(),
+      headers: z.array(headerItemSchema).optional(),
+      params: z.array(headerItemSchema).optional(),
       bodyType: z.enum(["none", "json", "text", "xml", "form", "multipart"]).optional().default("none"),
       body: z.string().optional(),
       preRequestScript: z.string().optional().describe("JavaScript pre-request script using the ultra API."),
       postResponseScript: z.string().optional().describe("JavaScript post-response script using the ultra API."),
     },
-    async ({ collectionId, name, method, url, headers, params, bodyType, body, preRequestScript, postResponseScript }) => {
-      console.log(`[MCP] tool:add_rest_request — collectionId="${collectionId}" name="${name}" method=${method} url="${url}"`);
+    async ({ collectionId, folderId, folderPath, name, method, url, headers, params, bodyType, body, preRequestScript, postResponseScript }) => {
+      console.log(`[MCP] tool:add_rest_request — collectionId="${collectionId}" folderId="${folderId || ''}" folderPath="${folderPath || ''}" name="${name}" method=${method} url="${url}"`);
       try {
         const collDir = getCollectionDir(collectionId);
         if (!collDir) {
@@ -179,21 +238,26 @@ function createMcpServerInstance(): McpServer {
           return { content: [{ type: "text", text: `Collection not found: ${collectionId}` }], isError: true };
         }
 
+        const targetFolderDir = (folderId || folderPath)
+          ? resolveOrCreateFolder(collDir, { folderId, folderPath }).folderDir
+          : collDir;
+
         const requestId = Math.random().toString(36).substring(2, 11);
         // Auto-infer bodyType as "json" when body is provided and type was not explicitly set
         const resolvedBodyType = (bodyType === "none" || !bodyType) && body && body.trim() ? "json" : (bodyType || "none");
         const requestToSave: Record<string, unknown> = {
           id: requestId, type: "REST", name, method, url,
-          headers: headers || [], params: params || [],
+          headers: normalizeHeaders(headers),
+          params: normalizeHeaders(params),
           bodyType: resolvedBodyType, body: body || "",
         };
         if (preRequestScript) requestToSave.preRequestScript = preRequestScript;
         if (postResponseScript) requestToSave.postResponseScript = postResponseScript;
 
-        const newFilename = getUniqueFilename(collDir, name || "Untitled Request", ".json");
-        const targetPath = path.join(collDir, newFilename);
+        const newFilename = getUniqueFilename(targetFolderDir, name || "Untitled Request", ".json");
+        const targetPath = path.join(targetFolderDir, newFilename);
         fs.writeFileSync(targetPath, JSON.stringify(requestToSave, null, 2));
-        updateIdMap(collDir, requestId, newFilename);
+        updateIdMap(targetFolderDir, requestId, newFilename);
         notifyRenderer({ action: 'add_rest_request', name, collectionId })
 
         return { content: [{ type: "text", text: JSON.stringify({ success: true, requestId }, null, 2) }] };
@@ -215,8 +279,8 @@ function createMcpServerInstance(): McpServer {
       name: z.string().optional().describe("A new human-readable name for the request."),
       method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]).optional().describe("The HTTP method."),
       url: z.string().optional().describe("The endpoint URL."),
-      headers: z.array(z.object({ name: z.string(), value: z.string(), enabled: z.boolean().default(true) })).optional(),
-      params: z.array(z.object({ name: z.string(), value: z.string(), enabled: z.boolean().default(true) })).optional(),
+      headers: z.array(headerItemSchema).optional(),
+      params: z.array(headerItemSchema).optional(),
       bodyType: z.enum(["none", "json", "text", "xml", "form", "multipart"]).optional(),
       body: z.string().optional(),
       preRequestScript: z.string().optional().describe("JavaScript pre-request script using the ultra API. Pass empty string to clear."),
@@ -251,8 +315,8 @@ function createMcpServerInstance(): McpServer {
           name: name !== undefined ? name : currentContent.name,
           method: method !== undefined ? method : currentContent.method,
           url: url !== undefined ? url : currentContent.url,
-          headers: headers !== undefined ? headers : currentContent.headers,
-          params: params !== undefined ? params : currentContent.params,
+          headers: headers !== undefined ? normalizeHeaders(headers) : currentContent.headers,
+          params: params !== undefined ? normalizeHeaders(params) : currentContent.params,
           bodyType: resolvedBodyType,
           body: body !== undefined ? body : currentContent.body,
           preRequestScript: preRequestScript !== undefined ? preRequestScript : currentContent.preRequestScript,
@@ -291,16 +355,18 @@ function createMcpServerInstance(): McpServer {
     "Add a new gRPC request to a specific collection.",
     {
       collectionId: z.string().describe("The ID of the collection to add the request to."),
+      folderId: z.string().optional().describe("Optional: Target folder ID (e.g., 'BE-12071' or 'VERIFICATION')."),
+      folderPath: z.string().optional().describe("Optional: Relative folder path within the collection (e.g., 'VERIFICATION/BE-12071')."),
       name: z.string().describe("A human-readable name for the request."),
       url: z.string().describe("The host and port (e.g., localhost:50051)."),
       service: z.string().describe("The gRPC service name."),
       method: z.string().describe("The gRPC method name."),
       payload: z.string().optional().describe("The JSON-encoded payload string."),
-      metadata: z.array(z.object({ name: z.string(), value: z.string(), enabled: z.boolean().default(true) })).optional().describe("gRPC metadata (headers)."),
+      metadata: z.array(headerItemSchema).optional().describe("gRPC metadata (headers)."),
       reflection: z.boolean().optional().default(true).describe("Whether to use server reflection."),
     },
-    async ({ collectionId, name, url, service, method, payload, metadata, reflection }) => {
-      console.log(`[MCP] tool:add_grpc_request — collectionId="${collectionId}" name="${name}" service="${service}" method="${method}"`);
+    async ({ collectionId, folderId, folderPath, name, url, service, method, payload, metadata, reflection }) => {
+      console.log(`[MCP] tool:add_grpc_request — collectionId="${collectionId}" folderId="${folderId || ''}" folderPath="${folderPath || ''}" name="${name}" service="${service}" method="${method}"`);
       try {
         const collDir = getCollectionDir(collectionId);
         if (!collDir) {
@@ -308,18 +374,22 @@ function createMcpServerInstance(): McpServer {
           return { content: [{ type: "text", text: `Collection not found: ${collectionId}` }], isError: true };
         }
 
+        const targetFolderDir = (folderId || folderPath)
+          ? resolveOrCreateFolder(collDir, { folderId, folderPath }).folderDir
+          : collDir;
+
         const requestId = Math.random().toString(36).substring(2, 11);
         const requestToSave = {
           id: requestId, type: "GRPC", name, url,
           grpcService: service, grpcMethod: method,
-          grpcPayload: payload || "{}", headers: metadata || [],
+          grpcPayload: payload || "{}", headers: normalizeHeaders(metadata),
           grpcReflection: reflection,
         };
 
-        const newFilename = getUniqueFilename(collDir, name || "Untitled Request", ".json");
-        const targetPath = path.join(collDir, newFilename);
+        const newFilename = getUniqueFilename(targetFolderDir, name || "Untitled Request", ".json");
+        const targetPath = path.join(targetFolderDir, newFilename);
         fs.writeFileSync(targetPath, JSON.stringify(requestToSave, null, 2));
-        updateIdMap(collDir, requestId, newFilename);
+        updateIdMap(targetFolderDir, requestId, newFilename);
         notifyRenderer({ action: 'add_grpc_request', name, collectionId })
 
         return { content: [{ type: "text", text: JSON.stringify({ success: true, requestId }, null, 2) }] };
@@ -343,7 +413,7 @@ function createMcpServerInstance(): McpServer {
       service: z.string().optional().describe("The gRPC service name."),
       method: z.string().optional().describe("The gRPC method name."),
       payload: z.string().optional().describe("The JSON-encoded payload string."),
-      metadata: z.array(z.object({ name: z.string(), value: z.string(), enabled: z.boolean().default(true) })).optional().describe("gRPC metadata (headers)."),
+      metadata: z.array(headerItemSchema).optional().describe("gRPC metadata (headers)."),
       reflection: z.boolean().optional().describe("Whether to use server reflection."),
     },
     async ({ collectionId, requestId, name, url, service, method, payload, metadata, reflection }) => {
@@ -370,7 +440,7 @@ function createMcpServerInstance(): McpServer {
           grpcService: service !== undefined ? service : currentContent.grpcService,
           grpcMethod: method !== undefined ? method : currentContent.grpcMethod,
           grpcPayload: payload !== undefined ? payload : currentContent.grpcPayload,
-          headers: metadata !== undefined ? metadata : currentContent.headers,
+          headers: metadata !== undefined ? normalizeHeaders(metadata) : currentContent.headers,
           grpcReflection: reflection !== undefined ? reflection : currentContent.grpcReflection,
         };
 
@@ -395,6 +465,7 @@ function createMcpServerInstance(): McpServer {
       }
     }
   );
+
 
   // ─── Tool: Add Flow ─────────────────────────────────────────────────────
 
