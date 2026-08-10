@@ -9,7 +9,6 @@ import path from "path";
 import { randomUUID } from "node:crypto";
 import { BrowserWindow } from "electron";
 import {
-import {
   getStorageRoot,
   getCollectionDir,
   getUniqueFilename,

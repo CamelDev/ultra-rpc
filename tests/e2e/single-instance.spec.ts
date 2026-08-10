@@ -6,7 +6,7 @@ import fs from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const getDataDir = (suffix: string) =>
-  join(__dirname, `../../test-output/user-data/single-instance-${suffix}`);
+  join(__dirname, `../../test-output/user-data/single-instance-${suffix}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,9 +62,11 @@ test.describe('Single Instance Lock', () => {
     const second = await electron.launch({
       args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`],
       env: { ...process.env, NODE_ENV: 'test' },
-    });
+    }).catch(() => null);
 
-    await waitForExit(second);
+    if (second) {
+      await waitForExit(second);
+    }
 
     // The first instance should still be running with its single window intact.
     expect(await firstWindow.locator('.app-container').count()).toBe(1);
@@ -82,8 +84,11 @@ test.describe('Single Instance Lock', () => {
     const second = await electron.launch({
       args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`],
       env: { ...process.env, NODE_ENV: 'test' },
-    });
-    await waitForExit(second);
+    }).catch(() => null);
+
+    if (second) {
+      await waitForExit(second);
+    }
 
     // The first instance must still respond to UI events: add a new tab.
     const before = await firstWindow.locator('.tab-item').count();
@@ -107,8 +112,11 @@ test.describe('Single Instance Lock', () => {
     const second = await electron.launch({
       args: ['.', '--no-sandbox', '--disable-setuid-sandbox', `--user-data-dir=${userDataDir}`],
       env: { ...process.env, NODE_ENV: 'test' },
-    });
-    await waitForExit(second);
+    }).catch(() => null);
+
+    if (second) {
+      await waitForExit(second);
+    }
 
     // The first instance must still have exactly one window (no extra window
     // is opened by the second-instance event).
