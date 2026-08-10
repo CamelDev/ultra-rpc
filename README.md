@@ -33,6 +33,19 @@ UltraRPC is a cross-platform desktop application designed for developers who nee
 
 ---
 
+## 🍏 macOS Installation Note
+
+If macOS displays a message saying **`"UltraRPC" is damaged and can't be opened. You should move it to the Bin.`** when launching the downloaded app:
+
+This occurs because macOS Gatekeeper flags unnotarized apps downloaded from the internet with the `com.apple.quarantine` attribute. To allow UltraRPC to run, open **Terminal** and run:
+
+```bash
+xattr -cr /Applications/UltraRPC.app
+```
+*(Replace `/Applications/UltraRPC.app` with the path where you saved the app if different).*
+
+---
+
 ## ⚡ Quick Start Guide
 
 New to UltraRPC? Here is how to get up and running in 60 seconds.
