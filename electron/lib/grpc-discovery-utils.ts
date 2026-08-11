@@ -406,6 +406,45 @@ export function generateSampleBody(
 }
 
 /**
+ * Fixes map entry 'value' field resolvedType in protobuf Root.
+ * In protobufjs, Root.fromDescriptor can resolve the 'value' field of a map_entry message
+ * to the map_entry message itself if its short name collides with the value type short name.
+ */
+export function fixMapEntryTypes(root: any) {
+  function fixNamespace(ns: any) {
+    if (ns.nestedArray) {
+      for (const child of ns.nestedArray) {
+        if (child.fields && (child.options?.mapEntry || child.options?.map_entry)) {
+          const valueField = child.fields['value'];
+          if (valueField) {
+            const currentResolved = valueField.resolvedType;
+            if (!currentResolved || currentResolved === child || currentResolved.options?.mapEntry || currentResolved.options?.map_entry) {
+              const typeName = valueField.type;
+              const pkg = child.parent?.fullName ? child.parent.fullName : '';
+              const candidates = [
+                pkg ? `${pkg}.${typeName}` : typeName,
+                typeName.startsWith('.') ? typeName.slice(1) : typeName,
+              ];
+              for (const cand of candidates) {
+                try {
+                  const target = root.lookupType(cand);
+                  if (target && target !== child && !target.options?.mapEntry && !target.options?.map_entry) {
+                    valueField.resolvedType = target;
+                    break;
+                  }
+                } catch {}
+              }
+            }
+          }
+        }
+        fixNamespace(child);
+      }
+    }
+  }
+  fixNamespace(root);
+}
+
+/**
  * Recursively convert JSON objects meant for gRPC maps into arrays of {key, value} entries.
  */
 export function parseMapsToArrays(type: any, payload: any): any {
@@ -428,17 +467,20 @@ export function parseMapsToArrays(type: any, payload: any): any {
     if (keyInPayload) {
       let val = result[keyInPayload];
       
-      if (field.resolvedType) {
-        const isWrapper = field.resolvedType.fullName && 
-                          field.resolvedType.fullName.startsWith('.google.protobuf.') && 
-                          field.resolvedType.fullName.endsWith('Value');
+      try { field.resolve(); } catch {}
+      let fieldResolvedType = field.resolvedType;
+
+      if (fieldResolvedType) {
+        const isWrapper = fieldResolvedType.fullName && 
+                          fieldResolvedType.fullName.startsWith('.google.protobuf.') && 
+                          fieldResolvedType.fullName.endsWith('Value');
         
         if (isWrapper && val !== null && typeof val !== 'object') {
           val = { value: val };
           result[keyInPayload] = val;
         }
 
-        if (field.resolvedType.fullName === '.google.protobuf.Timestamp' && typeof val === 'string') {
+        if (fieldResolvedType.fullName === '.google.protobuf.Timestamp' && typeof val === 'string') {
           const date = new Date(val);
           if (!isNaN(date.getTime())) {
             const seconds = Math.floor(date.getTime() / 1000);
@@ -448,7 +490,7 @@ export function parseMapsToArrays(type: any, payload: any): any {
           }
         }
 
-        if (field.resolvedType.fullName === '.google.protobuf.Duration' && typeof val === 'string') {
+        if (fieldResolvedType.fullName === '.google.protobuf.Duration' && typeof val === 'string') {
           const match = val.match(/^(\d+(\.\d+)?)s?$/);
           if (match) {
             const totalSeconds = parseFloat(match[1]);
@@ -461,25 +503,33 @@ export function parseMapsToArrays(type: any, payload: any): any {
 
         const isMapEntry = field.map || (
           field.repeated && 
-          field.resolvedType && 
-          field.resolvedType.options && 
-          (field.resolvedType.options.mapEntry || field.resolvedType.options.map_entry)
+          fieldResolvedType && 
+          fieldResolvedType.options && 
+          (fieldResolvedType.options.mapEntry || fieldResolvedType.options.map_entry)
         );
 
         if (isMapEntry && val && typeof val === 'object' && !Array.isArray(val)) {
           const arr = [];
+          let valueType = null;
+          if (field.map) {
+            valueType = fieldResolvedType;
+          } else if (fieldResolvedType.fields && fieldResolvedType.fields['value']) {
+            const valueField = fieldResolvedType.fields['value'];
+            try { valueField.resolve(); } catch {}
+            valueType = valueField.resolvedType;
+          }
+
           for (const [k, v] of Object.entries(val)) {
-            const valueField = field.resolvedType.fields['value'];
             arr.push({
               key: k,
-              value: (valueField && valueField.resolvedType) ? parseMapsToArrays(valueField.resolvedType, v) : v
+              value: valueType ? parseMapsToArrays(valueType, v) : v
             });
           }
           result[keyInPayload] = arr;
         } else if (field.repeated && Array.isArray(val)) {
-          result[keyInPayload] = val.map((item: any) => parseMapsToArrays(field.resolvedType, item));
+          result[keyInPayload] = val.map((item: any) => parseMapsToArrays(fieldResolvedType, item));
         } else {
-          result[keyInPayload] = parseMapsToArrays(field.resolvedType, val);
+          result[keyInPayload] = parseMapsToArrays(fieldResolvedType, val);
         }
       }
 

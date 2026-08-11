@@ -8,6 +8,7 @@ import {
   indexDescriptorTypes, 
   generateSampleBody, 
   parseMapsToArrays, 
+  fixMapEntryTypes,
   processDescriptorBuffers,
   MethodInfo,
   SampleVariant
@@ -510,6 +511,7 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
           })
           const root = protobuf.Root.fromDescriptor(descriptorSet)
           root.resolveAll()
+          fixMapEntryTypes(root)
 
           const requestType = root.lookupType(inputTypeName)
           const responseType = root.lookupType(outputTypeName)
