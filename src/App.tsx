@@ -2205,6 +2205,32 @@ const App: React.FC = () => {
     }
   }
 
+  const getTabTooltip = (tab: Tab): string => {
+    const dirtySuffix = tab.isDirty ? ' (unsaved)' : ''
+    if (tab.type === 'flow') {
+      return `Flow: ${tab.flow?.name || 'New Flow'}${dirtySuffix}`
+    }
+    if (tab.type === 'request') {
+      const req = tab.request
+      if (!req) return `Untitled${dirtySuffix}`
+      const methodStr = req.type === 'GRPC' ? 'gRPC' : (req.method || 'GET')
+
+      let displayName = req.name ? req.name.trim() : ''
+      if (!displayName && req.type === 'GRPC' && (req.grpcService || req.grpcMethod)) {
+        displayName = [req.grpcService, req.grpcMethod].filter(Boolean).join('/')
+      }
+
+      const urlStr = req.url ? req.url.trim() : ''
+
+      if (displayName && urlStr && displayName !== urlStr) {
+        return `[${methodStr}] ${displayName} (${urlStr})${dirtySuffix}`
+      }
+      const mainText = displayName || urlStr || 'Untitled'
+      return `[${methodStr}] ${mainText}${dirtySuffix}`
+    }
+    return `New Tab${dirtySuffix}`
+  }
+
   const configTabs = ([
     { key: 'body', label: 'Body' },
     { key: 'params', label: 'Params' },
@@ -2689,6 +2715,7 @@ const App: React.FC = () => {
                     className={`tab-item ${activeTabId === tab.id ? 'tab-active' : ''}`}
                     data-dirty={tab.isDirty ? 'true' : 'false'}
                     data-group-id={tab.groupId || ''}
+                    title={getTabTooltip(tab)}
                     as="div"
                     style={group ? {
                       '--group-color': group.color,
@@ -2725,7 +2752,7 @@ const App: React.FC = () => {
                       {tab.isDirty ? '*' : ''}
                     </span>
 
-                    <button className="tab-close" onClick={(e) => removeTab(e, tab.id)}>
+                    <button className="tab-close" title="Close tab" onClick={(e) => removeTab(e, tab.id)}>
                       <X size={12} />
                     </button>
                     {activeTabId === tab.id && (
