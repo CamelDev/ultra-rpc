@@ -420,19 +420,27 @@ export function fixMapEntryTypes(root: any) {
             const currentResolved = valueField.resolvedType;
             if (!currentResolved || currentResolved === child || currentResolved.options?.mapEntry || currentResolved.options?.map_entry) {
               const typeName = valueField.type;
-              const pkg = child.parent?.fullName ? child.parent.fullName : '';
-              const candidates = [
-                pkg ? `${pkg}.${typeName}` : typeName,
-                typeName.startsWith('.') ? typeName.slice(1) : typeName,
-              ];
-              for (const cand of candidates) {
-                try {
-                  const target = root.lookupType(cand);
-                  if (target && target !== child && !target.options?.mapEntry && !target.options?.map_entry) {
-                    valueField.resolvedType = target;
-                    break;
-                  }
-                } catch {}
+              try {
+                const target = child.lookupType ? child.lookupType(typeName) : null;
+                if (target && target !== child && !target.options?.mapEntry && !target.options?.map_entry) {
+                  valueField.resolvedType = target;
+                }
+              } catch {}
+
+              if (!valueField.resolvedType || valueField.resolvedType === child || valueField.resolvedType.options?.mapEntry) {
+                let curr: any = child.parent;
+                while (curr) {
+                  const pkg = curr.fullName;
+                  const cand = pkg ? `${pkg}.${typeName}` : typeName;
+                  try {
+                    const target = root.lookupType(cand);
+                    if (target && target !== child && !target.options?.mapEntry && !target.options?.map_entry) {
+                      valueField.resolvedType = target;
+                      break;
+                    }
+                  } catch {}
+                  curr = curr.parent;
+                }
               }
             }
           }
@@ -509,23 +517,38 @@ export function parseMapsToArrays(type: any, payload: any): any {
         );
 
         if (isMapEntry && val && typeof val === 'object' && !Array.isArray(val)) {
-          const arr = [];
-          let valueType = null;
           if (field.map) {
-            valueType = fieldResolvedType;
-          } else if (fieldResolvedType.fields && fieldResolvedType.fields['value']) {
-            const valueField = fieldResolvedType.fields['value'];
-            try { valueField.resolve(); } catch {}
-            valueType = valueField.resolvedType;
-          }
+            const mappedObj: Record<string, any> = {};
+            for (const [k, v] of Object.entries(val)) {
+              mappedObj[k] = fieldResolvedType ? parseMapsToArrays(fieldResolvedType, v) : v;
+            }
+            result[keyInPayload] = mappedObj;
+          } else {
+            const arr = [];
+            let valueType = null;
+            if (fieldResolvedType.fields && fieldResolvedType.fields['value']) {
+              const valueField = fieldResolvedType.fields['value'];
+              try { valueField.resolve(); } catch {}
+              valueType = valueField.resolvedType;
+              if (!valueType || valueType === fieldResolvedType || valueType.options?.mapEntry || valueType.options?.map_entry) {
+                try {
+                  const target = fieldResolvedType.lookupType ? fieldResolvedType.lookupType(valueField.type) : null;
+                  if (target && target !== fieldResolvedType && !target.options?.mapEntry && !target.options?.map_entry) {
+                    valueType = target;
+                    valueField.resolvedType = target;
+                  }
+                } catch {}
+              }
+            }
 
-          for (const [k, v] of Object.entries(val)) {
-            arr.push({
-              key: k,
-              value: valueType ? parseMapsToArrays(valueType, v) : v
-            });
+            for (const [k, v] of Object.entries(val)) {
+              arr.push({
+                key: k,
+                value: valueType ? parseMapsToArrays(valueType, v) : v
+              });
+            }
+            result[keyInPayload] = arr;
           }
-          result[keyInPayload] = arr;
         } else if (field.repeated && Array.isArray(val)) {
           result[keyInPayload] = val.map((item: any) => parseMapsToArrays(fieldResolvedType, item));
         } else {
