@@ -112,8 +112,9 @@ test.describe('Library Management Suite', () => {
 
     // 4. Rename
     console.log('Renaming script...');
-    // Click the rename button for the linked script (it's the last one)
-    await window.locator('button[title="Rename script"]').last().click({ force: true });
+    // Click the rename button for the linked script
+    const linkedItemForRename = window.locator('.library-item', { hasText: 'linked-lib.js' });
+    await linkedItemForRename.locator('button[title="Rename script"]').click({ force: true });
     
     // The input should now be visible
     const renameInput = window.locator('input.lib-rename-input');
@@ -132,7 +133,9 @@ test.describe('Library Management Suite', () => {
 
     // 5. Delete
     // Handle confirmation dialog
-    window.on('dialog', (dialog: any) => dialog.accept());
+    window.once('dialog', async (dialog: any) => {
+      await dialog.accept();
+    });
     console.log('Deleting script...');
     await renamedItem.locator('.lib-item-btn.danger').click();
     await expect(renamedItem).not.toBeVisible();

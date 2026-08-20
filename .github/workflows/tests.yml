@@ -41,32 +41,36 @@ jobs:
     name: E2E Tests
     needs: unit-test
     timeout-minutes: 20
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.0-jammy
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        shardIndex: [1, 2, 3, 4]
+        shardTotal: [4]
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
     steps:
     - uses: actions/checkout@v5
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 22
-    - uses: oven-sh/setup-bun@v2
-      with:
-        bun-version: latest
-    - name: Cache Electron binaries
+    - name: Configure Git Safe Directory
+      run: git config --global --add safe.directory "*"
+    - name: Setup Bun
+      run: npm install -g bun
+    - name: Cache Bun dependencies
       uses: actions/cache@v4
       with:
-        path: |
-          ~/.cache/electron
-          ~/.cache/electron-builder
-          ~/AppData/Local/electron/Cache
-          ~/AppData/Local/electron-builder/Cache
-          ~/Library/Caches/electron
-          ~/Library/Caches/electron-builder
-        key: ${{ runner.os }}-electron-cache-${{ hashFiles('package.json') }}
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'package.json') }}
         restore-keys: |
-          ${{ runner.os }}-electron-cache-
+          ${{ runner.os }}-bun-
+    - name: Cache Electron binary
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/electron
+        key: ${{ runner.os }}-electron-${{ hashFiles('bun.lock', 'package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-electron-
     - name: Install dependencies
       run: bun install
     - name: Lint
@@ -75,17 +79,10 @@ jobs:
     - name: Build App
       run: bun run build
     - name: Run Playwright tests
-      run: |
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- bun run test:e2e
-        else
-          bun run test:e2e
-        fi
-      shell: bash
+      run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" bunx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: playwright-report-${{ matrix.os }}
-        path: |
-          test-output/
+        name: playwright-report-shard-${{ matrix.shardIndex }}
+        path: test-output/
         retention-days: 30

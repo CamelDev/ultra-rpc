@@ -2717,7 +2717,12 @@ export function registerStorageHandlers() {
   ipcMain.handle('storage:deleteJsFile', async (_event, filePath: string) => {
     try {
       if (fs.existsSync(filePath)) {
-        await shell.trashItem(filePath)
+        try {
+          await shell.trashItem(filePath)
+        } catch (e) {
+          // Fallback if trashItem fails (e.g. in headless Linux containers)
+          fs.unlinkSync(filePath)
+        }
       }
       return { success: true }
     } catch (err: any) {
