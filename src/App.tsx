@@ -28,6 +28,7 @@ import type { FlowDefinition } from './types/flow'
 import type { Tab, TabGroup, RequestConfig, ResponseData, Environment, Collection, CollectionItem, VaultEntry, Library } from './types'
 import TabGroupsModal from './components/TabGroupsModal'
 import { createEmptyRequest, getAutoBodyType } from './lib/helpers'
+import { upsertVariableInList } from './lib/variable-utils'
 import IntroPage from './components/IntroPage'
 import pkg from '../package.json'
 import Toaster, { addToast } from './components/Toaster'
@@ -820,6 +821,35 @@ const App: React.FC = () => {
   const activeVaultEntries = vaults[(activeTab?.envId || activeEnvId) ?? ''] || []
   const activeRequestTab = activeTab?.type === 'request' ? activeTab : null
   const activeRequestCollection = activeRequestTab ? findCollectionByRequestId(activeRequestTab.request.id) : null
+
+  const handleUpdateVariable = useCallback(async (
+    key: string,
+    value: string,
+    scope: 'collection' | 'environment'
+  ) => {
+    if (scope === 'collection') {
+      if (!activeRequestCollection) return
+      const currentVars = activeRequestCollection.variables || []
+      const updatedVars = upsertVariableInList(currentVars, key, value)
+      await handleSaveContextVariables(activeRequestCollection.id, updatedVars)
+      addToast({
+        type: 'success',
+        message: `Saved variable {{${key}}} in collection "${activeRequestCollection.name}"`
+      })
+    } else if (scope === 'environment') {
+      if (!activeEnv) return
+      const currentVars = activeEnv.variables || []
+      const updatedVars = upsertVariableInList(currentVars, key, value)
+      const updatedEnvs = environments.map(e =>
+        e.id === activeEnv.id ? { ...e, variables: updatedVars } : e
+      )
+      handleEnvChange(updatedEnvs)
+      addToast({
+        type: 'success',
+        message: `Saved variable {{${key}}} in environment "${activeEnv.name}"`
+      })
+    }
+  }, [activeRequestCollection, handleSaveContextVariables, activeEnv, environments, handleEnvChange])
 
   const activeConfigTab = activeRequest?.activeConfigTab || 'body'
   const activeBody = activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')
@@ -2869,6 +2899,8 @@ const App: React.FC = () => {
                       contextVariables={activeRequestCollection?.variables}
                       vaultEntries={activeVaultEntries}
                       theme={resolvedTheme}
+                      onUpdateVariable={handleUpdateVariable}
+                      collectionName={activeRequestCollection?.name}
                     />
                     <button
                       className="btn-ghost save-btn"
@@ -2964,6 +2996,8 @@ const App: React.FC = () => {
                               contextVariables={activeRequestCollection?.variables}
                               vaultEntries={activeVaultEntries}
                               theme={resolvedTheme}
+                              onUpdateVariable={handleUpdateVariable}
+                              collectionName={activeRequestCollection?.name}
                             />
                           </div>
                           <div className="grpc-field-row" id="grpc-method-row">
@@ -2979,6 +3013,8 @@ const App: React.FC = () => {
                                 contextVariables={activeRequestCollection?.variables}
                                 vaultEntries={activeVaultEntries}
                                 theme={resolvedTheme}
+                                onUpdateVariable={handleUpdateVariable}
+                                collectionName={activeRequestCollection?.name}
                               />
                               <button
                                 type="button"
@@ -3007,6 +3043,8 @@ const App: React.FC = () => {
                                 contextVariables={activeRequestCollection?.variables}
                                 vaultEntries={activeVaultEntries}
                                 theme={resolvedTheme}
+                                onUpdateVariable={handleUpdateVariable}
+                                collectionName={activeRequestCollection?.name}
                               />
                               <button
                                 type="button"
@@ -3129,6 +3167,8 @@ const App: React.FC = () => {
                           contextVariables={activeRequestCollection?.variables}
                           vaultEntries={activeVaultEntries}
                           theme={resolvedTheme}
+                          onUpdateVariable={handleUpdateVariable}
+                          collectionName={activeRequestCollection?.name}
                         />
                       )}
                       {activeConfigTab === 'headers' && (
@@ -3141,6 +3181,8 @@ const App: React.FC = () => {
                           contextVariables={activeRequestCollection?.variables}
                           vaultEntries={activeVaultEntries}
                           theme={resolvedTheme}
+                          onUpdateVariable={handleUpdateVariable}
+                          collectionName={activeRequestCollection?.name}
                         />
                       )}
                       {activeConfigTab === 'body' && (
@@ -3223,6 +3265,8 @@ const App: React.FC = () => {
                               }
                             }}
                             theme={resolvedTheme}
+                            onUpdateVariable={handleUpdateVariable}
+                            collectionName={activeRequestCollection?.name}
                           />
                         </div>
                       )}

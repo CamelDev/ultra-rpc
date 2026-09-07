@@ -15,6 +15,8 @@ interface Props {
   vaultEntries?: any[]
   theme?: 'dark' | 'light'
   confirmDelete?: boolean
+  onUpdateVariable?: (key: string, value: string, scope: 'collection' | 'environment') => Promise<void> | void
+  collectionName?: string
 }
 
 const KeyValueEditor: React.FC<Props> = ({
@@ -27,6 +29,8 @@ const KeyValueEditor: React.FC<Props> = ({
   vaultEntries,
   theme = 'dark',
   confirmDelete = false,
+  onUpdateVariable,
+  collectionName,
 }) => {
   const [focusedId, setFocusedId] = useState<string | null>(null)
 
@@ -83,6 +87,8 @@ const KeyValueEditor: React.FC<Props> = ({
                 contextVariables={contextVariables}
                 vaultEntries={vaultEntries}
                 theme={theme}
+                onUpdateVariable={onUpdateVariable}
+                collectionName={collectionName}
               />
             ) : (
               <input

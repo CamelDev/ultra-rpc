@@ -22,6 +22,8 @@ interface Props {
   style?: React.CSSProperties
   enableSearch?: boolean
   onFollowDefinition?: (name: string) => void
+  onUpdateVariable?: (key: string, value: string, scope: 'collection' | 'environment') => Promise<void> | void
+  collectionName?: string
 }
 
 const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedInput({
@@ -43,6 +45,8 @@ const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedI
     style,
     enableSearch = false,
     onFollowDefinition,
+    onUpdateVariable,
+    collectionName,
   }, ref) {
     const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
     
@@ -65,6 +69,8 @@ const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedI
           theme={theme}
           enableSearch={enableSearch}
           onFollowDefinition={onFollowDefinition}
+          onUpdateVariable={onUpdateVariable}
+          collectionName={collectionName}
         />
       </div>
     )

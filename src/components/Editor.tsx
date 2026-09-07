@@ -25,6 +25,8 @@ import { autocompletion, type CompletionContext, type CompletionResult } from '@
 import { createPortal } from 'react-dom'
 import type { Environment, VaultEntry } from '../types'
 import { getJsonPathFromCmtree } from '../lib/json-utils'
+import VariableQuickPopover from './VariableQuickPopover'
+import { resolveVariableInfo, upsertVariableInList, type ResolvedVariableInfo } from '../lib/variable-utils'
 import './Editor.css'
 
 const lightHighlightStyle = HighlightStyle.define([
@@ -268,6 +270,8 @@ interface Props {
   enableSearch?: boolean
   onSelectPath?: (path: string) => void
   typeAnnotations?: Record<string, string | { type: string; enumValues?: string[]; optional?: boolean }>
+  onUpdateVariable?: (key: string, value: string, scope: 'collection' | 'environment') => Promise<void> | void
+  collectionName?: string
 }
 
 export interface EditorHandle {
@@ -308,6 +312,8 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
   enableSearch = false,
   onSelectPath,
   typeAnnotations,
+  onUpdateVariable,
+  collectionName,
 }, ref) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -337,6 +343,70 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     visible: false, x: 0, y: 0, text: ''
   })
   const tooltipTimeoutId = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [varPopover, setVarPopover] = useState<{
+    visible: boolean
+    x: number
+    y: number
+    varName: string
+    resolved: ResolvedVariableInfo
+  } | null>(null)
+  const varPopoverRef = useRef(varPopover)
+  useEffect(() => {
+    varPopoverRef.current = varPopover
+  }, [varPopover])
+
+  const varPopoverShowTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const varPopoverHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isMouseInPopoverRef = useRef(false)
+
+  const showVarPopover = useCallback((x: number, y: number, varName: string, immediate = false) => {
+    if (varPopoverHideTimer.current) {
+      clearTimeout(varPopoverHideTimer.current)
+      varPopoverHideTimer.current = null
+    }
+
+    if (varPopoverRef.current?.visible && varPopoverRef.current.varName === varName) {
+      return
+    }
+
+    const resolved = resolveVariableInfo(varName, contextVariables, activeEnv, vaultEntries)
+
+    if (immediate) {
+      if (varPopoverShowTimer.current) {
+        clearTimeout(varPopoverShowTimer.current)
+        varPopoverShowTimer.current = null
+      }
+      setVarPopover({ visible: true, x, y, varName, resolved })
+      return
+    }
+
+    if (varPopoverShowTimer.current) clearTimeout(varPopoverShowTimer.current)
+    varPopoverShowTimer.current = setTimeout(() => {
+      setVarPopover({ visible: true, x, y, varName, resolved })
+    }, 180)
+  }, [contextVariables, activeEnv, vaultEntries])
+
+  const hideVarPopover = useCallback((immediate = false) => {
+    if (varPopoverShowTimer.current) {
+      clearTimeout(varPopoverShowTimer.current)
+      varPopoverShowTimer.current = null
+    }
+    if (immediate) {
+      if (varPopoverHideTimer.current) {
+        clearTimeout(varPopoverHideTimer.current)
+        varPopoverHideTimer.current = null
+      }
+      setVarPopover(null)
+      return
+    }
+    if (varPopoverHideTimer.current) clearTimeout(varPopoverHideTimer.current)
+    varPopoverHideTimer.current = setTimeout(() => {
+      if (!isMouseInPopoverRef.current) {
+        setVarPopover(null)
+      }
+    }, 250)
+  }, [])
   const onChangeRef = useRef(onChange)
 
   // Keep the ref updated with the latest onChange prop
@@ -524,12 +594,32 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
               }
             }
           }
+
+          if (onUpdateVariable) {
+            const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+            if (pos !== null) {
+              const text = view.state.doc.toString()
+              const regex = /\{\{([\w.-]+)\}\}/g
+              let match
+              while ((match = regex.exec(text)) !== null) {
+                if (pos >= match.index && pos <= match.index + match[0].length) {
+                  const coords = view.coordsAtPos(match.index)
+                  const anchorX = coords ? (coords.left + coords.right) / 2 : e.clientX
+                  const anchorY = coords ? coords.top : e.clientY
+                  showVarPopover(anchorX, anchorY, match[1], true)
+                  return true
+                }
+              }
+            }
+          }
+
           return false
         },
         mousemove: (e, view) => {
           const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
           if (pos === null) {
             handleMouseLeaveVar()
+            if (onUpdateVariable) hideVarPopover()
             return
           }
 
@@ -550,16 +640,27 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
           while ((match = regex.exec(text)) !== null) {
             if (pos >= match.index && pos <= match.index + match[0].length) {
               const varName = match[1] // Use the first capture group (the variable name inside {{...}})
-              const titleText = resolveVariable(varName)
-              handleMouseEnterVar(e as any, titleText)
+              if (onUpdateVariable) {
+                const coords = view.coordsAtPos(match.index)
+                const anchorX = coords ? (coords.left + coords.right) / 2 : e.clientX
+                const anchorY = coords ? coords.top : e.clientY
+                showVarPopover(anchorX, anchorY, varName)
+              } else {
+                const titleText = resolveVariable(varName)
+                handleMouseEnterVar(e as any, titleText)
+              }
               found = true
               break
             }
           }
-          if (!found) handleMouseLeaveVar()
+          if (!found) {
+            handleMouseLeaveVar()
+            if (onUpdateVariable) hideVarPopover()
+          }
         },
         mouseleave: () => {
           handleMouseLeaveVar()
+          if (onUpdateVariable) hideVarPopover()
         }
       })
     ]
@@ -600,7 +701,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     if (readOnly) extensions.push(EditorState.readOnly.of(true))
 
     return extensions
-  }, [language, placeholder, readOnly, autoHeight, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition, onSelectPath, onBlur, typeAnnotations])
+  }, [language, placeholder, readOnly, autoHeight, singleLine, wrapLines, onKeyDown, theme, enableSearch, handleMouseEnterVar, handleMouseLeaveVar, resolveVariable, variableCompletionSource, handleFormat, onFollowDefinition, onSelectPath, onBlur, typeAnnotations, showVarPopover, hideVarPopover, onUpdateVariable])
 
   // Initialize view once on mount
   const initialValue = useRef(value)
@@ -703,6 +804,47 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
           {tooltip.text}
         </div>,
         document.body
+      )}
+
+      {varPopover && varPopover.visible && onUpdateVariable && (
+        <VariableQuickPopover
+          varName={varPopover.varName}
+          currentValue={varPopover.resolved.currentValue}
+          source={varPopover.resolved.source}
+          sourceLabel={varPopover.resolved.sourceLabel}
+          collectionName={collectionName}
+          environmentName={activeEnv?.name}
+          canSaveCollection={Boolean(contextVariables !== undefined)}
+          canSaveEnvironment={Boolean(activeEnv)}
+          x={varPopover.x}
+          y={varPopover.y}
+          onClose={() => hideVarPopover(true)}
+          onSave={async (name, val, scope) => {
+            await onUpdateVariable(name, val, scope)
+            const newResolved = resolveVariableInfo(
+              name,
+              scope === 'collection'
+                ? upsertVariableInList(contextVariables, name, val)
+                : contextVariables,
+              scope === 'environment' && activeEnv
+                ? { ...activeEnv, variables: upsertVariableInList(activeEnv.variables, name, val) }
+                : activeEnv,
+              vaultEntries
+            )
+            setVarPopover(prev => prev ? { ...prev, resolved: newResolved } : null)
+          }}
+          onMouseEnter={() => {
+            isMouseInPopoverRef.current = true
+            if (varPopoverHideTimer.current) {
+              clearTimeout(varPopoverHideTimer.current)
+              varPopoverHideTimer.current = null
+            }
+          }}
+          onMouseLeave={() => {
+            isMouseInPopoverRef.current = false
+            hideVarPopover()
+          }}
+        />
       )}
     </div>
   )
