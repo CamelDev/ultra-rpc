@@ -27,7 +27,7 @@ import FlowPanel from './components/FlowPanel'
 import type { FlowDefinition } from './types/flow'
 import type { Tab, TabGroup, RequestConfig, ResponseData, Environment, Collection, CollectionItem, VaultEntry, Library } from './types'
 import TabGroupsModal from './components/TabGroupsModal'
-import { createEmptyRequest } from './lib/helpers'
+import { createEmptyRequest, getAutoBodyType } from './lib/helpers'
 import IntroPage from './components/IntroPage'
 import pkg from '../package.json'
 import Toaster, { addToast } from './components/Toaster'
@@ -822,6 +822,8 @@ const App: React.FC = () => {
   const activeRequestCollection = activeRequestTab ? findCollectionByRequestId(activeRequestTab.request.id) : null
 
   const activeConfigTab = activeRequest?.activeConfigTab || 'body'
+  const activeBody = activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')
+  const activeBodyType = getAutoBodyType(activeBody)
   const setActiveConfigTab = (tab: RequestTab) => {
     setTabs(prev =>
       prev.map(t =>
@@ -3098,7 +3100,6 @@ const App: React.FC = () => {
                                   grpcService: svc,
                                   grpcMethod: method,
                                   grpcPayload: sampleBody || '{}',
-                                  bodyType: 'json',
                                   ...(activeRequest.grpcReflection !== false ? { protoPath: '' } : {})
                                 })
                                 setActiveConfigTab('body')
@@ -3148,8 +3149,25 @@ const App: React.FC = () => {
                             {(['json', 'text', 'none'] as const).map(bt => (
                               <button
                                 key={bt}
-                                className={`body-type-btn ${activeRequest.bodyType === bt ? 'body-type-active' : ''}`}
-                                onClick={() => updateActiveRequest({ bodyType: bt })}
+                                className={`body-type-btn ${activeBodyType === bt ? 'body-type-active' : ''}`}
+                                onClick={() => {
+                                  if (bt === 'none') {
+                                    if (activeRequest.type === 'GRPC') {
+                                      updateActiveRequest({ grpcPayload: '' })
+                                    } else {
+                                      updateActiveRequest({ body: '' })
+                                    }
+                                  } else if (bt === 'json') {
+                                    if (!activeBody.trim().startsWith('{')) {
+                                      const template = '{\n  \n}'
+                                      if (activeRequest.type === 'GRPC') {
+                                        updateActiveRequest({ grpcPayload: template })
+                                      } else {
+                                        updateActiveRequest({ body: template })
+                                      }
+                                    }
+                                  }
+                                }}
                               >
                                 {bt.toUpperCase()}
                               </button>
@@ -3181,33 +3199,31 @@ const App: React.FC = () => {
                               </button>
                             </div>
                           </div>
-                          {activeRequest.bodyType !== 'none' && (
-                            <InterpolatedInput
-                              ref={bodyEditorRef}
-                              className="body-textarea"
-                              multiline
-                              activeEnv={activeEnv}
-                              wrapLines={wrapLines}
-                              contextVariables={activeRequestCollection?.variables}
-                              vaultEntries={activeVaultEntries}
-                              enableSearch
-                              placeholder={activeRequest.type === 'GRPC'
-                                ? '{\n  "field": "value"\n}'
-                                : activeRequest.bodyType === 'json'
-                                  ? '{\n  "key": "value"\n}'
-                                  : 'Plain text body...'}
-                              value={activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')}
-                              highlightJson={activeRequest.bodyType === 'json'}
-                              onChange={(val) => {
-                                if (activeRequest.type === 'GRPC') {
-                                  updateActiveRequest({ grpcPayload: val })
-                                } else {
-                                  updateActiveRequest({ body: val })
-                                }
-                              }}
-                              theme={resolvedTheme}
-                            />
-                          )}
+                          <InterpolatedInput
+                            ref={bodyEditorRef}
+                            className="body-textarea"
+                            multiline
+                            activeEnv={activeEnv}
+                            wrapLines={wrapLines}
+                            contextVariables={activeRequestCollection?.variables}
+                            vaultEntries={activeVaultEntries}
+                            enableSearch
+                            placeholder={activeRequest.type === 'GRPC'
+                              ? '{\n  "field": "value"\n}'
+                              : activeBodyType === 'text'
+                                ? 'Plain text body...'
+                                : '{\n  "key": "value"\n}'}
+                            value={activeBody}
+                            highlightJson={activeBodyType === 'json'}
+                            onChange={(val) => {
+                              if (activeRequest.type === 'GRPC') {
+                                updateActiveRequest({ grpcPayload: val })
+                              } else {
+                                updateActiveRequest({ body: val })
+                              }
+                            }}
+                            theme={resolvedTheme}
+                          />
                         </div>
                       )}
                       {activeConfigTab === 'auth' && (

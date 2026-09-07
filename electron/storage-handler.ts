@@ -193,7 +193,7 @@ interface SavedRequest {
   params: any[]
   headers: any[]
   body: string
-  bodyType: string
+  bodyType?: string
   grpcService?: string
   grpcMethod?: string
   grpcPayload?: string
@@ -220,6 +220,12 @@ interface CollectionItem {
   children?: CollectionItem[]
 }
 
+const getAutoBodyType = (body?: string | null): 'json' | 'text' | 'none' => {
+  if (!body || !body.trim()) return 'none'
+  if (body.trim().startsWith('{')) return 'json'
+  return 'text'
+}
+
 const validateRequest = (req: any, idOverride?: string): SavedRequest | null => {
   if (!req || typeof req !== 'object') return null
 
@@ -237,7 +243,7 @@ const validateRequest = (req: any, idOverride?: string): SavedRequest | null => 
     params: Array.isArray(req.params) ? req.params : [],
     headers: Array.isArray(req.headers) ? req.headers : [],
     body: req.body || '',
-    bodyType: req.bodyType || 'none',
+    bodyType: getAutoBodyType(req.body),
     grpcService: req.grpcService,
     grpcMethod: req.grpcMethod,
     grpcPayload: req.grpcPayload,
@@ -1056,10 +1062,13 @@ export function registerStorageHandlers() {
         fs.renameSync(existingPath, targetPath)
       }
 
-      // 4. Save the request
+      // 4. Save the request (do not store settings for active type "json/text/none")
+      const requestToSave = { ...args.request }
+      delete (requestToSave as any).bodyType
+
       fs.writeFileSync(
         targetPath,
-        JSON.stringify(args.request, null, 2)
+        JSON.stringify(requestToSave, null, 2)
       )
 
       // 5. Update the idMap in the folder's _meta.json
@@ -1856,6 +1865,7 @@ export function registerStorageHandlers() {
 
       content.id = newId
       content.name = newName
+      delete content.bodyType
       fs.writeFileSync(newPath, JSON.stringify(content, null, 2))
 
       updateIdMap(dir, newId, newFilename)

@@ -2,6 +2,16 @@ import type { RequestConfig, KeyValuePair } from '../types'
 
 const _uid = () => Math.random().toString(36).substring(2, 11)
 
+export function getAutoBodyType(body?: string | null): 'json' | 'text' | 'none' {
+  if (!body || !body.trim()) {
+    return 'none'
+  }
+  if (body.trim().startsWith('{')) {
+    return 'json'
+  }
+  return 'text'
+}
+
 export function createEmptyRequest(type: 'REST' | 'GRPC' = 'REST'): RequestConfig {
   return {
     id: _uid(),
@@ -12,7 +22,6 @@ export function createEmptyRequest(type: 'REST' | 'GRPC' = 'REST'): RequestConfi
     params: [emptyKV()],
     headers: [emptyKV()],
     body: '',
-    bodyType: 'json',
     grpcService: '',
     grpcMethod: '',
     grpcPayload: '{}',

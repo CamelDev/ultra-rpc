@@ -20,7 +20,7 @@ export interface RequestConfig {
   params: KeyValuePair[]
   headers: KeyValuePair[]
   body: string
-  bodyType: 'json' | 'text' | 'form-data' | 'none'
+  bodyType?: 'json' | 'text' | 'form-data' | 'none'
   activeConfigTab?: RequestTab
   // gRPC specific
   grpcService?: string
