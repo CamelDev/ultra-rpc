@@ -1,6 +1,6 @@
 // ===== Request Types =====
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-export type RequestType = 'REST' | 'GRPC'
+export type RequestType = 'REST' | 'GRPC' | 'GRAPHQL'
 
 export interface KeyValuePair {
   id: string
@@ -31,6 +31,10 @@ export interface RequestConfig {
   timeoutMs?: number
   preRequestScript?: string
   postResponseScript?: string
+  // GraphQL specific
+  graphqlQuery?: string
+  graphqlVariables?: string
+  graphqlOperationName?: string
 }
 
 export interface ResponseData {

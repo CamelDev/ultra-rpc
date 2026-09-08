@@ -28,6 +28,16 @@ const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading
   const statusClass = useMemo(() => {
     if (!response) return ''
     
+    if (response.type === 'GRAPHQL') {
+      try {
+        const body = JSON.parse(response.body);
+        if (body.errors && Array.isArray(body.errors) && body.errors.length > 0) {
+          return 'status-warning'
+        }
+      } catch {}
+      return 'status-success'
+    }
+
     if (response.type === 'GRPC') {
       return response.status === 0 ? 'status-success' : 'status-error'
     }

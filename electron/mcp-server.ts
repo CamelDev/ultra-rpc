@@ -30,7 +30,7 @@ let currentPort = 0;
 // the UI can refresh the collection panel and show a toast.
 
 export interface McpActionEvent {
-  action: 'create_collection' | 'create_folder' | 'add_rest_request' | 'update_rest_request' | 'add_grpc_request' | 'update_grpc_request' | 'add_flow' | 'update_flow';
+  action: 'create_collection' | 'create_folder' | 'add_rest_request' | 'update_rest_request' | 'add_grpc_request' | 'update_grpc_request' | 'add_flow' | 'update_flow' | 'add_graphql_request';
   name: string;
   collectionId?: string;
 }
@@ -394,6 +394,69 @@ function createMcpServerInstance(): McpServer {
         return { content: [{ type: "text", text: JSON.stringify({ success: true, requestId }, null, 2) }] };
       } catch (err: any) {
         console.error("[MCP] add_grpc_request error:", err);
+        return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
+  // ─── Tool: Add GraphQL Request ──────────────────────────────────────────
+
+  mcp.tool(
+    "add_graphql_request",
+    "Add a new GraphQL request to a specific collection.",
+    {
+      collectionId: z.string().describe("The ID of the collection to add the request to."),
+      name: z.string().describe("A human-readable name for the request."),
+      url: z.string().describe("The GraphQL endpoint URL."),
+      query: z.string().describe("The GraphQL query string."),
+      variables: z.string().optional().describe("The GraphQL variables (JSON string)."),
+      operationName: z.string().optional().describe("The operation name to execute."),
+      headers: z.record(z.string()).optional().describe("Optional headers as key-value pairs."),
+      parentId: z.string().optional().describe("Optional: Target folder ID."),
+    },
+    async ({ collectionId, name, url, query, variables, operationName, headers, parentId }) => {
+      console.log(`[MCP] tool:add_graphql_request — collectionId="${collectionId}" parentId="${parentId || ''}" name="${name}" url="${url}"`);
+      try {
+        const collDir = getCollectionDir(collectionId);
+        if (!collDir) {
+          console.warn(`[MCP] add_graphql_request — collection not found: ${collectionId}`);
+          return { content: [{ type: "text", text: `Collection not found: ${collectionId}` }], isError: true };
+        }
+
+        const targetFolderDir = parentId
+          ? resolveOrCreateFolder(collDir, { folderId: parentId }).folderDir
+          : collDir;
+
+        const requestId = Math.random().toString(36).substring(2, 11);
+        
+        let normalizedHeaders: any[] = [];
+        if (headers) {
+          normalizedHeaders = Object.entries(headers).map(([key, value]) => ({
+            id: Math.random().toString(36).substring(2, 11),
+            key,
+            name: key,
+            value: value,
+            enabled: true
+          }));
+        }
+
+        const requestToSave = {
+          id: requestId, type: "GRAPHQL", method: "POST", name, url,
+          graphqlQuery: query,
+          graphqlVariables: variables || "{}",
+          graphqlOperationName: operationName || "",
+          headers: normalizedHeaders
+        };
+
+        const newFilename = getUniqueFilename(targetFolderDir, name || "Untitled Request", ".json");
+        const targetPath = path.join(targetFolderDir, newFilename);
+        fs.writeFileSync(targetPath, JSON.stringify(requestToSave, null, 2));
+        updateIdMap(targetFolderDir, requestId, newFilename);
+        notifyRenderer({ action: 'add_graphql_request', name, collectionId });
+
+        return { content: [{ type: "text", text: JSON.stringify({ success: true, requestId }, null, 2) }] };
+      } catch (err: any) {
+        console.error("[MCP] add_graphql_request error:", err);
         return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true };
       }
     }

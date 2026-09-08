@@ -1,0 +1,301 @@
+.graphql-schema-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* ===== Discover Section ===== */
+.graphql-discover-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.graphql-discover-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.graphql-discover-info svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #ec4899;
+}
+
+.graphql-discover-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.graphql-discover-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.graphql-discover-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #ec4899;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.graphql-discover-btn:hover {
+  opacity: 0.9;
+}
+
+.graphql-discover-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Toolbar ===== */
+.graphql-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.graphql-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+
+.graphql-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+}
+
+.graphql-search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.graphql-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.graphql-refresh-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* ===== Sections ===== */
+.graphql-section {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.graphql-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.graphql-section-header:hover {
+  background: var(--bg-hover);
+}
+
+.graphql-section-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  background: var(--bg-input);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.graphql-chevron {
+  transition: transform 0.15s;
+}
+
+.graphql-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.graphql-section-content {
+  padding: 0 4px 4px;
+}
+
+/* ===== Operation Items ===== */
+.graphql-operation-item {
+  padding: 8px 12px;
+  margin: 2px 4px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.graphql-operation-item:hover {
+  background: var(--bg-hover);
+}
+
+.graphql-operation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.graphql-operation-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.graphql-operation-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.graphql-operation-return-type {
+  font-size: 11px;
+  color: #ec4899;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.graphql-use-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #ec4899;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.graphql-operation-item:hover .graphql-use-btn {
+  opacity: 1;
+}
+
+.graphql-use-btn:hover {
+  background: color-mix(in srgb, #ec4899 15%, transparent);
+}
+
+.graphql-operation-description {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+.graphql-operation-args {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.graphql-arg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-input);
+  font-size: 11px;
+}
+
+.graphql-arg-name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.graphql-arg-type {
+  color: #ec4899;
+  opacity: 0.8;
+}
+
+/* ===== Empty & Error ===== */
+.graphql-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.graphql-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  color: #ef4444;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.graphql-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ===== Spin animation ===== */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

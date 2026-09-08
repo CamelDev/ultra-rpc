@@ -21,6 +21,7 @@ interface Props {
   theme?: 'dark' | 'light'
   style?: React.CSSProperties
   enableSearch?: boolean
+  language?: 'json' | 'javascript' | 'graphql' | 'plain'
   onFollowDefinition?: (name: string) => void
   onUpdateVariable?: (key: string, value: string, scope: 'collection' | 'environment') => Promise<void> | void
   collectionName?: string
@@ -44,11 +45,12 @@ const InterpolatedInput = forwardRef<EditorHandle, Props>(function InterpolatedI
     theme = 'dark',
     style,
     enableSearch = false,
+    language: languageProp,
     onFollowDefinition,
     onUpdateVariable,
     collectionName,
   }, ref) {
-    const language = highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain')
+    const language = languageProp || (highlightJson ? 'json' : (highlightJs ? 'javascript' : 'plain'))
     
     return (
       <div className={`interpolated-input-container ${className}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', ...style }}>

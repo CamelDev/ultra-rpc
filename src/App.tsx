@@ -17,6 +17,7 @@ import EnvironmentPanel from './components/EnvironmentPanel'
 import CollectionPanel, { type CollectionPanelHandle } from './components/CollectionPanel'
 import HistoryPanel from './components/HistoryPanel'
 import GrpcReflectionPanel from './components/GrpcReflectionPanel'
+import GraphqlSchemaPanel from './components/GraphqlSchemaPanel'
 import AboutModal from './components/AboutModal'
 import AiInfoModal from './components/AiInfoModal'
 import LibraryModal from './components/LibraryModal'
@@ -267,6 +268,7 @@ const App: React.FC = () => {
   const [isResizingVertical, setIsResizingVertical] = useState(false)
   const [showGrpcDiscovery, setShowGrpcDiscovery] = useState(false)
   const [grpcDiscoveryUrl, setGrpcDiscoveryUrl] = useState('')
+  const [showGraphqlDiscovery, setShowGraphqlDiscovery] = useState(false)
   const [libraryModalWidth, setLibraryModalWidth] = useState(() => {
     const saved = localStorage.getItem('ultraRpcLibraryModalWidth')
     return saved ? parseInt(saved, 10) : 1100
@@ -852,7 +854,7 @@ const App: React.FC = () => {
   }, [activeRequestCollection, handleSaveContextVariables, activeEnv, environments, handleEnvChange])
 
   const activeConfigTab = activeRequest?.activeConfigTab || 'body'
-  const activeBody = activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : (activeRequest.body || '')
+  const activeBody = activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : activeRequest.type === 'GRAPHQL' ? (activeRequest.graphqlQuery || '') : (activeRequest.body || '')
   const activeBodyType = getAutoBodyType(activeBody)
   const setActiveConfigTab = (tab: RequestTab) => {
     setTabs(prev =>
@@ -931,12 +933,13 @@ const App: React.FC = () => {
     setActiveTabId(id)
   }
 
-  const handleIntroAction = useCallback((type: 'REST' | 'GRPC', tabId: string) => {
-    const newReq = createEmptyRequest()
-    newReq.type = type
+  const handleIntroAction = useCallback((type: 'REST' | 'GRPC' | 'GRAPHQL', tabId: string) => {
+    const newReq = createEmptyRequest(type)
     if (type === 'GRPC') {
       newReq.method = 'POST' as any
       newReq.url = ''
+    } else if (type === 'GRAPHQL') {
+      newReq.method = 'POST' as any
     }
 
     const latestTabs = tabsRef.current
@@ -1549,6 +1552,7 @@ const App: React.FC = () => {
     showAiInfoModal,
     showLibraryModal,
     showGrpcDiscovery,
+    showGraphqlDiscovery,
     showSaveFlowModal
   })
   
@@ -1564,6 +1568,7 @@ const App: React.FC = () => {
       showAiInfoModal,
       showLibraryModal,
       showGrpcDiscovery,
+      showGraphqlDiscovery,
       showSaveFlowModal
     }
   }, [
@@ -1577,6 +1582,7 @@ const App: React.FC = () => {
     showAiInfoModal,
     showLibraryModal,
     showGrpcDiscovery,
+    showGraphqlDiscovery,
     showSaveFlowModal
   ])
 
@@ -1611,6 +1617,7 @@ const App: React.FC = () => {
         if (activePopupsRef.current.showAiInfoModal) setShowAiInfoModal(false)
         if (activePopupsRef.current.showLibraryModal) setShowLibraryModal(false)
         if (activePopupsRef.current.showGrpcDiscovery) setShowGrpcDiscovery(false)
+        if (activePopupsRef.current.showGraphqlDiscovery) setShowGraphqlDiscovery(false)
         if (activePopupsRef.current.showSaveFlowModal) {
           setShowSaveFlowModal(false)
           setFlowToClone(null)
@@ -2165,6 +2172,40 @@ const App: React.FC = () => {
       } catch (err: any) {
         setErrors(prev => ({ ...prev, [tabId]: err.message }))
       }
+    } else if (currentTab.request.type === 'GRAPHQL') {
+      try {
+        if (!window.ultraRpc) throw new Error('Electron IPC not available. Run the app in Electron.')
+
+        const headers: Record<string, string> = {}
+        currentTab.request.headers.filter(h => h.enabled && h.key).forEach(h => {
+          headers[interpolateLocal(h.key)] = interpolateLocal(h.value)
+        })
+
+        if (!currentTab.request.graphqlQuery?.trim()) {
+          throw new Error('Enter a GraphQL query first.')
+        }
+
+        const isInsecure = updatedEnv?.sslVerification === false
+
+        const result = await window.ultraRpc.sendGraphqlRequest({
+          url,
+          query: interpolateLocal(currentTab.request.graphqlQuery || ''),
+          variables: interpolateLocal(currentTab.request.graphqlVariables || '{}'),
+          operationName: currentTab.request.graphqlOperationName || undefined,
+          headers,
+          insecure: isInsecure,
+          timeoutMs: currentTab.request.timeoutMs,
+        })
+        if (result.success && result.data) {
+          statusCode = result.data.status
+          setResponses(prev => ({ ...prev, [tabId]: result.data! }))
+          await runPostResponseScript(currentTab.request, result.data, tabId, currentTab.envId, scriptResult?.environments, scriptResult?.collections)
+        } else {
+          throw new Error(result.error || 'GraphQL request failed')
+        }
+      } catch (err: any) {
+        setErrors(prev => ({ ...prev, [tabId]: err.message }))
+      }
     } else {
       try {
         const headers: Record<string, string> = {}
@@ -2233,6 +2274,7 @@ const App: React.FC = () => {
       case 'PUT': return '#3b82f6'
       case 'DELETE': return '#ef4444'
       case 'PATCH': return '#8b5cf6'
+      case 'GRAPHQL': case 'GQL': return '#ec4899'
       default: return '#a855f7'
     }
   }
@@ -2245,7 +2287,7 @@ const App: React.FC = () => {
     if (tab.type === 'request') {
       const req = tab.request
       if (!req) return `Untitled${dirtySuffix}`
-      const methodStr = req.type === 'GRPC' ? 'gRPC' : (req.method || 'GET')
+      const methodStr = req.type === 'GRPC' ? 'gRPC' : req.type === 'GRAPHQL' ? 'GQL' : (req.method || 'GET')
 
       let displayName = req.name ? req.name.trim() : ''
       if (!displayName && req.type === 'GRPC' && (req.grpcService || req.grpcMethod)) {
@@ -2271,13 +2313,13 @@ const App: React.FC = () => {
     { key: 'pre-request', label: 'Pre-request' },
     { key: 'post-response', label: 'Post-response' },
   ] as { key: RequestTab; label: string }[]).filter(t => {
-    if (activeRequest?.type === 'GRPC' && t.key === 'params') return false
+    if ((activeRequest?.type === 'GRPC' || activeRequest?.type === 'GRAPHQL') && t.key === 'params') return false
     return true
   })
 
   // Auto-switch away from Params if it becomes hidden
   useEffect(() => {
-    if (activeRequest?.type === 'GRPC' && activeConfigTab === 'params') {
+    if ((activeRequest?.type === 'GRPC' || activeRequest?.type === 'GRAPHQL') && activeConfigTab === 'params') {
       setActiveConfigTab('body')
     }
   }, [activeRequest?.type, activeConfigTab])
@@ -2758,7 +2800,7 @@ const App: React.FC = () => {
                     <span className="tab-method" style={{
                       color: methodColor(
                         tab.type === 'flow' ? 'POST' : 
-                        tab.type === 'request' ? (tab.request?.type === 'GRPC' ? 'GRPC' : tab.request?.method || 'GET') : 
+                        tab.type === 'request' ? (tab.request?.type === 'GRPC' ? 'GRPC' : tab.request?.type === 'GRAPHQL' ? 'GRAPHQL' : tab.request?.method || 'GET') : 
                         'GET'
                       ),
                       display: 'flex',
@@ -2768,7 +2810,7 @@ const App: React.FC = () => {
                       {tab.type === 'flow' ? (
                         <><GitBranch size={12} /> FLOW</>
                       ) : tab.type === 'request' ? (
-                        tab.request?.type === 'GRPC' ? 'gRPC' : tab.request?.method
+                        tab.request?.type === 'GRPC' ? 'gRPC' : tab.request?.type === 'GRAPHQL' ? 'GQL' : tab.request?.method
                       ) : (
                         'NEW'
                       )}
@@ -2856,6 +2898,8 @@ const App: React.FC = () => {
                   <div className="address-bar glass">
                     {activeRequest.type === 'GRPC' ? (
                       <div className="address-type-badge grpc-badge">gRPC</div>
+                    ) : activeRequest.type === 'GRAPHQL' ? (
+                      <div className="address-type-badge graphql-badge">GraphQL</div>
                     ) : (
                       <select
                         className="method-select"
@@ -2885,13 +2929,17 @@ const App: React.FC = () => {
                             className={`type-btn ${activeRequest.type === 'GRPC' ? 'type-btn-active' : ''}`}
                             onClick={() => updateActiveRequest({ type: 'GRPC' })}
                           >gRPC</button>
+                          <button
+                            className={`type-btn ${activeRequest.type === 'GRAPHQL' ? 'type-btn-active' : ''}`}
+                            onClick={() => updateActiveRequest({ type: 'GRAPHQL', method: 'POST' as any })}
+                          >GraphQL</button>
                         </div>
                       );
                     })()}
 
                     <InterpolatedInput
                       className="address-input"
-                      placeholder={activeRequest.type === 'GRPC' ? 'host:port (e.g. api.example.com:443)' : 'https://api.example.com/endpoint'}
+                      placeholder={activeRequest.type === 'GRPC' ? 'host:port (e.g. api.example.com:443)' : activeRequest.type === 'GRAPHQL' ? 'https://api.example.com/graphql' : 'https://api.example.com/endpoint'}
                       value={activeRequest.url}
                       onChange={(val) => updateActiveRequest({ url: val })}
                       onKeyDown={(e) => e.key === 'Enter' && sendRequest()}
@@ -3070,6 +3118,26 @@ const App: React.FC = () => {
                     })()
                   )}
 
+                  {/* GraphQL-specific fields at the top of the request pane */}
+                  {activeRequest.type === 'GRAPHQL' && (
+                    <div className="grpc-fields" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          GraphQL endpoint — use the body tab to write queries/mutations
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          onClick={() => setShowGraphqlDiscovery(true)}
+                          style={{ padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}
+                          title="Discover Schema"
+                        >
+                          <Search size={12} /> Discover Schema
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ==== Config Tabs ==== */}
                   <div className="config-tabs">
                     {configTabs.map(ct => (
@@ -3156,6 +3224,53 @@ const App: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    {/* GraphQL introspection modal */}
+                    {activeRequest.type === 'GRAPHQL' && showGraphqlDiscovery && (
+                      <div className="modal-overlay" onClick={() => setShowGraphqlDiscovery(false)}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '750px', height: '80vh' }}>
+                          <div className="modal-header">
+                            <h3>GraphQL Schema Introspection</h3>
+                            <button className="modal-close-btn" onClick={() => setShowGraphqlDiscovery(false)}>
+                              <X size={20} />
+                            </button>
+                          </div>
+                          
+                          <div className="modal-body">
+                            <GraphqlSchemaPanel
+                              url={activeRequest.url}
+                              headers={(() => {
+                                const h: Record<string, string> = {}
+                                activeRequest.headers.filter(hdr => hdr.enabled && hdr.key).forEach(hdr => {
+                                  h[interpolate(hdr.key)] = interpolate(hdr.value)
+                                })
+                                return h
+                              })()}
+                              insecure={(() => {
+                                const effectiveEnvId = activeTab?.envId || activeEnvId
+                                const currentEnv = environments.find(e => e.id === effectiveEnvId)
+                                return currentEnv?.sslVerification === false
+                              })()}
+                              interpolate={interpolate}
+                              onSelectOperation={(query, operationName, variables) => {
+                                updateActiveRequest({
+                                  graphqlQuery: query,
+                                  graphqlOperationName: operationName || '',
+                                  ...(variables ? { graphqlVariables: variables } : {}),
+                                })
+                                setActiveConfigTab('body')
+                                setShowGraphqlDiscovery(false)
+                              }}
+                            />
+                          </div>
+
+                          <div className="modal-footer">
+                            <button className="btn-ghost" onClick={() => setShowGraphqlDiscovery(false)} style={{ padding: '8px 20px' }}>
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="config-content">
                       {activeConfigTab === 'params' && (
                         <KeyValueEditor
@@ -3185,7 +3300,82 @@ const App: React.FC = () => {
                           collectionName={activeRequestCollection?.name}
                         />
                       )}
-                      {activeConfigTab === 'body' && (
+                      {activeConfigTab === 'body' && activeRequest.type === 'GRAPHQL' ? (
+                        <div className="body-editor" style={{ display: 'flex', flexDirection: 'column' }}>
+                          {/* GraphQL Query Editor */}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                            <div className="body-type-bar">
+                              <span style={{ fontSize: '12px', fontWeight: 500, color: '#ec4899' }}>Query</span>
+                              <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                                <button
+                                  className="btn-ghost"
+                                  style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  onClick={() => bodyEditorRef.current?.openSearch()}
+                                  title="Search in editor"
+                                >
+                                  <Search size={14} /> Search
+                                </button>
+                                <button
+                                  className={`btn-ghost ${wrapLines ? 'env-toggle-active' : ''}`}
+                                  style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  onClick={() => setWrapLines(!wrapLines)}
+                                  title="Toggle Line Wrap"
+                                >
+                                  <WrapText size={14} /> Wrap
+                                </button>
+                              </div>
+                            </div>
+                            <InterpolatedInput
+                              ref={bodyEditorRef}
+                              className="body-textarea"
+                              multiline
+                              activeEnv={activeEnv}
+                              wrapLines={wrapLines}
+                              contextVariables={activeRequestCollection?.variables}
+                              vaultEntries={activeVaultEntries}
+                              enableSearch
+                              placeholder={'query {\n  field {\n    subfield\n  }\n}'}
+                              value={activeRequest.graphqlQuery || ''}
+                              language="graphql"
+                              onChange={(val) => updateActiveRequest({ graphqlQuery: val })}
+                              theme={resolvedTheme}
+                              onUpdateVariable={handleUpdateVariable}
+                              collectionName={activeRequestCollection?.name}
+                            />
+                          </div>
+                          {/* GraphQL Variables Editor */}
+                          <div style={{ borderTop: '1px solid var(--border-subtle)', minHeight: '120px', maxHeight: '200px', display: 'flex', flexDirection: 'column' }}>
+                            <div className="body-type-bar">
+                              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)' }}>Variables</span>
+                              <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                                <button
+                                  className="btn-ghost"
+                                  style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  onClick={handleFormatJson}
+                                  title="Format Variables JSON"
+                                >
+                                  <Code size={14} /> Format
+                                </button>
+                              </div>
+                            </div>
+                            <InterpolatedInput
+                              className="body-textarea"
+                              multiline
+                              activeEnv={activeEnv}
+                              wrapLines={wrapLines}
+                              contextVariables={activeRequestCollection?.variables}
+                              vaultEntries={activeVaultEntries}
+                              placeholder={'{\n  "key": "value"\n}'}
+                              value={activeRequest.graphqlVariables || '{}'}
+                              highlightJson
+                              onChange={(val) => updateActiveRequest({ graphqlVariables: val })}
+                              theme={resolvedTheme}
+                              onUpdateVariable={handleUpdateVariable}
+                              collectionName={activeRequestCollection?.name}
+                            />
+                          </div>
+                        </div>
+                      ) : activeConfigTab === 'body' && (
                         <div className="body-editor">
                           <div className="body-type-bar">
                             {(['json', 'text', 'none'] as const).map(bt => (
@@ -3962,7 +4152,7 @@ const App: React.FC = () => {
 
                   setConfirmDelete(null)
                   setDeleteCollectionFiles(false)
-                  if (rpc) loadCollections()
+                  if (rpc) await loadCollections()
                 }}
               >
                 Delete

@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   grpcMethods: (args: any) => ipcRenderer.invoke('grpc:methods', args),
   grpcCall: (args: any) => ipcRenderer.invoke('grpc:call', args),
 
+  // ===== GraphQL =====
+  sendGraphqlRequest: (req: any) => ipcRenderer.invoke('graphql:send', req),
+  graphqlIntrospect: (req: any) => ipcRenderer.invoke('graphql:introspect', req),
+
   // ===== Collections =====
   listCollections: () => ipcRenderer.invoke('storage:listCollections'),
   createCollection: (args: any) => ipcRenderer.invoke('storage:createCollection', args),

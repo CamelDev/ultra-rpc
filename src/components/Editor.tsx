@@ -18,6 +18,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search'
 import { javascript } from '@codemirror/lang-javascript'
 import { json } from '@codemirror/lang-json'
+import { graphql as graphqlLang } from 'cm6-graphql'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { syntaxHighlighting, HighlightStyle, codeFolding, foldGutter, foldKeymap, bracketMatching, ensureSyntaxTree } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
@@ -253,7 +254,7 @@ function createTypeHintPlugin(
 interface Props {
   value: string
   onChange?: (value: string) => void
-  language?: 'json' | 'javascript' | 'plain'
+  language?: 'json' | 'javascript' | 'plain' | 'graphql'
   placeholder?: string
   readOnly?: boolean
   autoHeight?: boolean
@@ -671,6 +672,15 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       if (typeAnnotations) {
         extensions.push(createTypeHintPlugin(typeAnnotations, handleMouseEnterVar as any, handleMouseLeaveVar))
       }
+      if (!singleLine) {
+        extensions.push(codeFolding())
+        extensions.push(foldGutter())
+        extensions.push(bracketMatching())
+        extensions.push(keymap.of(foldKeymap))
+      }
+    }
+    if (language === 'graphql') {
+      extensions.push(graphqlLang())
       if (!singleLine) {
         extensions.push(codeFolding())
         extensions.push(foldGutter())

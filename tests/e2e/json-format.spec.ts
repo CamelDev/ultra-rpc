@@ -59,26 +59,18 @@ test.describe('JSON Formatting with Variables', () => {
     const editor = window.locator('.body-textarea .cm-content');
     await expect(editor).toBeVisible({ timeout: 5000 });
     await editor.click();
+    await editor.fill(messyJson);
     
-    const isMac = process.platform === 'darwin';
-    const modifier = isMac ? 'Meta' : 'Control';
-    await window.keyboard.press(`${modifier}+A`);
-    await window.keyboard.press('Backspace');
-    await window.keyboard.type(messyJson);
-    
-    // 4. Click Format
+    // 4. Click Format button
     // Wait for the button to be visible since it's conditional
     const formatBtn = window.locator('button:has-text("Format")');
     await formatBtn.waitFor({ state: 'visible', timeout: 5000 });
     await formatBtn.click();
     
     // 5. Verify formatted content
-    await window.waitForTimeout(1000); // Wait for state update
-    const formattedContent = await editor.innerText();
-    
-    expect(formattedContent).toContain('"year": {{search_year}}');
-    expect(formattedContent).toContain('"month": {{search_month}}');
-    expect(formattedContent).toContain('  "departure_date": {');
+    await expect(editor).toContainText('"year": {{search_year}}');
+    await expect(editor).toContainText('"month": {{search_month}}');
+    await expect(editor).toContainText('  "departure_date": {');
   });
   
   test('should preserve existing quoted variables', async () => {
@@ -97,19 +89,13 @@ test.describe('JSON Formatting with Variables', () => {
     const editor = window.locator('.body-textarea .cm-content');
     await expect(editor).toBeVisible({ timeout: 5000 });
     await editor.click();
-    
-    const isMac = process.platform === 'darwin';
-    const modifier = isMac ? 'Meta' : 'Control';
-    await window.keyboard.press(`${modifier}+A`);
-    await window.keyboard.press('Backspace');
-    await window.keyboard.type(jsonWithQuotedVar);
+    await editor.fill(jsonWithQuotedVar);
     
     await window.waitForSelector('button:has-text("Format")', { timeout: 5000 });
     await window.click('button:has-text("Format")');
     
-    const formattedContent = await editor.innerText();
-    expect(formattedContent).toContain('"host": "{{search_host}}"');
-    expect(formattedContent).toContain('"port": 8080');
+    await expect(editor).toContainText('"host": "{{search_host}}"');
+    await expect(editor).toContainText('"port": 8080');
   });
 
   test('should handle complex nested structures with variables', async () => {
@@ -138,19 +124,15 @@ test.describe('JSON Formatting with Variables', () => {
      const editor = window.locator('.body-textarea .cm-content');
      await expect(editor).toBeVisible({ timeout: 5000 });
      await editor.click();
-     
-     const isMac = process.platform === 'darwin';
-     const modifier = isMac ? 'Meta' : 'Control';
-     await window.keyboard.press(`${modifier}+A`);
-     await window.keyboard.press('Backspace');
-     await window.keyboard.type(complexJson);
+     await editor.fill(complexJson);
      
      await window.waitForSelector('button:has-text("Format")', { timeout: 5000 });
      await window.click('button:has-text("Format")');
      
-     const formattedContent = await editor.innerText();
-     expect(formattedContent).toContain('"year": {{search_year}}');
-     // Verify "year" is double-indented (6 spaces)
-     expect(formattedContent).toMatch(/\s{6}"year": {{search_year}}/);
+     await expect(editor).toContainText('"year": {{search_year}}');
+     await expect(async () => {
+       const formattedContent = await editor.innerText();
+       expect(formattedContent).toMatch(/\s{6}"year": {{search_year}}/);
+     }).toPass();
   });
 });

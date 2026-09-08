@@ -1,10 +1,10 @@
 import React from 'react';
-import { Plus, FolderOpen, Globe, Terminal, Box, Zap, Shield, Layout, Code } from 'lucide-react';
+import { Plus, FolderOpen, Globe, Terminal, Box, Zap, Shield, Layout, Code, Braces } from 'lucide-react';
 import { motion } from 'framer-motion';
 import './IntroPage.css';
 
 interface IntroPageProps {
-  onNewRequest: (type: 'REST' | 'GRPC') => void;
+  onNewRequest: (type: 'REST' | 'GRPC' | 'GRAPHQL') => void;
   onOpenCollection: () => void;
   onImportEnvironments: () => void;
 }
@@ -88,6 +88,22 @@ const IntroPage: React.FC<IntroPageProps> = ({ onNewRequest, onOpenCollection, o
               <div className="card-text">
                 <h3>New gRPC Call</h3>
                 <p>Native reflection support. No proto management needed.</p>
+              </div>
+            </motion.button>
+
+            <motion.button
+              className="action-card glass-card"
+              whileHover={{ y: -4, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onNewRequest('GRAPHQL')}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55, duration: 0.5 }}
+            >
+              <div className="card-icon graphql"><Braces size={24} /></div>
+              <div className="card-text">
+                <h3>New GraphQL Query</h3>
+                <p>Query and mutate data with a powerful GraphQL editor.</p>
               </div>
             </motion.button>
 

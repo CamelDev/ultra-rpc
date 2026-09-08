@@ -10,6 +10,7 @@ import {
 } from '../../src/types/flow'
 import { handleRestRequest } from '../rest-handler'
 import { handleGrpcCall } from '../grpc-handler'
+import { handleGraphqlRequest } from '../graphql-handler'
 import { getRequestById } from '../storage-handler'
 import { getDecryptedVaultEntries } from '../vault-handler'
 
@@ -349,6 +350,30 @@ export class FlowEngine {
         }
         console.error('[FlowEngine] gRPC call failed:', result.error)
         throw new Error(result.error || 'gRPC call failed')
+      }
+      response = result.data
+      this.updateStepStatus(step.id, 'running', undefined, undefined, response)
+    } else if (savedRequest.type === 'GRAPHQL') {
+      const graphqlReq = {
+        type: 'GRAPHQL',
+        url: this.interpolate(savedRequest.url, variables),
+        query: this.interpolate(savedRequest.graphqlQuery || '', variables),
+        variables: this.interpolate(savedRequest.graphqlVariables || '{}', variables),
+        operationName: savedRequest.graphqlOperationName,
+        headers: this.interpolateHeaders(savedRequest.headers, variables),
+        insecure,
+        timeoutMs: globalTimeout,
+        abortSignal: this.currentAbortController?.signal,
+      }
+      this.updateStepStatus(step.id, 'running', undefined, graphqlReq)
+      console.log('[FlowEngine] Interpolated GRAPHQL Request:', { ...graphqlReq, query: '(omitted)' })
+      const result = await handleGraphqlRequest(graphqlReq as any) as any
+      if (!result.success) {
+        if (this.currentAbortController?.signal.aborted) {
+          throw new DOMException('Request cancelled', 'AbortError')
+        }
+        console.error('[FlowEngine] GRAPHQL request failed:', result.error)
+        throw new Error(result.error || 'GRAPHQL request failed')
       }
       response = result.data
       this.updateStepStatus(step.id, 'running', undefined, undefined, response)

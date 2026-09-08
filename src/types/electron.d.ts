@@ -42,6 +42,31 @@ export interface UltraRpcApi {
     error?: string; code?: number; time?: number
   }>
 
+  // GraphQL
+  sendGraphqlRequest: (req: {
+    url: string
+    query: string
+    variables?: string
+    operationName?: string
+    headers: Record<string, string>
+    insecure?: boolean
+    timeoutMs?: number
+  }) => Promise<{
+    success: boolean
+    data?: { type: RequestType; status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
+    error?: string
+    time?: number
+  }>
+  graphqlIntrospect: (req: {
+    url: string
+    headers: Record<string, string>
+    insecure?: boolean
+  }) => Promise<{
+    success: boolean
+    schema?: import('./graphql').GraphqlSchema
+    error?: string
+  }>
+
   // Collections
   listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; children: any[]; variables?: any[]; path?: string }[]; warnings?: string[]; error?: string }>
   createCollection: (args: { name: string; path?: string }) => Promise<{ success: boolean; id?: string; error?: string }>

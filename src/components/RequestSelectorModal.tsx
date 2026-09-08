@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Tree, type NodeRendererProps } from 'react-arborist';
 import { motion } from 'framer-motion';
-import type { Collection, CollectionItem } from '../types';
+import type { Collection, CollectionItem, RequestType } from '../types';
 import './RequestSelectorModal.css';
 
 interface RequestSelectorModalProps {
@@ -29,7 +29,7 @@ type TreeDataItem = {
   type: 'folder' | 'request' | 'flow';
   children?: TreeDataItem[];
   method?: string;
-  requestType?: 'REST' | 'GRPC';
+  requestType?: RequestType;
 };
 
 const methodColor = (m: string) => {
@@ -40,6 +40,8 @@ const methodColor = (m: string) => {
     case 'DELETE': return '#ef4444';
     case 'PATCH': return '#8b5cf6';
     case 'GRPC': return '#a855f7';
+    case 'GRAPHQL': return '#ec4899';
+    case 'GQL': return '#ec4899';
     default: return '#a855f7';
   }
 };
@@ -104,7 +106,7 @@ export const RequestSelectorModal: React.FC<RequestSelectorModalProps> = ({
       realId: item.id,
       name: item.name,
       type: item.type,
-      method: item.request?.type === 'GRPC' ? 'GRPC' : item.request?.method,
+      method: item.request?.type === 'GRPC' ? 'GRPC' : (item.request?.type === 'GRAPHQL' ? 'GRAPHQL' : item.request?.method),
       requestType: item.request?.type,
       children: item.children ? item.children.map(transform) : undefined,
     });
@@ -148,7 +150,7 @@ export const RequestSelectorModal: React.FC<RequestSelectorModalProps> = ({
               color: methodColor(method),
               borderColor: methodColor(method) + '44'
             }}>
-              {method === 'GRPC' ? 'gRPC' : method}
+              {method === 'GRPC' ? 'gRPC' : method === 'GRAPHQL' ? 'GQL' : method}
             </span>
           )}
 

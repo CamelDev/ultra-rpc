@@ -345,7 +345,11 @@ export const StepCard: React.FC<StepCardProps> = ({
                             </div>
                             <div className="metadata-item">
                               <label>Method</label>
-                              <span className="method-badge">{step.requestData.method || 'N/A'}</span>
+                              {step.requestData.type === 'GRAPHQL' ? (
+                                <span className="method-badge" style={{ backgroundColor: '#ec4899', color: '#fff', borderColor: '#ec4899' }}>GQL</span>
+                              ) : (
+                                <span className="method-badge">{step.requestData.method || 'N/A'}</span>
+                              )}
                             </div>
                           </div>
 

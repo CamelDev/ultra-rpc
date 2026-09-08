@@ -108,61 +108,64 @@ export const getUniqueFilename = (dir: string, baseName: string, extension: stri
 }
 
 const migrateDirectoryToSlugs = (dir: string) => {
-  const metaPath = path.join(dir, '_meta.json')
-  let meta: any = { idMap: {} }
-  if (fs.existsSync(metaPath)) {
-    try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch { /* */ }
-  }
-  if (!meta.idMap) meta.idMap = {}
-  
-  const entries = fs.readdirSync(dir, { withFileTypes: true })
-  let changed = false
-
-  for (const entry of entries) {
-    if (entry.name.startsWith('_meta')) continue
-    const fullPath = path.join(dir, entry.name)
-    
-    if (entry.isDirectory()) {
-      // We don't recurse here because buildTree handles recursion and will call this for each subDir
-      continue 
-    } else {
-      if (!entry.name.endsWith('.json')) continue
-
-      let isFlow = false
-      try {
-        const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
-        isFlow = !!(content.steps && content.settings)
-      } catch { /* skip corrupt */ }
-
-      const ext = isFlow ? '' : '.json'
-      const idFromFilename = path.basename(entry.name, entry.name.endsWith('.flow.json') ? '.flow.json' : '.json')
-      
-      try {
-        const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
-        const id = content.id || idFromFilename
-        
-        // If it's not in the map, OR if the filename is still the random ID
-        if (!meta.idMap[id] || entry.name.startsWith(id)) {
-          const newName = content.name || 'Untitled'
-          const newFilename = getUniqueFilename(dir, newName, ext, fullPath, isFlow)
-          const newPath = path.join(dir, newFilename)
-          
-          if (fullPath !== newPath) {
-            fs.renameSync(fullPath, newPath)
-            meta.idMap[id] = newFilename
-            changed = true
-          } else if (!meta.idMap[id]) {
-            meta.idMap[id] = entry.name
-            changed = true
-          }
-        }
-      } catch { /* skip */ }
+  try {
+    if (!fs.existsSync(dir)) return
+    const metaPath = path.join(dir, '_meta.json')
+    let meta: any = { idMap: {} }
+    if (fs.existsSync(metaPath)) {
+      try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch { /* */ }
     }
-  }
+    if (!meta.idMap) meta.idMap = {}
+    
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    let changed = false
 
-  if (changed) {
-    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
-  }
+    for (const entry of entries) {
+      if (entry.name.startsWith('_meta')) continue
+      const fullPath = path.join(dir, entry.name)
+      
+      if (entry.isDirectory()) {
+        // We don't recurse here because buildTree handles recursion and will call this for each subDir
+        continue 
+      } else {
+        if (!entry.name.endsWith('.json')) continue
+
+        let isFlow = false
+        try {
+          const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
+          isFlow = !!(content.steps && content.settings)
+        } catch { /* skip corrupt */ }
+
+        const ext = isFlow ? '' : '.json'
+        const idFromFilename = path.basename(entry.name, entry.name.endsWith('.flow.json') ? '.flow.json' : '.json')
+        
+        try {
+          const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
+          const id = content.id || idFromFilename
+          
+          // If it's not in the map, OR if the filename is still the random ID
+          if (!meta.idMap[id] || entry.name.startsWith(id)) {
+            const newName = content.name || 'Untitled'
+            const newFilename = getUniqueFilename(dir, newName, ext, fullPath, isFlow)
+            const newPath = path.join(dir, newFilename)
+            
+            if (fullPath !== newPath) {
+              fs.renameSync(fullPath, newPath)
+              meta.idMap[id] = newFilename
+              changed = true
+            } else if (!meta.idMap[id]) {
+              meta.idMap[id] = entry.name
+              changed = true
+            }
+          }
+        } catch { /* skip */ }
+      }
+    }
+
+    if (changed) {
+      fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2))
+    }
+  } catch { /* ignore if directory is inaccessible */ }
 }
 
 const findFileRecursively = (dir: string, filename: string): string | null => {
@@ -232,7 +235,7 @@ const validateRequest = (req: any, idOverride?: string): SavedRequest | null => 
   // Basic heuristic: a request should have at least a URL or a name + method
   // We skip files that are obviously not requests (like package.json, _meta.json, etc.)
   if (!req.url && !req.name) return null
-  if (!req.method && req.type !== 'GRPC') return null
+  if (!req.method && req.type !== 'GRPC' && req.type !== 'GRAPHQL') return null
 
   return {
     id: idOverride || req.id || Math.random().toString(36).substring(2, 11),
@@ -247,6 +250,9 @@ const validateRequest = (req: any, idOverride?: string): SavedRequest | null => 
     grpcService: req.grpcService,
     grpcMethod: req.grpcMethod,
     grpcPayload: req.grpcPayload,
+    graphqlQuery: req.graphqlQuery,
+    graphqlVariables: req.graphqlVariables,
+    graphqlOperationName: req.graphqlOperationName,
     grpcReflection: typeof req.grpcReflection === 'boolean' ? req.grpcReflection : undefined,
     timeoutMs: req.timeoutMs,
     preRequestScript: req.preRequestScript,
@@ -763,10 +769,15 @@ export function registerStorageHandlers() {
 
       const buildTree = (dirPath: string): CollectionItem[] => {
         // Automatically migrate to slugs if needed
-        try { migrateDirectoryToSlugs(dirPath) } catch (err) { console.error('[storage] Migration error:', err) }
+        try { migrateDirectoryToSlugs(dirPath) } catch { /* ignore */ }
 
         const childrenList: CollectionItem[] = []
-        const files = fs.readdirSync(dirPath, { withFileTypes: true })
+        let files: fs.Dirent[]
+        try {
+          files = fs.readdirSync(dirPath, { withFileTypes: true })
+        } catch {
+          return []
+        }
 
         for (const entry of files) {
           if (entry.name.startsWith('_meta')) continue
@@ -784,7 +795,9 @@ export function registerStorageHandlers() {
               } catch { /* */ }
             } else {
               folderId = Math.random().toString(36).substring(2, 11)
-              fs.writeFileSync(subMetaPath, JSON.stringify({ id: folderId, name: entry.name }, null, 2))
+              try {
+                fs.writeFileSync(subMetaPath, JSON.stringify({ id: folderId, name: entry.name }, null, 2))
+              } catch { /* */ }
             }
             childrenList.push({
               id: folderId, name: folderName, type: 'folder', children: buildTree(fullPath)
@@ -827,37 +840,42 @@ export function registerStorageHandlers() {
       }
 
       const loadCollectionFromDir = (collDir: string, displayPath: string): SavedCollection | null => {
-        const metaPath = path.join(collDir, '_meta.json')
-        const dirName = path.basename(collDir)
+        try {
+          if (!fs.existsSync(collDir)) return null
+          const metaPath = path.join(collDir, '_meta.json')
+          const dirName = path.basename(collDir)
 
-        // The directory name is the source of truth for the collection name.
-        // The ID is the slugified directory name to ensure valid paths and consistency.
-        let meta: any = { variables: [] }
-        if (fs.existsSync(metaPath)) {
-          try {
-            meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-          } catch { /* use defaults */ }
-        }
+          // The directory name is the source of truth for the collection name.
+          // The ID is the slugified directory name to ensure valid paths and consistency.
+          let meta: any = { variables: [] }
+          if (fs.existsSync(metaPath)) {
+            try {
+              meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+            } catch { /* use defaults */ }
+          }
 
-        // Ignore name in meta, always use actual folder name
-        const name = dirName
-        const id = meta.id || sanitizeFolderName(dirName)
+          // Ignore name in meta, always use actual folder name
+          const name = dirName
+          const id = meta.id || sanitizeFolderName(dirName)
 
-        // Clean up or backfill meta
-        let changed = false
-        if (!meta.id || meta.id !== id) { meta.id = id; changed = true }
-        if (!meta.path) { meta.path = displayPath; changed = true }
+          // Clean up or backfill meta
+          let changed = false
+          if (!meta.id || meta.id !== id) { meta.id = id; changed = true }
+          if (!meta.path) { meta.path = displayPath; changed = true }
 
-        if (changed) {
-          try { fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2)) } catch { /* ignore */ }
-        }
+          if (changed) {
+            try { fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2)) } catch { /* ignore */ }
+          }
 
-        return {
-          id,
-          name,
-          children: buildTree(collDir),
-          variables: meta.variables || [],
-          path: displayPath
+          return {
+            id,
+            name,
+            children: buildTree(collDir),
+            variables: meta.variables || [],
+            path: displayPath
+          }
+        } catch {
+          return null
         }
       }
 
@@ -1500,7 +1518,7 @@ export function registerStorageHandlers() {
         const isExternal = path.relative(root, resolvedCollDir).startsWith('..') || path.isAbsolute(path.relative(root, resolvedCollDir))
 
         if (args.deleteFiles) {
-          fs.rmSync(collDir, { recursive: true, force: true })
+          fs.rmSync(collDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
         } else if (!isExternal) {
           // Internal path but we don't want to delete files -> move to backups
           const backupDir = path.join(app.getPath('userData'), 'backups', 'collections')

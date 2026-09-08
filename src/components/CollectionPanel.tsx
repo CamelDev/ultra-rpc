@@ -167,6 +167,7 @@ const methodColor = (m: string) => {
     case 'PUT': return '#3b82f6'
     case 'DELETE': return '#ef4444'
     case 'PATCH': return '#8b5cf6'
+    case 'GRAPHQL': return '#ec4899'
     default: return '#a855f7'
   }
 }
@@ -758,11 +759,11 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
             )}
 
             {isRequest && request && (
-              <span className="coll-req-method-label" style={{
-                color: methodColor(request.type === 'GRPC' ? 'GRPC' : request.method),
-                borderColor: methodColor(request.type === 'GRPC' ? 'GRPC' : request.method) + '44'
+              <span className={`coll-req-method-label ${request.type === 'GRAPHQL' ? 'graphql' : request.type === 'GRPC' ? 'grpc' : ''}`} style={{
+                color: methodColor(request.type === 'GRAPHQL' ? 'GRAPHQL' : request.type === 'GRPC' ? 'GRPC' : request.method),
+                borderColor: methodColor(request.type === 'GRAPHQL' ? 'GRAPHQL' : request.type === 'GRPC' ? 'GRPC' : request.method) + '44'
               }}>
-                {request.type === 'GRPC' ? 'gRPC' : request.method}
+                {request.type === 'GRAPHQL' ? 'GQL' : request.type === 'GRPC' ? 'gRPC' : request.method}
               </span>
             )}
 

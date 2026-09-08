@@ -12,12 +12,12 @@ export function getAutoBodyType(body?: string | null): 'json' | 'text' | 'none' 
   return 'text'
 }
 
-export function createEmptyRequest(type: 'REST' | 'GRPC' = 'REST'): RequestConfig {
+export function createEmptyRequest(type: 'REST' | 'GRPC' | 'GRAPHQL' = 'REST'): RequestConfig {
   return {
     id: _uid(),
-    name: 'New Request',
+    name: type === 'GRAPHQL' ? 'New GraphQL Request' : 'New Request',
     type,
-    method: 'GET',
+    method: type === 'GRAPHQL' ? 'POST' : 'GET',
     url: '',
     params: [emptyKV()],
     headers: [emptyKV()],
@@ -28,6 +28,10 @@ export function createEmptyRequest(type: 'REST' | 'GRPC' = 'REST'): RequestConfi
     grpcReflection: true,
     timeoutMs: 30000,
     activeConfigTab: 'body',
+    // GraphQL defaults
+    graphqlQuery: type === 'GRAPHQL' ? '' : undefined,
+    graphqlVariables: type === 'GRAPHQL' ? '{}' : undefined,
+    graphqlOperationName: type === 'GRAPHQL' ? '' : undefined,
   }
 }
 
