@@ -22,6 +22,7 @@ export function createEmptyRequest(type: 'REST' | 'GRPC' | 'GRAPHQL' = 'REST'): 
     params: [emptyKV()],
     headers: [emptyKV()],
     body: '',
+    bodyType: 'json',
     grpcService: '',
     grpcMethod: '',
     grpcPayload: '{}',
@@ -59,3 +60,46 @@ export function recordToKV(record: Record<string, any>): KeyValuePair[] {
 }
 
 export function uid() { return _uid() }
+
+const skipDirtyKeys = ['activeConfigTab', 'bodyType']
+
+export const isEffectivelyEmptyBody = (val?: string | null): boolean => {
+  if (!val) return true
+  const trimmed = val.trim()
+  return trimmed === '' || trimmed === '{\n  \n}' || trimmed === '{}' || trimmed === '{\n}' || trimmed === '{\n  "key": "value"\n}'
+}
+
+export function shouldMarkDirty(
+  currentRequest: RequestConfig,
+  partial: Partial<RequestConfig>,
+  isTabEffectivelyEmpty: boolean = false
+): boolean {
+  return Object.entries(partial).some(([key, val]) => {
+    if (skipDirtyKeys.includes(key)) return false
+
+    const current = (currentRequest as any)[key]
+
+    if (key === 'body' || key === 'grpcPayload') {
+      if (isEffectivelyEmptyBody(current) && isEffectivelyEmptyBody(val as string)) {
+        return false
+      }
+      return (current ?? '') !== (val ?? '')
+    }
+
+    if (key === 'type' && isTabEffectivelyEmpty) {
+      return false
+    }
+
+    if (typeof val === 'object' && val !== null) {
+      if (Array.isArray(val) && val.length === 0 && (current === undefined || current === null || current === '')) {
+        return false
+      }
+      if (current === undefined || current === null) {
+        return JSON.stringify(val) !== JSON.stringify(Array.isArray(val) ? [] : {})
+      }
+      return JSON.stringify(val) !== JSON.stringify(current)
+    }
+
+    return (current ?? '') !== (val ?? '')
+  })
+}

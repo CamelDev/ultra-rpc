@@ -122,7 +122,6 @@ test.describe('JSON Formatting with Variables', () => {
      await window.click('.body-type-btn:has-text("JSON")');
 
      const editor = window.locator('.body-textarea .cm-content');
-     await expect(editor).toBeVisible({ timeout: 5000 });
      await editor.click();
      await editor.fill(complexJson);
      
@@ -135,4 +134,56 @@ test.describe('JSON Formatting with Variables', () => {
        expect(formattedContent).toMatch(/\s{6}"year": {{search_year}}/);
      }).toPass();
   });
+
+  test('should allow switching to TEXT body type and typing freeform text', async () => {
+    const configTab = window.locator('.config-tab:has-text("Body")');
+    if (!(await configTab.isVisible())) {
+      await window.click('button:has-text("New REST Request")');
+    }
+    await window.waitForSelector('.config-tab', { timeout: 10000 });
+    await window.click('.config-tab:has-text("Body")');
+
+    const textBtn = window.locator('.body-type-btn:has-text("TEXT")');
+    await textBtn.waitFor({ state: 'visible', timeout: 5000 });
+    await textBtn.click();
+
+    await expect(textBtn).toHaveClass(/body-type-active/, { timeout: 5000 });
+
+    const editor = window.locator('.body-textarea .cm-content');
+    await expect(editor).toBeVisible({ timeout: 5000 });
+    await editor.click();
+    await editor.fill('hello world plain text body');
+
+    await expect(editor).toContainText('hello world plain text body');
+    await expect(textBtn).toHaveClass(/body-type-active/);
+  });
+
+  test('should not trigger change detection when switching body types without edits', async () => {
+    await window.click('button.tab-add');
+    await window.waitForTimeout(300);
+
+    const activeTab = window.locator('.tab-item.tab-active');
+    await expect(activeTab).toHaveAttribute('data-dirty', 'false');
+
+    await window.click('.config-tab:has-text("Body")');
+
+    // Switch to TEXT
+    const textBtn = window.locator('.body-type-btn:has-text("TEXT")');
+    await textBtn.click();
+    await expect(textBtn).toHaveClass(/body-type-active/);
+    await expect(activeTab).toHaveAttribute('data-dirty', 'false');
+
+    // Switch to NONE
+    const noneBtn = window.locator('.body-type-btn:has-text("NONE")');
+    await noneBtn.click();
+    await expect(noneBtn).toHaveClass(/body-type-active/);
+    await expect(activeTab).toHaveAttribute('data-dirty', 'false');
+
+    // Switch to JSON
+    const jsonBtn = window.locator('.body-type-btn:has-text("JSON")');
+    await jsonBtn.click();
+    await expect(jsonBtn).toHaveClass(/body-type-active/);
+    await expect(activeTab).toHaveAttribute('data-dirty', 'false');
+  });
 });
+

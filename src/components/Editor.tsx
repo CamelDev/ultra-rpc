@@ -278,6 +278,7 @@ interface Props {
 export interface EditorHandle {
   openSearch: () => void
   format: () => Promise<void>
+  focus: () => void
 }
 
 const forceParseSyntaxTree = (view: EditorView) => {
@@ -338,6 +339,9 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
     },
     format: async () => {
       await handleFormat()
+    },
+    focus: () => {
+      if (viewRef.current) viewRef.current.focus()
     }
   }))
   const [tooltip, setTooltip] = useState<{ visible: boolean, x: number, y: number, text: string }>({

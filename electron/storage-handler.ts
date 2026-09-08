@@ -246,7 +246,7 @@ const validateRequest = (req: any, idOverride?: string): SavedRequest | null => 
     params: Array.isArray(req.params) ? req.params : [],
     headers: Array.isArray(req.headers) ? req.headers : [],
     body: req.body || '',
-    bodyType: getAutoBodyType(req.body),
+    bodyType: req.bodyType || getAutoBodyType(req.body),
     grpcService: req.grpcService,
     grpcMethod: req.grpcMethod,
     grpcPayload: req.grpcPayload,
@@ -1080,9 +1080,11 @@ export function registerStorageHandlers() {
         fs.renameSync(existingPath, targetPath)
       }
 
-      // 4. Save the request (do not store settings for active type "json/text/none")
+      // 4. Save the request
       const requestToSave = { ...args.request }
-      delete (requestToSave as any).bodyType
+      if (!requestToSave.bodyType && requestToSave.body) {
+        requestToSave.bodyType = getAutoBodyType(requestToSave.body)
+      }
 
       fs.writeFileSync(
         targetPath,
@@ -1883,7 +1885,6 @@ export function registerStorageHandlers() {
 
       content.id = newId
       content.name = newName
-      delete content.bodyType
       fs.writeFileSync(newPath, JSON.stringify(content, null, 2))
 
       updateIdMap(dir, newId, newFilename)

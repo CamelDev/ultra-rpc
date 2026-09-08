@@ -28,7 +28,7 @@ import FlowPanel from './components/FlowPanel'
 import type { FlowDefinition } from './types/flow'
 import type { Tab, TabGroup, RequestConfig, ResponseData, Environment, Collection, CollectionItem, VaultEntry, Library } from './types'
 import TabGroupsModal from './components/TabGroupsModal'
-import { createEmptyRequest, getAutoBodyType } from './lib/helpers'
+import { createEmptyRequest, getAutoBodyType, shouldMarkDirty } from './lib/helpers'
 import { upsertVariableInList } from './lib/variable-utils'
 import IntroPage from './components/IntroPage'
 import pkg from '../package.json'
@@ -855,7 +855,7 @@ const App: React.FC = () => {
 
   const activeConfigTab = activeRequest?.activeConfigTab || 'body'
   const activeBody = activeRequest.type === 'GRPC' ? (activeRequest.grpcPayload || '') : activeRequest.type === 'GRAPHQL' ? (activeRequest.graphqlQuery || '') : (activeRequest.body || '')
-  const activeBodyType = getAutoBodyType(activeBody)
+  const activeBodyType = activeRequest.bodyType || getAutoBodyType(activeBody)
   const setActiveConfigTab = (tab: RequestTab) => {
     setTabs(prev =>
       prev.map(t =>
@@ -867,33 +867,14 @@ const App: React.FC = () => {
   const updateActiveRequest = useCallback((partial: Partial<RequestConfig>) => {
     setTabs(prev => {
       return prev.map(t => {
-        if (t.id !== activeTabIdRef.current || t.type !== 'request') return t
+        if (t.id !== activeTabIdRef.current || t.type !== 'request' || !t.request) return t
 
-        const skipDirtyKeys = ['activeConfigTab']
-        const hasChanged = Object.entries(partial).some(([key, val]) => {
-          const current = (t.request as any)[key]
-          const isSkipped = skipDirtyKeys.includes(key)
-
-          let changed: boolean
-          if (typeof val === 'object' && val !== null) {
-            if (Array.isArray(val) && val.length === 0 && (current === undefined || current === null || current === '')) {
-              changed = false
-            } else if (current === undefined || current === null) {
-              changed = JSON.stringify(val) !== JSON.stringify(Array.isArray(val) ? [] : {})
-            } else {
-              changed = JSON.stringify(val) !== JSON.stringify(current)
-            }
-          } else {
-            changed = (current ?? '') !== (val ?? '')
-          }
-
-          if (isSkipped) return false
-          return changed
-        })
+        const isTabEffectivelyEmpty = !t.isDirty && !t.request.url && (!t.request.body || t.request.body.trim() === '') && !t.owningCollectionId
+        const hasChanged = shouldMarkDirty(t.request, partial, isTabEffectivelyEmpty)
 
         return {
           ...t,
-          request: { ...t.request!, ...partial },
+          request: { ...t.request, ...partial },
           isDirty: t.isDirty || hasChanged
         }
       })
@@ -2222,11 +2203,12 @@ const App: React.FC = () => {
         }
 
         const isInsecure = updatedEnv?.sslVerification === false
+        const isBodyAllowed = currentTab.request.bodyType !== 'none' && ['POST', 'PUT', 'PATCH'].includes(currentTab.request.method)
 
         if (window.ultraRpc) {
           const result = await window.ultraRpc.sendRestRequest({
             method: currentTab.request.method, url: fullUrl, headers,
-            body: ['POST', 'PUT', 'PATCH'].includes(currentTab.request.method) ? interpolateLocal(currentTab.request.body || '') : undefined,
+            body: isBodyAllowed ? interpolateLocal(currentTab.request.body || '') : undefined,
             insecure: isInsecure,
             protocol: updatedEnv?.protocol,
             timeoutMs: currentTab.request.timeoutMs
@@ -2242,7 +2224,7 @@ const App: React.FC = () => {
           const start = Date.now()
           const resp = await fetch(fullUrl, {
             method: currentTab.request.method, headers,
-            body: ['POST', 'PUT', 'PATCH'].includes(currentTab.request.method) ? interpolateLocal(currentTab.request.body || '') : undefined,
+            body: isBodyAllowed ? interpolateLocal(currentTab.request.body || '') : undefined,
           })
           const body = await resp.text()
           const time = Date.now() - start
@@ -3384,20 +3366,33 @@ const App: React.FC = () => {
                                 className={`body-type-btn ${activeBodyType === bt ? 'body-type-active' : ''}`}
                                 onClick={() => {
                                   if (bt === 'none') {
-                                    if (activeRequest.type === 'GRPC') {
-                                      updateActiveRequest({ grpcPayload: '' })
+                                    const trimmed = activeBody.trim()
+                                    const isDefaultJson = !trimmed || trimmed === '{\n  \n}' || trimmed === '{}' || trimmed === '{\n}' || trimmed === '{\n  "key": "value"\n}'
+                                    if (isDefaultJson && activeBody) {
+                                      if (activeRequest.type === 'GRPC') {
+                                        updateActiveRequest({ bodyType: 'none', grpcPayload: '' })
+                                      } else {
+                                        updateActiveRequest({ bodyType: 'none', body: '' })
+                                      }
                                     } else {
-                                      updateActiveRequest({ body: '' })
+                                      updateActiveRequest({ bodyType: 'none' })
                                     }
                                   } else if (bt === 'json') {
-                                    if (!activeBody.trim().startsWith('{')) {
-                                      const template = '{\n  \n}'
+                                    updateActiveRequest({ bodyType: 'json' })
+                                    setTimeout(() => bodyEditorRef.current?.focus(), 50)
+                                  } else if (bt === 'text') {
+                                    const trimmed = activeBody.trim()
+                                    const isDefaultJson = !trimmed || trimmed === '{\n  \n}' || trimmed === '{}' || trimmed === '{\n}' || trimmed === '{\n  "key": "value"\n}'
+                                    if (isDefaultJson && activeBody) {
                                       if (activeRequest.type === 'GRPC') {
-                                        updateActiveRequest({ grpcPayload: template })
+                                        updateActiveRequest({ bodyType: 'text', grpcPayload: '' })
                                       } else {
-                                        updateActiveRequest({ body: template })
+                                        updateActiveRequest({ bodyType: 'text', body: '' })
                                       }
+                                    } else {
+                                      updateActiveRequest({ bodyType: 'text' })
                                     }
+                                    setTimeout(() => bodyEditorRef.current?.focus(), 50)
                                   }
                                 }}
                               >
@@ -3444,15 +3439,19 @@ const App: React.FC = () => {
                               ? '{\n  "field": "value"\n}'
                               : activeBodyType === 'text'
                                 ? 'Plain text body...'
-                                : '{\n  "key": "value"\n}'}
+                                : activeBodyType === 'none'
+                                  ? 'No body'
+                                  : '{\n  "key": "value"\n}'}
                             value={activeBody}
                             highlightJson={activeBodyType === 'json'}
                             onChange={(val) => {
-                              if (activeRequest.type === 'GRPC') {
-                                updateActiveRequest({ grpcPayload: val })
-                              } else {
-                                updateActiveRequest({ body: val })
+                              const patch: Partial<RequestConfig> = activeRequest.type === 'GRPC'
+                                ? { grpcPayload: val }
+                                : { body: val }
+                              if (activeRequest.bodyType === 'none' && val.trim()) {
+                                patch.bodyType = val.trim().startsWith('{') ? 'json' : 'text'
                               }
+                              updateActiveRequest(patch)
                             }}
                             theme={resolvedTheme}
                             onUpdateVariable={handleUpdateVariable}
