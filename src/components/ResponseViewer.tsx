@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { Clock, HardDrive, CheckCircle, XCircle, Copy, ChevronDown, ChevronRight, Zap } from 'lucide-react'
+import { Clock, HardDrive, CheckCircle, XCircle, Copy, ChevronDown, ChevronRight, Zap, Square } from 'lucide-react'
 import type { ResponseData } from '../types'
 import './ResponseViewer.css'
 
@@ -8,10 +8,11 @@ interface Props {
   error: string | null
   scriptError?: string | null
   loading: boolean
+  onCancel?: () => void
   theme?: 'dark' | 'light'
 }
 
-const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading, theme = 'dark' }) => {
+const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading, onCancel, theme = 'dark' }) => {
   const [showHeaders, setShowHeaders] = React.useState(false)
   const [showTrailers, setShowTrailers] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
@@ -65,8 +66,15 @@ const ResponseViewer: React.FC<Props> = ({ response, error, scriptError, loading
     return (
       <div className="response-viewer">
         <div className="response-loading">
-          <div className="loading-spinner" />
-          <span>Sending request...</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="loading-spinner" />
+            <span>Sending request...</span>
+          </div>
+          {onCancel && (
+            <button className="response-cancel-btn" onClick={onCancel} title="Cancel Request">
+              <Square size={12} fill="currentColor" /> Cancel Request
+            </button>
+          )}
         </div>
       </div>
     )

@@ -11,6 +11,7 @@ import { registerFormatHandlers } from './format-handler'
 import { registerFlowHandlers } from './flow-handler'
 import { registerGraphqlHandlers } from './graphql-handler'
 import { registerUpdateHandlers, scheduleUpdateChecks } from './update-handler'
+import { registerRequestHandlers } from './request-manager'
 import { startMcpServer } from './mcp-server'
 import { getSettingsPath } from './storage-handler'
 
@@ -144,6 +145,7 @@ try {
     registerFormatHandlers()
     registerFlowHandlers()
     registerGraphqlHandlers()
+    registerRequestHandlers()
     registerUpdateHandlers(() => win)
 
     // Theme Management

@@ -11,6 +11,7 @@ export interface UltraRpcApi {
     insecure?: boolean
     protocol?: 'auto' | 'http1' | 'http2'
     timeoutMs?: number
+    requestId?: string
   }) => Promise<{
     success: boolean
     data?: { type: RequestType; status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
@@ -36,7 +37,7 @@ export interface UltraRpcApi {
     }[]
     error?: string
   }>
-  grpcCall: (args: { host: string; insecure: boolean; headers: Record<string, string>; service: string; method: string; payload: string; protoPath?: string; timeoutMs?: number }) => Promise<{
+  grpcCall: (args: { host: string; insecure: boolean; headers: Record<string, string>; service: string; method: string; payload: string; protoPath?: string; timeoutMs?: number; requestId?: string }) => Promise<{
     success: boolean
     data?: { type: RequestType; status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
     error?: string; code?: number; time?: number
@@ -51,6 +52,7 @@ export interface UltraRpcApi {
     headers: Record<string, string>
     insecure?: boolean
     timeoutMs?: number
+    requestId?: string
   }) => Promise<{
     success: boolean
     data?: { type: RequestType; status: number; statusText: string; headers: Record<string, string>; body: string; time: number; size: number }
@@ -66,6 +68,9 @@ export interface UltraRpcApi {
     schema?: import('./graphql').GraphqlSchema
     error?: string
   }>
+
+  // Request Cancellation
+  cancelRequest: (requestId: string) => Promise<{ success: boolean }>
 
   // Collections
   listCollections: () => Promise<{ success: boolean; collections?: { id: string; name: string; children: any[]; variables?: any[]; path?: string }[]; warnings?: string[]; error?: string }>

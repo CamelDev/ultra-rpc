@@ -3,8 +3,9 @@ import http from 'http'
 import https from 'https'
 import http2 from 'http2'
 import { URL } from 'url'
+import { registerActiveRequest, unregisterActiveRequest } from './request-manager'
 
-interface RestRequest {
+export interface RestRequest {
   method: string
   url: string
   headers: Record<string, string>
@@ -13,6 +14,7 @@ interface RestRequest {
   protocol?: 'auto' | 'http1' | 'http2'
   timeoutMs?: number
   abortSignal?: AbortSignal
+  requestId?: string
 }
 
 export async function handleRestRequest(req: RestRequest) {
@@ -121,7 +123,7 @@ export async function handleRestRequest(req: RestRequest) {
 
     // Handle HTTP/1.1 (or default)
     if (req.abortSignal?.aborted) {
-      return { success: false, error: 'Request aborted', time: Date.now() - start }
+      return { success: false, error: 'Request cancelled', time: Date.now() - start }
     }
     const transport = isHttps ? https : http
     const result = await new Promise<{ status: number; statusText: string; headers: Record<string, string>; body: string }>((resolve, reject) => {
@@ -192,9 +194,10 @@ export async function handleRestRequest(req: RestRequest) {
       },
     }
   } catch (err: any) {
+    const isAborted = req.abortSignal?.aborted || err.name === 'AbortError' || err.message === 'Request aborted' || err.message === 'Request cancelled'
     return {
       success: false,
-      error: err.message || 'Unknown error',
+      error: isAborted ? 'Request cancelled' : (err.message || 'Unknown error'),
       time: Date.now() - start,
     }
   }
@@ -202,6 +205,14 @@ export async function handleRestRequest(req: RestRequest) {
 
 export function registerRestHandlers() {
   ipcMain.handle('rest:send', async (_event, req: RestRequest) => {
-    return handleRestRequest(req)
+    const controller = req.requestId ? registerActiveRequest(req.requestId) : null
+    const abortSignal = controller ? controller.signal : req.abortSignal
+    try {
+      return await handleRestRequest({ ...req, abortSignal })
+    } finally {
+      if (req.requestId && controller) {
+        unregisterActiveRequest(req.requestId, controller)
+      }
+    }
   })
 }

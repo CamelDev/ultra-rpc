@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('ultraRpc', {
   sendGraphqlRequest: (req: any) => ipcRenderer.invoke('graphql:send', req),
   graphqlIntrospect: (req: any) => ipcRenderer.invoke('graphql:introspect', req),
 
+  // ===== Request Cancellation =====
+  cancelRequest: (requestId: string) => ipcRenderer.invoke('request:cancel', requestId),
+
   // ===== Collections =====
   listCollections: () => ipcRenderer.invoke('storage:listCollections'),
   createCollection: (args: any) => ipcRenderer.invoke('storage:createCollection', args),

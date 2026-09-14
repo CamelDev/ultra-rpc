@@ -1,7 +1,9 @@
 import { ipcMain } from 'electron'
 import { handleRestRequest } from './rest-handler'
+import { registerActiveRequest, unregisterActiveRequest } from './request-manager'
 
-// ===== Standard GraphQL Introspection Query =====
+// ===== Types =====
+
 const INTROSPECTION_QUERY = `
   query IntrospectionQuery {
     __schema {
@@ -9,47 +11,48 @@ const INTROSPECTION_QUERY = `
       mutationType { name }
       subscriptionType { name }
       types {
-        kind
-        name
-        description
-        fields(includeDeprecated: true) {
-          name
-          description
-          isDeprecated
-          deprecationReason
-          args {
-            name
-            description
-            defaultValue
-            type {
-              ...TypeRef
-            }
-          }
-          type {
-            ...TypeRef
-          }
-        }
-        inputFields {
-          name
-          description
-          defaultValue
-          type {
-            ...TypeRef
-          }
-        }
-        enumValues(includeDeprecated: true) {
-          name
-          description
-          isDeprecated
-          deprecationReason
-        }
-        possibleTypes {
-          name
-        }
+        ...FullType
       }
     }
   }
-
+  fragment FullType on __Type {
+    kind
+    name
+    description
+    fields(includeDeprecated: true) {
+      name
+      description
+      args {
+        ...InputValue
+      }
+      type {
+        ...TypeRef
+      }
+      isDeprecated
+      deprecationReason
+    }
+    inputFields {
+      ...InputValue
+    }
+    interfaces {
+      ...TypeRef
+    }
+    enumValues(includeDeprecated: true) {
+      name
+      description
+      isDeprecated
+      deprecationReason
+    }
+    possibleTypes {
+      ...TypeRef
+    }
+  }
+  fragment InputValue on __InputValue {
+    name
+    description
+    type { ...TypeRef }
+    defaultValue
+  }
   fragment TypeRef on __Type {
     kind
     name
@@ -85,7 +88,7 @@ const INTROSPECTION_QUERY = `
 `
 
 // ===== Type References =====
-interface GraphqlRequest {
+export interface GraphqlRequest {
   url: string
   query: string
   variables?: string
@@ -94,6 +97,7 @@ interface GraphqlRequest {
   insecure?: boolean
   timeoutMs?: number
   abortSignal?: AbortSignal
+  requestId?: string
 }
 
 interface IntrospectionRequest {
@@ -258,7 +262,15 @@ async function handleGraphqlIntrospect(req: IntrospectionRequest) {
 
 export function registerGraphqlHandlers() {
   ipcMain.handle('graphql:send', async (_event, req: GraphqlRequest) => {
-    return handleGraphqlRequest(req)
+    const controller = req.requestId ? registerActiveRequest(req.requestId) : null
+    const abortSignal = controller ? controller.signal : req.abortSignal
+    try {
+      return await handleGraphqlRequest({ ...req, abortSignal })
+    } finally {
+      if (req.requestId && controller) {
+        unregisterActiveRequest(req.requestId, controller)
+      }
+    }
   })
 
   ipcMain.handle('graphql:introspect', async (_event, req: IntrospectionRequest) => {

@@ -13,6 +13,7 @@ import {
   MethodInfo,
   SampleVariant
 } from './lib/grpc-discovery-utils'
+import { registerActiveRequest, unregisterActiveRequest } from './request-manager'
 
 const logPath = path.join(os.tmpdir(), 'ultrarpc-grpc-backend.log')
 const depLogPath = path.join(os.tmpdir(), 'ultrarpc-deps.log')
@@ -41,6 +42,7 @@ export interface GrpcRequest {
   protoPath?: string // Optional: use proto file instead of reflection
   timeoutMs?: number // Optional: deadline timeout in milliseconds
   abortSignal?: AbortSignal // Optional: for flow engine cancellation
+  requestId?: string
 }
 
 // ===== gRPC Server Reflection v1 =====
@@ -248,6 +250,9 @@ export interface GrpcCallResponse {
 
 export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse> {
   const start = Date.now()
+  if (req.abortSignal?.aborted) {
+    return { success: false, error: 'Request cancelled', time: 0 }
+  }
   const protobuf = getProtobuf()
   try {
     const metadata = new grpc.Metadata()
@@ -346,6 +351,9 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
           call.on('error', (err: GrpcError) => {
             cleanup()
             const time = Date.now() - start
+            if (req.abortSignal?.aborted || err.code === grpc.status.CANCELLED) {
+              return resolve({ success: false, error: 'Request cancelled', time })
+            }
             const errorMsg = formatGrpcError(err)
             resolve({ 
               success: true, 
@@ -364,6 +372,13 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
           call.on('status', (status: grpc.StatusObject) => {
             responseTrailers = metadataToObject(status.metadata)
           })
+          if (req.abortSignal) {
+            const abortHandler = () => {
+              try { call.cancel() } catch {}
+              cleanup()
+            }
+            req.abortSignal.addEventListener('abort', abortHandler)
+          }
           call.on('end', () => {
             cleanup()
             const time = Date.now() - start
@@ -390,6 +405,9 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
           const call = methodFn.call(client, payload, metadata, callOptions, (err: GrpcError | null, responseBody: unknown) => {
             const time = Date.now() - start
             if (err) {
+              if (req.abortSignal?.aborted || err.code === grpc.status.CANCELLED) {
+                return resolve({ success: false, error: 'Request cancelled', time })
+              }
               const errorMsg = formatGrpcError(err)
               resolve({ 
                 success: true, 
@@ -444,6 +462,18 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
       const descriptorBuffers: Buffer[] = []
       let resolved = false
 
+      if (req.abortSignal) {
+        const abortHandler = () => {
+          if (!resolved) {
+            resolved = true
+            try { call.cancel() } catch {}
+            try { reflectionClient.close() } catch {}
+            resolve({ success: false, error: 'Request cancelled', time: Date.now() - start })
+          }
+        }
+        req.abortSignal.addEventListener('abort', abortHandler)
+      }
+
       call.on('data', (response: any) => {
         if (response.file_descriptor_response) {
           for (const fd of response.file_descriptor_response.file_descriptor_proto) {
@@ -459,12 +489,19 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
       call.on('error', (err: GrpcError) => {
         if (resolved) return
         resolved = true; reflectionClient.close()
+        if (req.abortSignal?.aborted || err.code === grpc.status.CANCELLED) {
+          return resolve({ success: false, error: 'Request cancelled', time: Date.now() - start })
+        }
         resolve({ success: false, error: err.message || 'Reflection failed' })
       })
 
       call.on('end', async () => {
         if (resolved) return
         resolved = true; reflectionClient.close()
+
+        if (req.abortSignal?.aborted) {
+          return resolve({ success: false, error: 'Request cancelled', time: Date.now() - start })
+        }
 
         if (descriptorBuffers.length === 0) {
           return resolve({ success: false, error: `No file descriptor found for service "${req.service}"` })
@@ -500,6 +537,10 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
 
           if (!inputTypeName || !outputTypeName) {
             return resolve({ success: false, error: `Method "${req.method}" not found on service "${req.service}"` })
+          }
+
+          if (req.abortSignal?.aborted) {
+            return resolve({ success: false, error: 'Request cancelled', time: Date.now() - start })
           }
 
           // Build a Root for message types using FileDescriptorSet
@@ -548,6 +589,9 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
             call.on('error', (err: any) => {
               const time = Date.now() - start
               genericClient.close()
+              if (req.abortSignal?.aborted || err.code === grpc.status.CANCELLED) {
+                return resolve({ success: false, error: 'Request cancelled', time })
+              }
               const errorMsg = formatGrpcError(err)
               resolve({
                 success: true,
@@ -601,6 +645,9 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
                 const time = Date.now() - start
                 genericClient.close()
                 if (err) {
+                  if (req.abortSignal?.aborted || err.code === grpc.status.CANCELLED) {
+                    return resolve({ success: false, error: 'Request cancelled', time })
+                  }
                   const errorMsg = formatGrpcError(err)
                   resolve({
                     success: true,
@@ -656,9 +703,10 @@ export async function handleGrpcCall(req: GrpcRequest): Promise<GrpcCallResponse
       call.end()
     })
   } catch (err: any) {
+    const isAborted = req.abortSignal?.aborted || err.code === grpc.status.CANCELLED || err.message === 'Request cancelled'
     return {
       success: false,
-      error: err.message || 'Unknown error',
+      error: isAborted ? 'Request cancelled' : (err.message || 'Unknown error'),
       time: Date.now() - start,
     }
   }
@@ -1048,8 +1096,16 @@ export function registerGrpcHandlers() {
   })
 
 
-  // ===== Execute a gRPC unary call =====
+  // ===== Execute a gRPC call =====
   ipcMain.handle('grpc:call', async (_event, req: GrpcRequest) => {
-    return handleGrpcCall(req)
+    const controller = req.requestId ? registerActiveRequest(req.requestId) : null
+    const abortSignal = controller ? controller.signal : req.abortSignal
+    try {
+      return await handleGrpcCall({ ...req, abortSignal })
+    } finally {
+      if (req.requestId && controller) {
+        unregisterActiveRequest(req.requestId, controller)
+      }
+    }
   })
 }

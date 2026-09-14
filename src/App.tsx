@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import {
-  Plus, Send, Save, Settings, Globe, Braces, X, Loader2,
+  Plus, Send, Save, Settings, Globe, Braces, X,
   Info, FolderOpen,
   Search,
   WrapText, AlertTriangle, ShieldCheck, Hourglass, AlignLeft, Folder, Code,
-  GitBranch, Sparkles, Target, Layers, ChevronRight, ChevronDown
+  GitBranch, Sparkles, Target, Layers, ChevronRight, ChevronDown, Square
 } from 'lucide-react'
 import { motion, Reorder } from 'framer-motion'
 import { useScriptValidation } from './hooks/useScriptValidation'
@@ -107,6 +107,7 @@ const App: React.FC = () => {
   const [responses, setResponses] = useState<Record<string, ResponseData | null>>({})
   const [errors, setErrors] = useState<Record<string, string | null>>({})
   const [loadingTabs, setLoadingTabs] = useState<Record<string, boolean>>({})
+  const abortControllersRef = useRef<Record<string, AbortController>>({})
   const [scriptLogs, setScriptLogs] = useState<Record<string, string[]>>({})
   const [scriptErrors, setScriptErrors] = useState<Record<string, string | null>>({})
 
@@ -993,6 +994,25 @@ const App: React.FC = () => {
   }, [openRequestTab, addToast])
 
 
+  const handleCancelRequest = useCallback(async (tabId: string) => {
+    const localController = abortControllersRef.current[tabId]
+    if (localController) {
+      localController.abort()
+      delete abortControllersRef.current[tabId]
+    }
+
+    if (window.ultraRpc?.cancelRequest) {
+      try {
+        await window.ultraRpc.cancelRequest(tabId)
+      } catch (e) {
+        console.error('Failed to cancel request via IPC:', e)
+      }
+    }
+
+    setLoadingTabs(prev => ({ ...prev, [tabId]: false }))
+    setErrors(prev => ({ ...prev, [tabId]: 'Request cancelled' }))
+  }, [])
+
   const removeTab = (e: React.MouseEvent | null, id: string) => {
     if (e) e.stopPropagation()
     const latestTabs = tabsRef.current
@@ -1001,6 +1021,10 @@ const App: React.FC = () => {
       if (!window.confirm(`This request has unsaved changes.\nAre you sure you want to close it?`)) {
         return
       }
+    }
+
+    if (loadingTabs[id]) {
+      handleCancelRequest(id)
     }
 
     const newTabs = latestTabs.filter(t => t.id !== id)
@@ -2092,6 +2116,9 @@ const App: React.FC = () => {
 
     if (!currentTab || currentTab.type !== 'request' || !currentTab.request || !tabId) return
 
+    const controller = new AbortController()
+    abortControllersRef.current[tabId] = controller
+
     setLoadingTabs(prev => ({ ...prev, [tabId]: true }))
     setErrors(prev => ({ ...prev, [tabId]: null }))
     setResponses(prev => ({ ...prev, [tabId]: null }))
@@ -2105,6 +2132,7 @@ const App: React.FC = () => {
       console.error('Pre-request script failed, but continuing request:', e)
       setScriptErrors(prev => ({ ...prev, [tabId]: `Pre-request Error: ${e.message}` }))
     }
+    if (controller.signal.aborted) return
 
     const latestEnvs = environmentsRef.current
     const latestCollections = collectionsRef.current
@@ -2141,8 +2169,10 @@ const App: React.FC = () => {
           service: currentTab.request.grpcService, method: currentTab.request.grpcMethod,
           payload: interpolateLocal(currentTab.request.grpcPayload || '{}'),
           timeoutMs: currentTab.request.timeoutMs,
-          protoPath: currentTab.request.protoPath
+          protoPath: currentTab.request.protoPath,
+          requestId: tabId
         })
+        if (controller.signal.aborted) return
         if (result.success && result.data) {
           statusCode = result.data.status
           setResponses(prev => ({ ...prev, [tabId]: result.data! }))
@@ -2151,7 +2181,11 @@ const App: React.FC = () => {
           throw new Error(result.error || 'gRPC call failed')
         }
       } catch (err: any) {
-        setErrors(prev => ({ ...prev, [tabId]: err.message }))
+        if (controller.signal.aborted) {
+          setErrors(prev => ({ ...prev, [tabId]: 'Request cancelled' }))
+        } else {
+          setErrors(prev => ({ ...prev, [tabId]: err.message }))
+        }
       }
     } else if (currentTab.request.type === 'GRAPHQL') {
       try {
@@ -2176,7 +2210,9 @@ const App: React.FC = () => {
           headers,
           insecure: isInsecure,
           timeoutMs: currentTab.request.timeoutMs,
+          requestId: tabId
         })
+        if (controller.signal.aborted) return
         if (result.success && result.data) {
           statusCode = result.data.status
           setResponses(prev => ({ ...prev, [tabId]: result.data! }))
@@ -2185,7 +2221,11 @@ const App: React.FC = () => {
           throw new Error(result.error || 'GraphQL request failed')
         }
       } catch (err: any) {
-        setErrors(prev => ({ ...prev, [tabId]: err.message }))
+        if (controller.signal.aborted) {
+          setErrors(prev => ({ ...prev, [tabId]: 'Request cancelled' }))
+        } else {
+          setErrors(prev => ({ ...prev, [tabId]: err.message }))
+        }
       }
     } else {
       try {
@@ -2211,8 +2251,10 @@ const App: React.FC = () => {
             body: isBodyAllowed ? interpolateLocal(currentTab.request.body || '') : undefined,
             insecure: isInsecure,
             protocol: updatedEnv?.protocol,
-            timeoutMs: currentTab.request.timeoutMs
+            timeoutMs: currentTab.request.timeoutMs,
+            requestId: tabId
           })
+          if (controller.signal.aborted) return
           if (result.success && result.data) {
             statusCode = result.data.status
             setResponses(prev => ({ ...prev, [tabId]: result.data! }))
@@ -2225,8 +2267,10 @@ const App: React.FC = () => {
           const resp = await fetch(fullUrl, {
             method: currentTab.request.method, headers,
             body: isBodyAllowed ? interpolateLocal(currentTab.request.body || '') : undefined,
+            signal: controller.signal
           })
           const body = await resp.text()
+          if (controller.signal.aborted) return
           const time = Date.now() - start
           const respHeaders: Record<string, string> = {}
           resp.headers.forEach((v, k) => { respHeaders[k] = v })
@@ -2239,12 +2283,21 @@ const App: React.FC = () => {
           await runPostResponseScript(currentTab.request, respData, tabId, currentTab.envId, scriptResult?.environments, scriptResult?.collections)
         }
       } catch (err: any) {
-        setErrors(prev => ({ ...prev, [tabId]: err.message }))
+        if (controller.signal.aborted) {
+          setErrors(prev => ({ ...prev, [tabId]: 'Request cancelled' }))
+        } else {
+          setErrors(prev => ({ ...prev, [tabId]: err.message }))
+        }
       }
     }
 
-    // Record in history
-    addToHistory(currentTab.request, statusCode)
+    // Record in history if not cancelled
+    if (!controller.signal.aborted) {
+      addToHistory(currentTab.request, statusCode)
+    }
+    if (abortControllersRef.current[tabId] === controller) {
+      delete abortControllersRef.current[tabId]
+    }
     setLoadingTabs(prev => ({ ...prev, [tabId]: false }))
   }
 
@@ -2943,13 +2996,19 @@ const App: React.FC = () => {
                     >
                       <Save size={14} />
                     </button>
-                    <button className="btn-primary send-btn" onClick={sendRequest} disabled={loadingTabs[activeTabId]}>
-                      {loadingTabs[activeTabId] ? (
-                        <><Loader2 size={14} className="spin" /> Sending</>
-                      ) : (
-                        <><Send size={14} /> Send</>
-                      )}
-                    </button>
+                    {loadingTabs[activeTabId] ? (
+                      <button
+                        className="btn-cancel send-btn"
+                        onClick={() => handleCancelRequest(activeTabId)}
+                        title="Cancel Request"
+                      >
+                        <Square size={13} fill="currentColor" /> Cancel
+                      </button>
+                    ) : (
+                      <button className="btn-primary send-btn" onClick={sendRequest}>
+                        <Send size={14} /> Send
+                      </button>
+                    )}
 
                   </div>
 
@@ -3709,6 +3768,7 @@ const App: React.FC = () => {
                   error={errors[activeTabId] || null}
                   scriptError={scriptErrors[activeTabId] || null}
                   loading={loadingTabs[activeTabId] || false}
+                  onCancel={() => handleCancelRequest(activeTabId)}
                   theme={resolvedTheme}
                 />
               </div>

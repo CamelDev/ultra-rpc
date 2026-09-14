@@ -752,6 +752,28 @@ input:focus, select:focus, textarea:focus {
   flex-shrink: 0;
 }
 
+.btn-cancel {
+  background: var(--danger);
+  color: #fff;
+  border: 1px solid var(--danger);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-cancel:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.btn-cancel:active {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
 /* Spin animation */
 @keyframes spin {
   to { transform: rotate(360deg); }
