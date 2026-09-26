@@ -371,7 +371,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       varPopoverHideTimer.current = null
     }
 
-    if (varPopoverRef.current?.visible && varPopoverRef.current.varName === varName) {
+    if (!immediate && varPopoverRef.current?.visible && varPopoverRef.current.varName === varName) {
       return
     }
 
@@ -561,7 +561,15 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
       }),
       EditorView.domEventHandlers({
         focus: () => setIsFocused(true),
-        blur: () => {
+        blur: (e) => {
+          const related = (e as FocusEvent).relatedTarget as HTMLElement | null
+          const isFocusInPopover = related && (
+            Boolean(related.closest('.var-quick-popover')) ||
+            Boolean(related.closest('.var-quick-popover-anchor'))
+          )
+          if (isFocusInPopover || isMouseInPopoverRef.current) {
+            return
+          }
           setIsFocused(false)
           if (onBlur) onBlur()
         },
@@ -570,6 +578,9 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
           if (singleLine && e.key === 'Enter') {
             e.preventDefault()
             return true
+          }
+          if (varPopoverRef.current && e.key !== 'Escape') {
+            hideVarPopover(true)
           }
           return false
         },
@@ -612,7 +623,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
                   const anchorX = coords ? (coords.left + coords.right) / 2 : e.clientX
                   const anchorY = coords ? coords.top : e.clientY
                   showVarPopover(anchorX, anchorY, match[1], true)
-                  return true
+                  return false
                 }
               }
             }
@@ -832,7 +843,18 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor({
           canSaveEnvironment={Boolean(activeEnv)}
           x={varPopover.x}
           y={varPopover.y}
-          onClose={() => hideVarPopover(true)}
+          onClose={() => {
+            const wasFocusInPopover = Boolean(
+              document.activeElement && (
+                document.activeElement.closest('.var-quick-popover') ||
+                document.activeElement.closest('.var-quick-popover-anchor')
+              )
+            )
+            hideVarPopover(true)
+            if (wasFocusInPopover) {
+              viewRef.current?.focus()
+            }
+          }}
           onSave={async (name, val, scope) => {
             await onUpdateVariable(name, val, scope)
             const newResolved = resolveVariableInfo(

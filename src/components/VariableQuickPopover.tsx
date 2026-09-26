@@ -72,16 +72,14 @@ export const VariableQuickPopover: React.FC<VariableQuickPopoverProps> = ({
   // Synchronize value if currentValue changes
 
   // Focus and select input on open
-  useEffect(() => {
-    if (source !== 'vault' && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
-    }
-  }, [source])
-
+  // Do NOT steal focus on mount because popover is opened on hover
   // Dismiss on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest?.('.cm-variable-token')) {
+        return
+      }
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose()
       }
@@ -206,6 +204,7 @@ export const VariableQuickPopover: React.FC<VariableQuickPopoverProps> = ({
               className="var-quick-input"
               placeholder={source === 'undefined' ? `Enter value for {{${varName}}}...` : 'Variable value'}
               value={value}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
