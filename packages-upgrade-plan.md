@@ -25,6 +25,33 @@ All major and minor version upgrades have been applied. The following were upgra
 | All CodeMirror packages | various | latest 6.x | ✅ Done |
 | All other packages | various | latest | ✅ Done |
 
+### Upgraded 2026-09-27:
+
+| Package | From | To | Notes |
+|---------|------|----|-------|
+| `framer-motion` | 12.42.2 | 13.4.4 | Major v13 upgrade, verified passing build & tests |
+| `jsonpath-plus` | 10.4.0 | 11.1.0 | Major v11 upgrade, verified passing flow engine tests |
+| `react` / `react-dom` | 19.2.8 | 19.3.0 | Minor update |
+| `@types/react` / `@types/react-dom` | 19.2.x | 19.3.0 | Minor update |
+| `@types/node` | 26.1.1 | 26.6.3 | Patch update |
+| `@types/bun` | 1.3.14 | 1.4.2 | Minor update |
+| `vite` | 8.1.5 | 8.3.1 | Minor update |
+| `vite-plugin-electron` | 1.1.0 | 1.1.2 | Patch update |
+| `@vitejs/plugin-react` | 6.0.4 | 6.1.1 | Minor update |
+| `eslint` | 10.8.0 | 10.11.0 | Minor update |
+| `eslint-plugin-react-refresh` | 0.5.3 | 0.5.7 | Patch update |
+| `globals` | 17.7.0 | 17.12.0 | Minor update |
+| `typescript-eslint` | 8.65.0 | 8.70.1 | Minor update (TS 5.9 supported) |
+| `lucide-react` | 1.26.0 | 1.48.0 | Minor update |
+| `react-arborist` | 3.15.1 | 3.16.0 | Minor update |
+| `playwright` / `@playwright/test` | 1.62.0 | 1.63.0 | Minor update |
+| `@grpc/grpc-js` | 1.14.4 | 1.14.5 | Patch update |
+| `@modelcontextprotocol/sdk` | 1.29.0 | 1.30.1 | Minor update |
+| `prettier` | 3.9.6 | 3.9.9 | Patch update |
+| `protobufjs` | 8.7.1 | 8.8.0 | Minor update |
+| `yaml` | 2.9.0 | 2.9.1 | Patch update |
+| `electron` | 43.2.0 | 43.7.5 | Latest stable in 43.x series |
+
 ---
 
 ## ✅ Task 1: Remove unused `core-js` dependency
@@ -103,13 +130,12 @@ All major and minor version upgrades have been applied. The following were upgra
 ## 🔲 Task 5: Upgrade TypeScript to 7.0 (BLOCKED — do not proceed yet)
 
 - **Package**: `typescript@~5.9.3` → `typescript@7.0.2`
-- **Blocker**: `typescript-eslint@8.65.0` does not support TS 7.0 yet. Upgrading TS to 7.0 causes `bun run lint` to fail with: `typescript-eslint does not support TS 7.0`.
+- **Blocker**: `typescript-eslint@8.70.1` does not support TS 7.0 yet. Upgrading TS to 7.0 causes `bun run lint` to fail with: `typescript-eslint does not support TS 7.0`.
 - **Tracking issue**: https://github.com/typescript-eslint/typescript-eslint/issues/10940
-- **Last verified**: 2026-07-25 — Blocker still in effect.
+- **Last verified**: 2026-09-27 — Blocker still in effect.
   - `typescript@7.0.2` is published on npm.
-  - `typescript-eslint` latest is still `8.65.0`; peerDependencies declare `typescript: '>=4.8.4 <6.1.0'`.
-  - Latest canary `8.65.1-alpha.7` also carries the same `typescript: '>=4.8.4 <6.1.0'` constraint — no TS 7.0 support yet.
-  - No `rc-v9` or stable v9 tag is published; `dist-tags` are `latest: 8.65.0`, `canary: 8.65.1-alpha.7`, `rc-v8: 8.0.0-alpha.62`.
+  - `typescript-eslint` latest is `8.70.1`; peerDependencies still declare `typescript: '>=4.8.4 <6.1.0'`.
+  - Latest canary `8.70.2-alpha.10` also carries the same `typescript: '>=4.8.4 <6.1.0'` constraint — no TS 7.0 support yet.
 - **Action**: Wait for `typescript-eslint` v9 (or v8.x patch) that adds TS 7.0 support, then upgrade both together.
 - **When ready, steps**:
   1. `bun add -d typescript@latest`
