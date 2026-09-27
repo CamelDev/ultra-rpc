@@ -332,7 +332,7 @@ test.describe('Tab Groups', () => {
     await window.waitForSelector('.tab-groups-modal');
 
     // Click delete (trash icon)
-    await window.locator('.tab-groups-modal button:has(svg.lucide-trash2)').first().click();
+    await window.locator('.tab-groups-modal button.tab-group-delete-btn, .tab-groups-modal button:has(svg.lucide-trash-2)').first().click();
     await window.waitForTimeout(200);
 
     // Confirm the inline confirmation
