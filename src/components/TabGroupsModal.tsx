@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { X, Trash2, Eye, EyeOff, Layers, Edit2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { TabGroup } from '../types'
@@ -46,6 +46,25 @@ const TabGroupsModal: React.FC<TabGroupsModalProps> = ({
       setConfirmDeleteId(null)
     }
   }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (confirmDeleteId) {
+          setConfirmDeleteId(null)
+          return
+        }
+        if (editingGroupId) {
+          setEditingGroupId(null)
+          return
+        }
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [confirmDeleteId, editingGroupId, onClose])
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -103,6 +122,7 @@ const TabGroupsModal: React.FC<TabGroupsModalProps> = ({
                             e.currentTarget.blur()
                           }
                           if (e.key === 'Escape') {
+                            e.stopPropagation()
                             setEditingGroupId(null)
                           }
                         }}

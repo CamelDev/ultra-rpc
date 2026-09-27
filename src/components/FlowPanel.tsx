@@ -38,6 +38,17 @@ const FlowContextMenu: React.FC<{
     setAdjustedPos({ x, y })
   }, [menu])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   const fileManagerLabel = () => {
     const ua = navigator.userAgent
     if (ua.includes('Macintosh') || ua.includes('Mac OS')) return 'Reveal in Finder'

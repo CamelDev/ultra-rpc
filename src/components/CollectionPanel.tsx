@@ -319,6 +319,17 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
     setAdjustedPos({ x, y })
   }, [menu])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   return createPortal(
     <>
       {/* Invisible backdrop to capture outside clicks */}

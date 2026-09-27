@@ -142,7 +142,11 @@ const ProtoDefinitionModal: React.FC<Props> = ({
   // ESC closes modal
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+        onClose()
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)

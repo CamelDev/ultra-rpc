@@ -1549,6 +1549,8 @@ const App: React.FC = () => {
   const handleSaveActiveRequestRef = useRef(handleSaveActiveRequest)
   const handleSaveAllRef = useRef(handleSaveAll)
   const activePopupsRef = useRef({
+    tabContextMenu,
+    showTabGroupsModal,
     showSaveMenu,
     confirmDelete,
     editingCollection,
@@ -1565,6 +1567,8 @@ const App: React.FC = () => {
     handleSaveActiveRequestRef.current = handleSaveActiveRequest
     handleSaveAllRef.current = handleSaveAll
     activePopupsRef.current = {
+      tabContextMenu,
+      showTabGroupsModal,
       showSaveMenu,
       confirmDelete,
       editingCollection,
@@ -1579,6 +1583,8 @@ const App: React.FC = () => {
   }, [
     handleSaveActiveRequest, 
     handleSaveAll,
+    tabContextMenu,
+    showTabGroupsModal,
     showSaveMenu,
     confirmDelete,
     editingCollection,
@@ -1614,18 +1620,54 @@ const App: React.FC = () => {
 
       // ESC key to close local popups
       if (e.key === 'Escape') {
-        if (activePopupsRef.current.showSaveMenu) setShowSaveMenu(false)
-        if (activePopupsRef.current.confirmDelete) setConfirmDelete(null)
-        if (activePopupsRef.current.editingCollection) setEditingCollection(null)
-        if (activePopupsRef.current.showSettingsPopup) setShowSettingsPopup(false)
-        if (activePopupsRef.current.showAboutModal) setShowAboutModal(false)
-        if (activePopupsRef.current.showAiInfoModal) setShowAiInfoModal(false)
-        if (activePopupsRef.current.showLibraryModal) setShowLibraryModal(false)
-        if (activePopupsRef.current.showGrpcDiscovery) setShowGrpcDiscovery(false)
-        if (activePopupsRef.current.showGraphqlDiscovery) setShowGraphqlDiscovery(false)
+        if (activePopupsRef.current.tabContextMenu) {
+          setTabContextMenu(null)
+          return
+        }
+        if (activePopupsRef.current.showTabGroupsModal) {
+          setShowTabGroupsModal(false)
+          return
+        }
+        if (activePopupsRef.current.showSaveMenu) {
+          setShowSaveMenu(false)
+          return
+        }
+        if (activePopupsRef.current.confirmDelete) {
+          setConfirmDelete(null)
+          return
+        }
+        if (activePopupsRef.current.editingCollection) {
+          setEditingCollection(null)
+          return
+        }
+        if (activePopupsRef.current.showSettingsPopup) {
+          setShowSettingsPopup(false)
+          return
+        }
+        if (activePopupsRef.current.showAboutModal) {
+          setShowAboutModal(false)
+          return
+        }
+        if (activePopupsRef.current.showAiInfoModal) {
+          setShowAiInfoModal(false)
+          return
+        }
+        if (activePopupsRef.current.showLibraryModal) {
+          setShowLibraryModal(false)
+          return
+        }
+        if (activePopupsRef.current.showGrpcDiscovery) {
+          setShowGrpcDiscovery(false)
+          return
+        }
+        if (activePopupsRef.current.showGraphqlDiscovery) {
+          setShowGraphqlDiscovery(false)
+          return
+        }
         if (activePopupsRef.current.showSaveFlowModal) {
           setShowSaveFlowModal(false)
           setFlowToClone(null)
+          return
         }
       }
     }
