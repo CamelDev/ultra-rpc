@@ -25,6 +25,7 @@ import {
 import { Tree, type NodeApi, type NodeRendererProps } from 'react-arborist'
 import { useTreeOpenState } from '../hooks/useTreeOpenState'
 import Tooltip from './Tooltip'
+import { addToast } from './Toaster'
 import './CollectionPanel.css'
 import type { Collection, RequestConfig, KeyValuePair, Environment } from '../types'
 
@@ -292,7 +293,7 @@ interface CollContextMenuProps {
   onRename: (id: string, currentName: string) => void
   onNewFolder: (parentId: string) => void
   onEditVariables: (node: TreeDataItem) => void
-  onExport: (id: string) => void
+  onExport: (collectionId: string, folderId?: string) => void
   onCopyPath: (node: TreeDataItem) => void
   onShowInFolder: (realId: string) => void
   onMove: (id: string, path?: string) => void
@@ -370,9 +371,14 @@ const CollContextMenu: React.FC<CollContextMenuProps> = ({
         <button onClick={() => { onEditVariables(menu.node); onClose() }}>
           <Zap size={12} /> Variables
         </button>
-        <button onClick={() => { onExport(menu.node.realId); onClose() }}>
-          <Share size={12} /> Export
-        </button>
+        {(menu.node.type === 'collection' || menu.node.type === 'folder') && (
+          <button onClick={() => {
+            onExport(menu.node.collectionId, menu.node.type === 'folder' ? menu.node.realId : undefined)
+            onClose()
+          }}>
+            <Share size={12} /> Export
+          </button>
+        )}
         <button onClick={() => { onClone(menu.node.realId); onClose() }}>
           <Copy size={12} /> Clone
         </button>
@@ -692,6 +698,16 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
     }
   }
 
+  const handleExportCollection = async (collectionId: string, folderId?: string) => {
+    if (!window.ultraRpc) return
+    const result = await window.ultraRpc.exportCollection({ collectionId, folderId })
+    if (result.success && result.path) {
+      addToast({ type: 'success', message: `${folderId ? 'Folder' : 'Collection'} exported to ${result.path}` })
+    } else if (result.error && result.error !== 'Cancelled') {
+      addToast({ type: 'error', message: result.error })
+    }
+  }
+
   const handleMenuCopyPath = async (node: TreeDataItem) => {
     let collPath = node.path
     if (!collPath) {
@@ -964,7 +980,7 @@ const CollectionPanel = forwardRef<CollectionPanelHandle, Props>(({
           onRename={(id, name) => handleRename({ id, name })}
           onNewFolder={handleNewFolder}
           onEditVariables={(node) => onEditVariables(node as unknown as Collection)}
-          onExport={(id) => window.ultraRpc?.exportCollection({ collectionId: id })}
+          onExport={handleExportCollection}
           onCopyPath={handleMenuCopyPath}
           onShowInFolder={handleMenuShowInFolder}
           onMove={onMoveCollection}

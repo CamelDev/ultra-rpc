@@ -87,7 +87,7 @@ export interface UltraRpcApi {
   cloneRequest: (args: { collectionId: string; requestId: string }) => Promise<{ success: boolean; id?: string; error?: string }>
   reorderRequests: (args: { collectionId: string; order: string[] }) => Promise<{ success: boolean; error?: string }>
   moveItem: (args: { collectionId: string; itemId: string; targetCollectionId?: string; targetParentId: string | null; newIndex: number }) => Promise<{ success: boolean; error?: string }>
-  exportCollection: (args: { collectionId: string }) => Promise<{ success: boolean; path?: string; error?: string }>
+  exportCollection: (args: { collectionId: string; folderId?: string }) => Promise<{ success: boolean; path?: string; error?: string }>
   importCollection: () => Promise<{ 
     success: boolean; 
     id?: string; 

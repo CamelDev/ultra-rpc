@@ -2076,10 +2076,9 @@ export function registerStorageHandlers() {
 
   // ===== Import / Export =====
 
-  // Export a collection as a single JSON file
-  ipcMain.handle('storage:exportCollection', async (_event, args: { collectionId: string }) => {
+  // Export a collection or a folder as a single JSON file, retaining its hierarchy.
+  ipcMain.handle('storage:exportCollection', async (_event, args: { collectionId: string; folderId?: string }) => {
     try {
-      const root = getStorageRoot()
       const collDir = getCollectionDir(args.collectionId)
 
       if (!collDir || !fs.existsSync(collDir)) {
@@ -2093,24 +2092,74 @@ export function registerStorageHandlers() {
         try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) } catch { /* */ }
       }
 
-      // Read all requests
-      const requestFiles = fs.readdirSync(collDir)
-        .filter(f => f.endsWith('.json') && !f.startsWith('_meta'))
-      const requests: SavedRequest[] = []
-      for (const file of requestFiles) {
-        try {
-          requests.push(JSON.parse(fs.readFileSync(path.join(collDir, file), 'utf-8')))
-        } catch { /* skip */ }
+      let exportDir = collDir
+      let exportMeta = meta
+      if (args.folderId) {
+        const folderDir = findFolderByIdRecursively(collDir, args.folderId)
+        if (!folderDir) return { success: false, error: 'Folder not found' }
+
+        const folderName = path.basename(folderDir)
+        exportDir = folderDir
+        exportMeta = { id: args.folderId, name: folderName }
+      }
+
+      const exportTree = (dirPath: string): CollectionItem[] => {
+        const items: CollectionItem[] = []
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+
+        for (const entry of entries) {
+          if (entry.name.startsWith('_meta')) continue
+          const entryPath = path.join(dirPath, entry.name)
+
+          if (entry.isDirectory()) {
+            let folderId = entry.name
+            const folderMetaPath = path.join(entryPath, '_meta.json')
+            if (fs.existsSync(folderMetaPath)) {
+              try {
+                const folderMeta = JSON.parse(fs.readFileSync(folderMetaPath, 'utf-8'))
+                folderId = folderMeta.id || folderId
+              } catch { /* use directory name */ }
+            }
+            items.push({
+              id: folderId,
+              name: entry.name,
+              type: 'folder',
+              children: exportTree(entryPath),
+            })
+            continue
+          }
+
+          if (!entry.name.endsWith('.json')) continue
+          try {
+            const content = JSON.parse(fs.readFileSync(entryPath, 'utf-8'))
+            if (content.steps && content.settings) {
+              items.push({
+                id: content.id || flowNameFromFilename(entry.name),
+                name: flowNameFromFilename(entry.name),
+                type: 'flow',
+                flow: content,
+              })
+            } else {
+              const requestId = content.id || path.basename(entry.name, '.json')
+              const request = validateRequest(content, requestId)
+              if (request) {
+                request.name = flowNameFromFilename(entry.name)
+                items.push({ id: request.id, name: request.name, type: 'request', request })
+              }
+            }
+          } catch { /* skip corrupt files */ }
+        }
+        return items
       }
 
       const exportData = {
-        _ultrarpc_version: '1.0',
-        collection: { ...meta, requests },
+        _ultrarpc_version: '2.0',
+        collection: { ...exportMeta, children: exportTree(exportDir) },
       }
 
       const result = await dialog.showSaveDialog({
-        title: 'Export Collection',
-        defaultPath: `${meta.name}.ultrarpc.json`,
+        title: args.folderId ? 'Export Folder' : 'Export Collection',
+        defaultPath: `${exportMeta.name}.ultrarpc.json`,
         filters: [
           { name: 'UltraRPC Collection', extensions: ['ultrarpc.json', 'json'] },
         ],
