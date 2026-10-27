@@ -1366,3 +1366,12 @@ input:focus, select:focus, textarea:focus {
 
 
 
+
+.send-actions { position: relative; display: flex; flex-shrink: 0; }
+.send-actions .send-btn { border-radius: 8px 0 0 8px; }
+.send-dropdown { padding: 0 9px; border-radius: 0 8px 8px 0; border-left: 1px solid rgba(255,255,255,.25); }
+.send-menu { position: absolute; z-index: 20; right: 0; top: calc(100% + 6px); min-width: 170px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.send-menu button { width: 100%; padding: 9px 12px; text-align: left; color: var(--text-primary); background: transparent; border: 0; border-radius: 5px; cursor: pointer; }
+.send-menu button:hover, .send-menu button:focus-visible { background: var(--bg-hover); }
+.export-modal { max-width: 720px; }
+.export-command { margin: 0; padding: 16px; max-height: 50vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-family: var(--font-mono); user-select: text; }

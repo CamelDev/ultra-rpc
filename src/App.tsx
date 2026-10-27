@@ -33,6 +33,7 @@ import { upsertVariableInList } from './lib/variable-utils'
 import IntroPage from './components/IntroPage'
 import pkg from '../package.json'
 import Toaster, { addToast } from './components/Toaster'
+import { exportRequest } from './lib/export-request'
 
 type RequestTab = 'params' | 'headers' | 'body' | 'auth' | 'pre-request' | 'post-response'
 
@@ -44,6 +45,16 @@ interface HistoryEntry {
 }
 
 const App: React.FC = () => {
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [exportCommand, setExportCommand] = useState<string | null>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { setExportCommand(null); setExportMenuOpen(false) } }
+    const onClick = (event: MouseEvent) => { if (!exportMenuRef.current?.contains(event.target as Node)) setExportMenuOpen(false) }
+    window.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onClick)
+    return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onClick) }
+  }, [])
   const [tabs, setTabsState] = useState<Tab[]>(() => {
     const saved = localStorage.getItem('ultraRpcTabs')
     if (saved) {
@@ -3038,6 +3049,7 @@ const App: React.FC = () => {
                     >
                       <Save size={14} />
                     </button>
+                    <div className="send-actions" ref={exportMenuRef}>
                     {loadingTabs[activeTabId] ? (
                       <button
                         className="btn-cancel send-btn"
@@ -3051,6 +3063,15 @@ const App: React.FC = () => {
                         <Send size={14} /> Send
                       </button>
                     )}
+                    <button className="btn-primary send-dropdown" aria-label="Request actions" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen(open => !open)}><ChevronDown size={14} /></button>
+                    {exportMenuOpen && <div className="send-menu">
+                      <button onClick={() => {
+                        setExportMenuOpen(false)
+                        try { setExportCommand(exportRequest(activeRequest, text => interpolate(text, activeEnv), activeEnv?.sslVerification === false, activeEnv?.protocol)) }
+                        catch (error) { addToast({ type: 'error', message: error instanceof Error ? error.message : 'Could not export request' }) }
+                      }}>Export as {activeRequest.type === 'GRPC' ? 'grpcurl' : 'curl'}</button>
+                    </div>}
+                    </div>
 
                   </div>
 
@@ -3861,6 +3882,15 @@ const App: React.FC = () => {
 
 
       {/* Context Variables Modal */}
+      {exportCommand !== null && (
+        <div className="modal-overlay" onClick={() => setExportCommand(null)}>
+          <div className="modal-content export-modal" role="dialog" aria-modal="true" aria-labelledby="export-title" onClick={event => event.stopPropagation()}>
+            <div className="modal-header"><h3 id="export-title">Export request</h3><button className="btn-ghost" aria-label="Close" onClick={() => setExportCommand(null)}><X size={18} /></button></div>
+            <div className="modal-body"><pre className="export-command">{exportCommand}</pre></div>
+            <div className="modal-footer"><button className="btn-ghost" onClick={() => setExportCommand(null)}>Close</button><button className="btn-primary" onClick={async () => { try { await navigator.clipboard.writeText(exportCommand); addToast({ type: 'success', message: 'Command copied to clipboard' }) } catch { addToast({ type: 'error', message: 'Could not copy command' }) } }}>Copy to clipboard</button></div>
+          </div>
+        </div>
+      )}
       {editingCollection && (
         <div className="modal-overlay" onClick={() => setEditingCollection(null)}>
           <motion.div
