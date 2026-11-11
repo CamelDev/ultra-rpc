@@ -20,7 +20,7 @@
 |------|-----------|---------|-------|
 | Desktop Runtime | Electron | 43.x | Multi-process: main (Node.js) + renderer (Chromium) |
 | Frontend Framework | React | 19.x | Functional components, hooks only |
-| Language | TypeScript | 5.9.x | Strict mode enabled, separate tsconfigs for app and node. TS 7.0 not yet supported by typescript-eslint. |
+| Language | TypeScript | 7.0.2 | Build/type checking uses `@typescript/native` (alias of `typescript@7.0.2`). `typescript@5.9.3` remains for typescript-eslint's JavaScript API. Use `bun run typecheck`, not bare `tsc`. |
 | Build Tool | Bun + Vite | 8.x | Dev server with HMR for both React and Electron |
 | Electron ↔ Vite | vite-plugin-electron + vite-plugin-electron-renderer | 1.1.0 / 1.0.0 | Handles main/preload compilation |
 | Styling | Vanilla CSS | — | No utility frameworks. Custom dark theme with glassmorphism. |

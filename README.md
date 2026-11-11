@@ -348,8 +348,13 @@ To view code quality warnings and TypeScript errors locally (like the ones caugh
 bun run lint
 
 # Run the TypeScript compiler to catch type errors without building
-npx tsc --noEmit
+bun run typecheck
 ```
+
+Builds and `bun run typecheck` use TypeScript 7.0.2 through the
+`@typescript/native` package alias. TypeScript 5.9.3 is retained separately for
+typescript-eslint, which still requires the JavaScript compiler API. Use the
+scripts above instead of bare `tsc` so compiler selection is explicit.
 
 > [!NOTE]
 > Tests are isolated and use a temporary `test-user-data` directory which is automatically cleared to ensure consistency across runs.

@@ -1,7 +1,7 @@
 # Packages Upgrade Plan
 
 > Generated: 2026-07-25
-> Status: All packages are at their latest stable versions (except TypeScript, which is blocked).
+> TypeScript upgrade revisited: 2026-11-11. TypeScript 7 is used for build/type checking; TypeScript 5.9 remains for ESLint compatibility. Other package statuses below are historical snapshots.
 
 ---
 
@@ -127,22 +127,17 @@ All major and minor version upgrades have been applied. The following were upgra
 
 ---
 
-## 🔲 Task 5: Upgrade TypeScript to 7.0 (BLOCKED — do not proceed yet)
+## ✅ Task 5: Use TypeScript 7 for build/type checking (completed 2026-11-11)
 
-- **Package**: `typescript@~5.9.3` → `typescript@7.0.2`
-- **Blocker**: `typescript-eslint@8.70.1` does not support TS 7.0 yet. Upgrading TS to 7.0 causes `bun run lint` to fail with: `typescript-eslint does not support TS 7.0`.
-- **Tracking issue**: https://github.com/typescript-eslint/typescript-eslint/issues/10940
-- **Last verified**: 2026-09-27 — Blocker still in effect.
-  - `typescript@7.0.2` is published on npm.
-  - `typescript-eslint` latest is `8.70.1`; peerDependencies still declare `typescript: '>=4.8.4 <6.1.0'`.
-  - Latest canary `8.70.2-alpha.10` also carries the same `typescript: '>=4.8.4 <6.1.0'` constraint — no TS 7.0 support yet.
-- **Action**: Wait for `typescript-eslint` v9 (or v8.x patch) that adds TS 7.0 support, then upgrade both together.
-- **When ready, steps**:
-  1. `bun add -d typescript@latest`
-  2. Check if `typescript-eslint` supports TS 7.0
-  3. If not, wait. If yes, verify `bun run lint` passes
-  4. Verify `bun run build` passes
-  5. Run unit tests
+- **Decision (2026-11-11)**: Upgrade the compiler independently of ESLint's parser dependency.
+- **Compiler**: `@typescript/native` is an exact npm alias for `typescript@7.0.2`.
+- **ESLint compatibility**: Keep `typescript@~5.9.3` and `typescript-eslint@^8.72.0`. The parser requires the JavaScript compiler API and declares support for `>=4.8.4 <6.1.0`.
+- **Commands**: `bun run typecheck` invokes the TypeScript 7 compiler by its explicit package path; `bun run build` calls this script before Vite. Do not use bare `tsc`, since both packages provide that executable name.
+- **Rationale**: The installed typescript-eslint package itself uses the same `@typescript/native` alias for development. Keeping its supported TypeScript dependency avoids disabling lint checks or suppressing version warnings.
+- **Upstream**: [Supported dependency versions](https://typescript-eslint.io/users/dependency-versions/). [Issue #10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940) tracks using the native compiler for typed linting; this project currently uses `tseslint.configs.recommended` without typed linting.
+- **Future cleanup**: Consolidate compiler dependencies when typescript-eslint supports the TypeScript 7 API.
+- **Validation (2026-11-11)**: Installed compiler reports `Version 7.0.2`; `bun run build` (including `bun run typecheck`) and `bun run lint` pass. All 102 unit tests pass. Electron smoke tests in `mock-rest.spec.ts` and `mock-grpc.spec.ts` pass (5 tests covering REST methods, reflection, server streaming, and rich gRPC errors). The full E2E suite was not run.
+- **Existing build warning**: Vite warns that `__dirname` in `vite.config.ts` will be unsupported by its future native config loader. It does not prevent the current build and is separate from this compiler upgrade.
 
 ---
 
@@ -178,7 +173,7 @@ All major and minor version upgrades have been applied. The following were upgra
 | 2 | Migrate `bun-types` → `@types/bun` | Medium | Low | No | ✅ Done |
 | 3 | Replace `npx` with `bunx` | Low | None | No | ✅ Done |
 | 4 | Add Vite `codeSplitting` | Medium | Low | No | ✅ Done |
-| 5 | Upgrade TypeScript to 7.0 | Low | Medium | Yes (typescript-eslint) |
+| 5 | Use TypeScript 7 for build/type checking | Low | Medium | No (separate ESLint dependency); ✅ Done |
 | 6 | Monitor `@dnd-kit` v7 | Low | — | No |
 | 7 | Monitor `react-arborist` v4 | Low | — | No |
 | 8 | Monitor `prettier` v4 | Low | — | No |
