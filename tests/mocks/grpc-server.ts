@@ -9,13 +9,20 @@ import protobuf from 'protobufjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+export interface GrpcTlsOptions {
+  key: Buffer;
+  cert: Buffer;
+}
+
 export class MockGrpcServer {
   private server: grpc.Server;
   private port: number;
   private boundPort: number = 0;
+  private tlsOptions?: GrpcTlsOptions;
 
-  constructor(port: number = 50051) {
+  constructor(port: number = 50051, tlsOptions?: GrpcTlsOptions) {
     this.port = port;
+    this.tlsOptions = tlsOptions;
     this.server = new grpc.Server();
   }
 
@@ -107,15 +114,22 @@ export class MockGrpcServer {
     const reflection = new ReflectionService(packageDefinition);
     reflection.addToServer(this.server);
 
+    const credentials = this.tlsOptions
+      ? grpc.ServerCredentials.createSsl(
+          null,
+          [{ private_key: this.tlsOptions.key, cert_chain: this.tlsOptions.cert }],
+          false
+        )
+      : grpc.ServerCredentials.createInsecure();
+
     return new Promise((resolve, reject) => {
       this.server.bindAsync(
         `0.0.0.0:${this.port}`,
-        grpc.ServerCredentials.createInsecure(),
+        credentials,
         (err, port) => {
           if (err) return reject(err);
           this.boundPort = port;
-          this.server.start();
-          console.log(`[MockGrpcServer] Running at localhost:${port}`);
+          console.log(`[MockGrpcServer] Running at ${this.tlsOptions ? 'https://' : ''}localhost:${port}`);
           resolve();
         }
       );

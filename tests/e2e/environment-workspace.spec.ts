@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
 import { MockRestServer } from '../mocks/rest-server';
+import { MockGrpcServer } from '../mocks/grpc-server';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -13,6 +14,7 @@ test.describe('Environment & Variable Resolution', () => {
   let window: any;
   let restServer: MockRestServer;
   let httpsServer: MockRestServer;
+  let grpcTlsServer: MockGrpcServer;
   const userDataDir = join(tmpdir(), `ultrarpc-test-env-${Date.now()}`);
   const certDir = join(__dirname, '../mocks/certs');
 
@@ -42,11 +44,19 @@ test.describe('Environment & Variable Resolution', () => {
       cert: readFileSync(certPath, 'utf8')
     });
     await httpsServer.start();
+
+    console.log('Starting TLS gRPC mock server on random port...');
+    grpcTlsServer = new MockGrpcServer(0, {
+      key: readFileSync(keyPath),
+      cert: readFileSync(certPath)
+    });
+    await grpcTlsServer.start();
   });
 
   test.afterAll(async () => {
     await restServer.stop();
     await httpsServer.stop();
+    await grpcTlsServer.stop();
   });
 
   test.beforeEach(async () => {
@@ -167,6 +177,7 @@ test.describe('Environment & Variable Resolution', () => {
 
     const httpPort = restServer.getPort();
     const httpsPort = httpsServer.getPort();
+    const grpcTlsPort = grpcTlsServer.getPort();
 
     await window.waitForSelector('.app-container');
     await wait(2000);
@@ -320,12 +331,12 @@ test.describe('Environment & Variable Resolution', () => {
       await wait(500);
     }
 
-    // Add grpc_host variable
+    // Add grpc_host variable pointing to local TLS mock gRPC server
     console.log('Adding grpc_host variable...');
     await grpcEnv.locator('.kv-add').click();
     const lastVarRow = grpcEnv.locator('.env-var-row').last();
     await lastVarRow.locator('.env-var-key').fill('grpc_host');
-    await lastVarRow.locator('.env-var-value').fill('https://grpcb.in:9001');
+    await lastVarRow.locator('.env-var-value').fill(`https://localhost:${grpcTlsPort}`);
 
     console.log('Selecting External gRPC environment...');
     await window.locator('.env-selector').first().selectOption({ label: 'External gRPC' });
@@ -341,7 +352,27 @@ test.describe('Environment & Variable Resolution', () => {
     await setCMValue('.address-bar .address-input', '{{grpc_host}}');
     await wait(1000);
 
-    console.log('Opening Discover Modal...');
+    console.log('Verifying SSL verification ON rejects self-signed cert...');
+    await window.locator('button[title="Discover Services"]').click();
+    await window.waitForSelector('.modal-overlay');
+    await window.locator('button.reflect-discover-btn').click();
+    await window.waitForSelector('.reflect-error', { timeout: 15000 });
+    await window.locator('.modal-close-btn').first().click();
+    await wait(500);
+
+    console.log('Disabling SSL verification on External gRPC environment...');
+    await ensurePanelOpen('Environments', '.env-panel');
+    const grpcEnvForSsl = window.locator('.env-item').filter({ hasText: 'External gRPC' }).first();
+    if (!(await grpcEnvForSsl.locator('.env-item-body').isVisible())) {
+      await grpcEnvForSsl.locator('.env-item-header').click();
+      await wait(500);
+    }
+    await grpcEnvForSsl.locator('.env-ssl-toggle').click();
+    await expect(grpcEnvForSsl.locator('.env-ssl-badge-off')).toBeVisible();
+    await window.locator('button[data-tooltip="Environments"]').first().click();
+    await wait(500);
+
+    console.log('Opening Discover Modal with SSL verification OFF...');
     await window.locator('button[title="Discover Services"]').click();
     await window.waitForSelector('.modal-overlay');
 
@@ -351,14 +382,14 @@ test.describe('Environment & Variable Resolution', () => {
     console.log('Waiting for services...');
     await window.waitForSelector('.reflect-service-item', { timeout: 30000 });
     const serviceList = await window.locator('.reflect-service-item').allTextContents();
-    expect(serviceList.some((s: string) => s.includes('addsvc.Add'))).toBeTruthy();
+    expect(serviceList.some((s: string) => s.includes('test.GreetingService'))).toBeTruthy();
 
     console.log('Expanding service...');
-    await window.locator('.reflect-service-btn').filter({ hasText: 'addsvc.Add' }).click();
+    await window.locator('.reflect-service-btn').filter({ hasText: 'test.GreetingService' }).click();
     await wait(1000);
 
     console.log('Selecting method...');
-    await window.locator('.reflect-method-btn').filter({ hasText: 'Sum' }).click();
+    await window.locator('.reflect-method-btn').filter({ hasText: 'SayHello' }).first().click();
     await wait(1000);
 
     console.log('Sending gRPC call...');
@@ -369,7 +400,7 @@ test.describe('Environment & Variable Resolution', () => {
     await expect(window.locator('.response-status-badge')).toContainText('0 OK');
 
     const grpcResponseBody = await window.locator('.response-viewer .cm-content').first().innerText();
-    expect(grpcResponseBody).toContain('"v"'); // Part of Sum response
+    expect(grpcResponseBody).toContain('"greeting"');
 
 
     console.log('--- Phase 3: Persistence ---');
