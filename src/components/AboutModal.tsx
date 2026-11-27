@@ -93,7 +93,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, version, onChe
                 </div>
                 <div className="info-card">
                   <h4>Author</h4>
-                  <p>Kamil Dabrowski</p>
+                  <p>InTheLoop.pro</p>
                 </div>
               </div>
 

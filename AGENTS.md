@@ -10,7 +10,7 @@
 - **Type**: Desktop application (Electron)
 - **Purpose**: Lightweight API client for REST and gRPC testing — like Postman with native gRPC reflection support and file-based collections
 - **License**: MIT
-- **Documentation**: See [README.md](file:///Users/kamildabrowski/projects/ultra-rpc/README.md) for user-facing features and screenshots.
+- **Documentation**: See [README.md](README.md) for user-facing features and screenshots.
 
 ---
 
